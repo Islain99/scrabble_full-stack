@@ -11,6 +11,7 @@ origins = [
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
+    "https://scrabble-full-stack.vercel.app"
 ]
 
 app.add_middleware(
