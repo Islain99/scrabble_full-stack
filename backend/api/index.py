@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Tuple, Optional
 from models import GameState, POINTS_LETTRES # Assurez-vous d'importer les modèles nécessaires
 from game_logic import GameEngine
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI()
 
@@ -23,14 +26,19 @@ app.add_middleware(
 )
 
 # Initialisation du moteur de jeu
-game_engine = GameEngine(dictionary_path="./dictionnaire.txt") 
-
+game_engine = GameEngine(
+    dictionary_path=BASE_DIR / "dictionnaire.txt"
+)
 # NOTE: La variable `current_game_id` n'est plus nécessaire dans une architecture multi-partie
 # et a été retirée.
 
 # --- API Endpoints ---
 
 ## Démarrage et Statut de la Partie
+
+@app.get("/")
+def root():
+    return {"message": "API running"}
 
 @app.post("/game/start", response_model=GameState)
 async def start_game(player_names: List[str]):
@@ -132,4 +140,8 @@ async def ai_play_turn(game_id: str):
 
     return {"message": f"Tour de l'IA terminé: {message}", "game_state": game_engine.get_game(game_id)}
 
+# Décommenté pour éviter les conflits avec le développement et les tests locaux
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
 # Fin du fichier: backend/api.py
