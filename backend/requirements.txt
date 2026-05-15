@@ -4,3 +4,5 @@ pydantic
 python-multipart
 pathlib
 pytest
+numpy
+anyio

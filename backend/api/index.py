@@ -26,11 +26,18 @@ app.add_middleware(
 )
 
 # Initialisation du moteur de jeu
+DICTIONARY_PATH = BASE_DIR / "dictionnaire.txt"
 game_engine = GameEngine(
-    dictionary_path=BASE_DIR / "dictionnaire.txt"
+    dictionary_path=str(DICTIONARY_PATH)
 )
 # NOTE: La variable `current_game_id` n'est plus nécessaire dans une architecture multi-partie
 # et a été retirée.
+
+print("BOOT START")
+
+print("BASE_DIR:", BASE_DIR)
+print("DICTIONARY_PATH:", DICTIONARY_PATH)
+print("FILE EXISTS:", DICTIONARY_PATH.exists())
 
 # --- API Endpoints ---
 
