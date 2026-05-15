@@ -1,7 +1,7 @@
 import random
 import uuid 
 from typing import List, Tuple, Optional, Set, Dict
-from models import GameState, Player, Tile, POINTS_LETTRES, Board, GameStatus
+from backend.api.models import GameState, Player, Tile, POINTS_LETTRES, Board, GameStatus
 from copy import deepcopy # Utilisé pour copier l'état du plateau
 
 # Poids des bonus de plateau

@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Tuple, Optional
-from models import GameState, POINTS_LETTRES # Assurez-vous d'importer les modèles nécessaires
-from game_logic import GameEngine
+from backend.api.models import GameState, POINTS_LETTRES # Assurez-vous d'importer les modèles nécessaires
+from backend.api.game_logic import GameEngine
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent

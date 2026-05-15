@@ -1,7 +1,7 @@
 # Fichier: backend/tests/test_game_logic.py
 import pytest
-from game_logic import GameEngine
-from models import POINTS_LETTRES, GameState
+from backend.api.game_logic import GameEngine
+from backend.api.models import POINTS_LETTRES, GameState
 
 # Créez un mock dictionary.txt pour les tests
 MOCK_DICTIONARY = ["TEST", "SCRABBLE", "HELLO", "WORLD"]
