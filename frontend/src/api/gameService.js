@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // URL de base de notre API FastAPI
-const API_URL = 'http://scrabble-full-stack-iv11.vercel.app/game';
+const API_URL = 'https://scrabblefull-stack-production.up.railway.app/game';
 
 // Fonction pour démarrer une nouvelle partie
 export const startGame = async (playerNames) => {
