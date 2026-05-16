@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Tuple, Optional
-from backend.api.models import GameState, POINTS_LETTRES # Assurez-vous d'importer les modèles nécessaires
-from backend.api.game_logic import GameEngine
+from api.models import GameState, POINTS_LETTRES # Assurez-vous d'importer les modèles nécessaires
+from api.game_logic import GameEngine
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -11,7 +11,6 @@ app = FastAPI()
 
 # Configuration CORS pour permettre au frontend React de communiquer
 origins = [
-    "http://localhost",
     "http://localhost:3000",
     "http://localhost:5173",
     "https://scrabble-full-stack.vercel.app"
