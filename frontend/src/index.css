@@ -1,70 +1,98 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  --cream:    #F5EDD6;
+  --cream-dk: #E8D9B5;
+  --tobacco:  #C8803A;
+  --tobacco-dk: #A05E20;
+  --brick:    #B34A2A;
+  --olive:    #5E6B3A;
+  --olive-lt: #8A9B56;
+  --ink:      #1E1A12;
+  --ink-lt:   #3D3626;
+  --muted:    #8A7E65;
+  --board-green: #2D5A27;
+  --board-green-lt: #3D7535;
+  --tile-bg:  #F0D890;
+  --tile-border: #C8A830;
+  --tile-shadow: #8A6820;
+
+  font-family: 'Libre Baskerville', Georgia, serif;
+  line-height: 1.6;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  color: var(--ink);
+  background-color: var(--cream);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--cream);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(200,128,58,0.08) 39px,
+      rgba(200,128,58,0.08) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      rgba(200,128,58,0.08) 39px,
+      rgba(200,128,58,0.08) 40px
+    );
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+h1, h2, h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 2px solid var(--ink);
+  padding: 0.6em 1.2em;
+  background-color: transparent;
+  color: var(--ink);
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition: background 0.15s, color 0.15s;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+button:hover {
+  background-color: var(--ink);
+  color: var(--cream);
+}
+
+button:disabled {
+  border-color: var(--muted);
+  color: var(--muted);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
+a {
+  color: var(--tobacco);
+  text-decoration: underline;
 }

@@ -1,84 +1,174 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-/**
- * Affiche les scores de tous les joueurs et indique le joueur actuel.
- * @param {Array<Object>} players - Liste des objets joueurs (name, score, id, éventuellement userId si c'est l'utilisateur local).
- * @param {number|string} currentPlayerId - L'ID du joueur dont c'est le tour (peut être number ou string selon le modèle).
- */
 const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
-    if (!players || players.length === 0) {
-        return (
-            <div className="bg-white p-4 rounded shadow-md text-center text-gray-500">
-                Aucun joueur n'a démarré.
-            </div>
-        );
-    }
-
+  if (!players || players.length === 0) {
     return (
-        <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg shadow-inner w-full">
-            <h3 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex items-center">
-                <span className="mr-2">Scores de la Partie</span> 🏆
-            </h3>
-            
-            <div className="space-y-3">
-                {players.map((player) => {
-                    // Détermine si c'est le tour de ce joueur
-                    const isCurrentPlayer = player.id === currentPlayerId;
-                    // Détermine si c'est l'utilisateur regardant cet écran (si localUserId est fourni)
-                    const isLocalPlayer = localUserId && player.userId === localUserId; 
-                    
-                    const playerClass = isCurrentPlayer
-                        ? "bg-yellow-100 border-l-4 border-yellow-500 shadow-xl transform scale-[1.01]"
-                        : "bg-white border-l-4 border-gray-300";
-
-                    return (
-                        <div 
-                            key={player.id} 
-                            className={`flex justify-between items-center p-3 rounded-lg transition duration-300 ease-in-out ${playerClass}`}
-                        >
-                            <div className="flex items-center space-x-2 truncate">
-                                {/* Affichage visuel du tour */}
-                                {isCurrentPlayer && (
-                                    <span className="text-yellow-600 font-extrabold text-lg animate-pulse" title="Tour Actuel">➡️</span>
-                                )}
-                                <span className="font-semibold text-lg text-gray-700 truncate">
-                                    {player.name}
-                                </span>
-                                {isLocalPlayer && (
-                                    <span className="text-xs font-bold bg-indigo-500 text-white px-2 py-0.5 rounded-full ml-2">Moi</span>
-                                )}
-                            </div>
-                            
-                            <span className="text-2xl font-extrabold text-blue-600 flex-shrink-0">
-                                {player.score}
-                            </span>
-                        </div>
-                    );
-                })}
-            </div>
-            
-            {/* Légende du tour */}
-            <p className="mt-4 text-sm text-center text-gray-500">
-                <span className="text-yellow-600">➡️</span> Indique le joueur qui joue.
-            </p>
-        </div>
+      <div style={{
+        padding: '1rem',
+        border: '2px solid #C8803A',
+        borderRadius: '2px',
+        color: '#8A7E65',
+        textAlign: 'center',
+        fontFamily: "'Libre Baskerville', serif",
+        fontStyle: 'italic',
+      }}>
+        Aucun joueur n'a démarré.
+      </div>
     );
+  }
+
+  return (
+    <div style={{
+      background: '#F5EDD6',
+      border: '2px solid #1E1A12',
+      borderRadius: '2px',
+      overflow: 'hidden',
+      boxShadow: '4px 4px 0 #C8803A',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: '#1E1A12',
+        color: '#F0D890',
+        padding: '8px 16px',
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: '10px',
+      }}>
+        <span style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: '1rem',
+          fontWeight: 700,
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+        }}>
+          Scores
+        </span>
+        <span style={{
+          fontFamily: "'DM Mono', monospace",
+          fontSize: '0.6rem',
+          color: '#C8A830',
+          letterSpacing: '0.1em',
+        }}>
+          EN COURS
+        </span>
+      </div>
+
+      {/* Players */}
+      <div style={{ padding: '8px' }}>
+        {players.map((player, idx) => {
+          const isCurrentPlayer = player.id === currentPlayerId;
+          const isLocalPlayer = localUserId && player.userId === localUserId;
+
+          return (
+            <div
+              key={player.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '8px 10px',
+                marginBottom: idx < players.length - 1 ? '4px' : 0,
+                background: isCurrentPlayer ? '#1E1A12' : '#EDE0C0',
+                borderRadius: '2px',
+                border: isCurrentPlayer ? '2px solid #C8A830' : '2px solid transparent',
+                transition: 'all 0.2s',
+                boxShadow: isCurrentPlayer ? '3px 3px 0 #C8803A' : 'none',
+              }}
+            >
+              {/* Turn indicator */}
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: isCurrentPlayer ? '#C8A830' : '#B0A080',
+                marginRight: '10px',
+                flexShrink: 0,
+                boxShadow: isCurrentPlayer ? '0 0 6px #C8A830' : 'none',
+              }} />
+
+              {/* Name */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{
+                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontSize: '0.9rem',
+                  fontWeight: isCurrentPlayer ? 700 : 400,
+                  color: isCurrentPlayer ? '#F0D890' : '#3D3626',
+                  display: 'block',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {player.name}
+                </span>
+                {isLocalPlayer && (
+                  <span style={{
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize: '0.55rem',
+                    color: '#C8803A',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                  }}>
+                    vous
+                  </span>
+                )}
+              </div>
+
+              {/* Score */}
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <span style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: '1.3rem',
+                  fontWeight: 500,
+                  color: isCurrentPlayer ? '#C8A830' : '#8A7E65',
+                  letterSpacing: '-0.02em',
+                }}>
+                  {player.score}
+                </span>
+                <span style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: '0.55rem',
+                  color: isCurrentPlayer ? '#8A6820' : '#B0A080',
+                  display: 'block',
+                  textAlign: 'right',
+                  letterSpacing: '0.05em',
+                }}>
+                  pts
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer note */}
+      <div style={{
+        borderTop: '1px solid #C8A830',
+        padding: '6px 12px',
+        fontFamily: "'DM Mono', monospace",
+        fontSize: '0.6rem',
+        color: '#8A7E65',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        textAlign: 'center',
+      }}>
+        ● joueur actif
+      </div>
+    </div>
+  );
 };
 
 ScorePanel.propTypes = {
-    // Les IDs peuvent être des strings (Firestore) ou des numbers (modèle Python)
-    players: PropTypes.arrayOf(
-        PropTypes.shape({
-            id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-            name: PropTypes.string.isRequired,
-            score: PropTypes.number.isRequired,
-            rack: PropTypes.array.isRequired, 
-            userId: PropTypes.string, // Optionnel pour le multijoueur
-        })
-    ).isRequired,
-    currentPlayerId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-    localUserId: PropTypes.string, // ID de l'utilisateur local pour l'affichage "Moi"
+  players: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+      name: PropTypes.string.isRequired,
+      score: PropTypes.number.isRequired,
+      rack: PropTypes.array.isRequired,
+      userId: PropTypes.string,
+    })
+  ).isRequired,
+  currentPlayerId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  localUserId: PropTypes.string,
 };
 
 export default ScorePanel;

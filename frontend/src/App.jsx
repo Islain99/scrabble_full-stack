@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import Board from './components/Board';
 import TileRack from './components/TileRack';
@@ -9,496 +8,577 @@ import { POINTS_LETTRES } from './data/constants';
 
 const CLIENT_POINTS = POINTS_LETTRES;
 
-// ---------------------------------------------------------------------------
-// Configuration des niveaux (miroir du backend, pour l'UX)
-// ---------------------------------------------------------------------------
+/* ── Retro Button ─────────────────────────────────────────────── */
+const RetroButton = ({ onClick, disabled, children, variant = 'default', fullWidth = false }) => {
+  const variants = {
+    default:  { bg: 'transparent', color: '#1E1A12', border: '#1E1A12', hover: '#1E1A12', hoverText: '#F5EDD6' },
+    primary:  { bg: '#5E6B3A',     color: '#F5EDD6', border: '#3D4A20', hover: '#4A5528', hoverText: '#F5EDD6' },
+    danger:   { bg: 'transparent', color: '#8B2020', border: '#8B2020', hover: '#8B2020', hoverText: '#F5EDD6' },
+    tobacco:  { bg: 'transparent', color: '#8A5010', border: '#C8803A', hover: '#C8803A', hoverText: '#F5EDD6' },
+  };
+  const v = variants[variant] || variants.default;
 
-const DIFFICULTY_CONFIG = {
-    beginner: {
-        label: 'Débutant',
-        emoji: '🐣',
-        description: "Joue des mots de 2-3 lettres et commet beaucoup d'erreurs.",
-        delayMs: 600,
-        color: 'from-slate-400 to-gray-500',
-        border: 'border-slate-400',
-        badge: 'bg-slate-100 text-slate-700',
-    },
-    easy: {
-        label: 'Facile',
-        emoji: '🟢',
-        description: "Mots courts (max 4 lettres), ignore les cases bonus.",
-        delayMs: 1000,
-        color: 'from-green-500 to-emerald-600',
-        border: 'border-green-400',
-        badge: 'bg-green-100 text-green-800',
-    },
-    medium: {
-        label: 'Moyen',
-        emoji: '🟡',
-        description: "Équilibré : exploite les bonus DL/DM, mots jusqu'à 7 lettres.",
-        delayMs: 1600,
-        color: 'from-yellow-500 to-amber-600',
-        border: 'border-yellow-400',
-        badge: 'bg-yellow-100 text-yellow-800',
-    },
-    hard: {
-        label: 'Expert',
-        emoji: '🔴',
-        description: "Analyse toutes les options et maximise chaque score.",
-        delayMs: 2400,
-        color: 'from-red-500 to-rose-600',
-        border: 'border-red-400',
-        badge: 'bg-red-100 text-red-800',
-    },
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: fullWidth ? '100%' : 'auto',
+        background: v.bg,
+        color: disabled ? '#B0A080' : v.color,
+        border: `2px solid ${disabled ? '#C8C0A8' : v.border}`,
+        fontFamily: "'DM Mono', monospace",
+        fontSize: '0.7rem',
+        fontWeight: 500,
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        padding: '8px 14px',
+        borderRadius: '2px',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'background 0.12s, color 0.12s, box-shadow 0.12s',
+        boxShadow: disabled ? 'none' : `3px 3px 0 ${disabled ? '#C8C0A8' : v.border}`,
+      }}
+      onMouseEnter={e => {
+        if (!disabled) {
+          e.currentTarget.style.background = v.hover;
+          e.currentTarget.style.color = v.hoverText;
+        }
+      }}
+      onMouseLeave={e => {
+        if (!disabled) {
+          e.currentTarget.style.background = v.bg;
+          e.currentTarget.style.color = v.color;
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
 };
 
-// ---------------------------------------------------------------------------
-// Calcul preview score (côté client, simplifié)
-// ---------------------------------------------------------------------------
+/* ── Divider ─────────────────────────────────────────────────── */
+const Divider = ({ label }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0 10px' }}>
+    <div style={{ flex: 1, height: '1px', background: '#C8A830', opacity: 0.4 }} />
+    {label && (
+      <span style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: '0.58rem',
+        color: '#8A7E65',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </span>
+    )}
+    <div style={{ flex: 1, height: '1px', background: '#C8A830', opacity: 0.4 }} />
+  </div>
+);
 
-function calculatePreviewScore(placements) {
-    if (!placements.length) return 0;
-    let score = 0;
-    let wordMultiplier = 1;
+/* ── Score Preview ───────────────────────────────────────────── */
+const ScorePreview = ({ score, count }) => (
+  <div style={{
+    background: '#1E1A12',
+    border: '2px solid #C8A830',
+    borderRadius: '2px',
+    padding: '10px 14px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    boxShadow: '3px 3px 0 #8A6820',
+  }}>
+    <div>
+      <div style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: '0.6rem',
+        color: '#8A7E65',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        marginBottom: '2px',
+      }}>
+        Score provisoire
+      </div>
+      <div style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: '0.65rem',
+        color: '#6B5E45',
+        letterSpacing: '0.05em',
+      }}>
+        {count} tuile{count !== 1 ? 's' : ''} posée{count !== 1 ? 's' : ''}
+      </div>
+    </div>
+    <div style={{
+      fontFamily: "'Playfair Display', Georgia, serif",
+      fontSize: '2rem',
+      fontWeight: 700,
+      color: '#C8A830',
+      lineHeight: 1,
+    }}>
+      {score}
+    </div>
+  </div>
+);
+
+/* ── Legend ──────────────────────────────────────────────────── */
+const Legend = () => {
+  const items = [
+    { color: '#8B2020', label: 'Mot ×3' },
+    { color: '#C8803A', label: 'Mot ×2' },
+    { color: '#1A4A8A', label: 'Lettre ×3' },
+    { color: '#3A7EB8', label: 'Lettre ×2' },
+  ];
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+      {items.map(item => (
+        <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div style={{
+            width: '10px', height: '10px',
+            background: item.color,
+            borderRadius: '1px',
+            flexShrink: 0,
+          }} />
+          <span style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.58rem',
+            color: '#8A7E65',
+            letterSpacing: '0.05em',
+          }}>
+            {item.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ── App ─────────────────────────────────────────────────────── */
+function App() {
+  const [gameState, setGameState] = useState(null);
+  const [gameId, setGameId] = useState(null);
+  const [currentPlayerId, setCurrentPlayerId] = useState(0);
+  const [wordPlacements, setWordPlacements] = useState([]);
+  const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
+
+  const calculatePreviewScore = (placements) => {
+    if (placements.length === 0) return 0;
+    let score = 0, wordMultiplier = 1;
     placements.forEach(p => {
-        const letterScore = CLIENT_POINTS[p.letter] || 0;
-        const bonus = (p.r === 7 && p.c === 7) ? 'DM' : null;
-        score += bonus === 'DL' ? letterScore * 2 : bonus === 'TL' ? letterScore * 3 : letterScore;
-        if (bonus === 'DM') wordMultiplier *= 2;
-        if (bonus === 'TM') wordMultiplier *= 3;
+      let letterScore = CLIENT_POINTS[p.letter] || 0;
+      const bonus = (p.r === 7 && p.c === 7) ? 'DM' : null;
+      if (bonus === 'DL') letterScore *= 2;
+      if (bonus === 'TL') letterScore *= 3;
+      if (bonus === 'DM') wordMultiplier *= 2;
+      if (bonus === 'TM') wordMultiplier *= 3;
+      score += letterScore;
     });
     return score * wordMultiplier;
-}
+  };
 
-// ---------------------------------------------------------------------------
-// Composant : Écran de sélection du niveau
-// ---------------------------------------------------------------------------
+  const previewScore = useMemo(() => calculatePreviewScore(wordPlacements), [wordPlacements]);
 
-function DifficultyScreen({ onStart }) {
-    const [selected, setSelected] = useState('medium');
-    const [playerName, setPlayerName] = useState('Joueur 1');
-
-    return (
-        <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
-            <div className="max-w-lg w-full">
-                {/* Titre */}
-                <div className="text-center mb-10">
-                    <h1 className="text-6xl font-serif font-black text-green-400 tracking-tight mb-2">
-                        SCRABBLE
-                    </h1>
-                    <p className="text-gray-400 text-lg">Choisissez votre niveau de difficulté</p>
-                </div>
-
-                {/* Nom du joueur */}
-                <div className="mb-6">
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">
-                        Votre nom
-                    </label>
-                    <input
-                        type="text"
-                        value={playerName}
-                        onChange={e => setPlayerName(e.target.value || 'Joueur 1')}
-                        className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3
-                                text-white placeholder-gray-500 focus:outline-none focus:border-green-500
-                                transition-colors"
-                        placeholder="Joueur 1"
-                        maxLength={20}
-                    />
-                </div>
-
-                {/* Cartes de difficulté */}
-                <div className="space-y-3 mb-8">
-                    {Object.entries(DIFFICULTY_CONFIG).map(([key, cfg]) => (
-                        <button
-                        key={key}
-                        onClick={() => setSelected(key)}
-                        className={`
-                            w-full text-left p-5 rounded-2xl border-2 transition-all duration-200
-                            ${selected === key
-                            ? `bg-gray-800 ${cfg.border} shadow-lg shadow-black/30 scale-[1.02]`
-                            : 'bg-gray-900 border-gray-700 hover:border-gray-500 hover:bg-gray-850'
-                            }
-                        `}
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <span className="text-2xl">{cfg.emoji}</span>
-                                    <div>
-                                        <div className="font-bold text-white text-lg">{cfg.label}</div>
-                                        <div className="text-gray-400 text-sm mt-0.5">{cfg.description}</div>
-                                    </div>
-                                </div>
-                                {selected === key && (
-                                    <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${cfg.color} flex-shrink-0`} />
-                                )}
-                            </div>
-                        </button>
-                    ))}
-                </div>
-
-                {/* Bouton démarrer */}
-                <button
-                    onClick={() => onStart(playerName.trim() || 'Joueur 1', selected)}
-                    className={`
-                        w-full py-4 rounded-2xl font-bold text-xl text-white
-                        bg-gradient-to-r ${DIFFICULTY_CONFIG[selected].color}
-                        hover:opacity-90 active:scale-[0.98] transition-all duration-150
-                        shadow-xl shadow-black/40
-                    `}
-                >
-                    Démarrer la Partie →
-                </button>
-
-                {/* Légende délai IA */}
-                <p className="text-center text-gray-600 text-sm mt-4">
-                    L'IA réfléchit pendant{' '}
-                    <span className="text-gray-400 font-medium">
-                        {(DIFFICULTY_CONFIG[selected].delayMs / 1000).toFixed(1)} s
-                    </span>
-                </p>
-            </div>
-        </div>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Composant : Badge du niveau en jeu
-// ---------------------------------------------------------------------------
-
-function DifficultyBadge({ difficulty }) {
-    const cfg = DIFFICULTY_CONFIG[difficulty];
-    if (!cfg) return null;
-    return (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.badge}`}>
-            {cfg.emoji} IA {cfg.label}
-        </span>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Composant principal App
-// ---------------------------------------------------------------------------
-
-function App() {
-    const [screen, setScreen] = useState('difficulty'); // 'difficulty' | 'game'
-    const [gameState, setGameState] = useState(null);
-    const [gameId, setGameId] = useState(null);
-    const [difficulty, setDifficulty] = useState('medium');
-    const [currentPlayerId, setCurrentPlayerId] = useState(0);
-    const [wordPlacements, setWordPlacements] = useState([]);
-    const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
-    const [aiThinking, setAiThinking] = useState(false);
-
-    const previewScore = useMemo(
-        () => calculatePreviewScore(wordPlacements),
-        [wordPlacements]
-    );
-
-    // --- Activation automatique de l'IA ---
-    useEffect(() => {
-        if (!gameState || gameState.status !== 'ACTIVE' || !gameId) return;
-        const currentPlayer = gameState.players[gameState.current_player_index];
-        if (!currentPlayer?.is_ai) return;
-
-        const delayMs = DIFFICULTY_CONFIG[difficulty]?.delayMs ?? 1500;
-
-        setAiThinking(true);
-        const timer = setTimeout(async () => {
-            try {
-                const updatedState = await gameService.aiPlayTurn(gameId);
-                setGameState(updatedState);
-            } catch (error) {
-                console.error("Erreur lors du tour de l'IA:", error.response?.data?.detail);
-                alert(`Erreur de l'IA : ${error.response?.data?.detail || 'Erreur API.'}`);
-            } finally {
-                setAiThinking(false);
-            }
-        }, delayMs);
-
-        return () => {
-            clearTimeout(timer);
-            setAiThinking(false);
-        };
-    }, [gameState, gameId, difficulty]);
-
-  // --- Démarrage de la partie ---
-    const handleStartGame = async (playerName, selectedDifficulty) => {
+  useEffect(() => {
+    if (!gameState || gameState.status !== 'ACTIVE' || !gameId) return;
+    const currentPlayer = gameState.players[gameState.current_player_index];
+    if (currentPlayer && currentPlayer.is_ai) {
+      const delay = setTimeout(async () => {
         try {
-            const playerNames = [playerName, `HAL 9000 (IA)`];
-            const initialGame = await gameService.startGame(playerNames, selectedDifficulty);
-            setGameState(initialGame);
-            setGameId(initialGame.game_id);
-            setDifficulty(selectedDifficulty);
-            setCurrentPlayerId(initialGame.players[0].id);
-            setWordPlacements([]);
-            setSelectedTilesToSwap([]);
-            setScreen('game');
-        } catch (e) {
-            console.error('Erreur au démarrage:', e);
-            alert("Erreur lors du démarrage. Assurez-vous que le backend est lancé.");
-        }
-    };
-
-    const handleReturnToMenu = () => {
-        setScreen('difficulty');
-        setGameState(null);
-        setGameId(null);
-        setWordPlacements([]);
-        setSelectedTilesToSwap([]);
-    };
-
-    // --- Drag & Drop ---
-    const handleDropTile = (tileLetter, r, c) => {
-        const currentRack = gameState.players.find(p => p.id === activePlayerId)?.rack || [];
-        const availableTiles = currentRack.filter(tile => !wordPlacements.some(p => p.originalTile === tile));
-        const tileToPlace = availableTiles.find(t => t.letter === tileLetter);
-        if (!tileToPlace) return;
-        setWordPlacements(prev => [...prev, { letter: tileLetter, r, c, originalTile: tileToPlace }]);
-    };
-
-    const handleUndoPlacement = (r, c) => {
-        setWordPlacements(prev => prev.filter(p => !(p.r === r && p.c === c)));
-    };
-
-    // --- Actions de jeu ---
-    const handleValidateWord = async () => {
-        if (!gameId || wordPlacements.length === 0) {
-            alert('Veuillez placer un mot sur le plateau.');
-            return;
-        }
-        setSelectedTilesToSwap([]);
-        const placementsAPI = wordPlacements.map(p => [p.r, p.c, p.letter]);
-        try {
-            const result = await gameService.playWord(gameId, activePlayerId, placementsAPI);
-            setGameState(result);
-            setWordPlacements([]);
-            if (result.status === 'FINISHED') {
-                // Géré par le rendu conditionnel
-            } else {
-                setCurrentPlayerId(result.players[result.current_player_index].id);
-            }
+          const updatedState = await gameService.aiPlayTurn(gameId);
+          setGameState(updatedState);
         } catch (error) {
-            console.error('Erreur API:', error.response?.data?.detail);
-            alert(`Erreur : ${error.response?.data?.detail || "Le mot n'est pas valide."}`);
-            setWordPlacements([]);
+          console.error('Erreur lors du tour de l\'IA:', error.response?.data?.detail);
         }
-    };
-
-    const handlePassTurn = async () => {
-        if (!gameId) return;
-        try {
-            const updatedState = await gameService.passTurn(gameId, activePlayerId);
-            setGameState(updatedState);
-        } catch (error) {
-            alert(`Erreur : ${error.response?.data?.detail || 'Erreur API'}`);
-        }
-    };
-
-    const handleShuffleRack = async () => {
-        if (!gameId) return;
-        try {
-            const updatedState = await gameService.shuffleRack(gameId, currentPlayerId);
-            setGameState(updatedState);
-        } catch (error) {
-            alert(`Erreur mélange : ${error.response?.data?.detail || 'Erreur API'}`);
-        }
-    };
-
-    const handleSwapTiles = async () => {
-        if (!gameId || selectedTilesToSwap.length === 0) return;
-        setWordPlacements([]);
-        try {
-            const updatedState = await gameService.swapTiles(gameId, activePlayerId, selectedTilesToSwap);
-            setGameState(updatedState);
-            setSelectedTilesToSwap([]);
-        } catch (error) {
-            alert(`Échec échange : ${error.response?.data?.detail || 'Erreur API'}`);
-        }
-    };
-
-    const toggleTileForSwap = (letter) => {
-        setSelectedTilesToSwap(prev =>
-        prev.includes(letter) ? prev.filter(l => l !== letter) : [...prev, letter]
-        );
-    };
-
-    // --- Écran de sélection du niveau ---
-    if (screen === 'difficulty') {
-        return <DifficultyScreen onStart={handleStartGame} />;
+      }, 1500);
+      return () => clearTimeout(delay);
     }
+  }, [gameState, gameId]);
 
-    // --- Dérivés de l'état ---
-    const activePlayerId = gameState
-        ? gameState.players[gameState.current_player_index].id
-        : 0;
+  const activePlayerId = gameState
+    ? gameState.players[gameState.current_player_index].id
+    : 0;
 
-    const isCurrentPlayerAI = gameState
-        ? gameState.players[gameState.current_player_index]?.is_ai
-        : false;
-
-    // --- Écran fin de partie ---
-    if (gameState?.status === 'FINISHED') {
-        return (
-            <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-4">
-                <div className="bg-gray-900 border border-gray-700 text-white p-8 rounded-2xl shadow-2xl text-center max-w-md w-full">
-                    <div className="text-5xl mb-4">🏆</div>
-                    <h1 className="text-3xl font-bold mb-2 text-green-400">Partie Terminée !</h1>
-                    <p className="text-xl mb-1 text-gray-200">
-                        Gagnant : <span className="font-extrabold text-white">{gameState.winner_name}</span>
-                    </p>
-                    <div className="mb-6">
-                        <DifficultyBadge difficulty={difficulty} />
-                    </div>
-                    <ScorePanel players={gameState.players} currentPlayerId={-1} />
-                    <div className="flex gap-3 mt-6">
-                        <button
-                        onClick={() => handleStartGame(gameState.players.find(p => !p.is_ai)?.name || 'Joueur 1', difficulty)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl transition"
-                        >
-                        Rejouer
-                        </button>
-                        <button
-                        onClick={handleReturnToMenu}
-                        className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-4 rounded-xl transition"
-                        >
-                        Menu
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
+  const handleStartGame = async () => {
+    try {
+      const playerNames = ['Joueur Humain', 'HAL 9000 (IA)'];
+      const initialGame = await gameService.startGame(playerNames);
+      setGameState(initialGame);
+      setGameId(initialGame.game_id);
+      setCurrentPlayerId(initialGame.players[0].id);
+      setWordPlacements([]);
+      setSelectedTilesToSwap([]);
+    } catch (e) {
+      console.error('Erreur au démarrage:', e);
+      alert('Erreur lors du démarrage du jeu. Assurez-vous que le backend est lancé.');
     }
+  };
 
-    const currentRack = gameState?.players.find(p => p.id === activePlayerId)?.rack || [];
-    const tilesInUse = wordPlacements.map(p => p.originalTile);
-    const rackTilesForDisplay = currentRack.filter(tile => !tilesInUse.includes(tile));
-    const isSwapMode = selectedTilesToSwap.length > 0;
+  const handleDropTile = (tileLetter, r, c) => {
+    const currentRack = gameState.players.find(p => p.id === currentPlayerId)?.rack || [];
+    const availableTiles = currentRack.filter(tile => !wordPlacements.some(p => p.originalTile === tile));
+    const tileToPlace = availableTiles.find(t => t.letter === tileLetter);
+    if (!tileToPlace) return;
+    setWordPlacements(prev => [...prev, { letter: tileLetter, r, c, originalTile: tileToPlace }]);
+  };
 
-    return (
-        <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
-            <div className="flex items-center gap-4 mb-6">
-                <h1 className="text-4xl font-serif font-bold text-green-700">SCRABBLE</h1>
-                <DifficultyBadge difficulty={difficulty} />
-            </div>
+  const handleUndoPlacement = (r, c) => {
+    setWordPlacements(wordPlacements.filter(p => !(p.r === r && p.c === c)));
+  };
 
-            {/* Bannière IA en train de réfléchir */}
-            {aiThinking && (
-                <div className="mb-4 w-full max-w-7xl">
-                    <div className="bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 flex items-center gap-3">
-                        <div className="flex gap-1">
-                            {[0, 1, 2].map(i => (
-                                <div
-                                key={i}
-                                className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce"
-                                style={{ animationDelay: `${i * 0.15}s` }}
-                                />
-                            ))}
-                        </div>
-                        <span className="text-white font-medium text-sm">
-                            {DIFFICULTY_CONFIG[difficulty]?.emoji} L'IA réfléchit ({DIFFICULTY_CONFIG[difficulty]?.label})…
-                        </span>
-                    </div>
-                </div>
-            )}
+  const handleValidateWord = async () => {
+    if (!gameId || wordPlacements.length === 0) { alert('Veuillez placer un mot sur le plateau.'); return; }
+    setSelectedTilesToSwap([]);
+    const placementsAPI = wordPlacements.map(p => [p.r, p.c, p.letter]);
+    try {
+      const result = await gameService.playWord(gameId, activePlayerId, placementsAPI);
+      setGameState(result);
+      setWordPlacements([]);
+      if (result.status === 'FINISHED') {
+        alert(`Partie terminée ! Gagnant : ${result.winner_name}`);
+      } else {
+        setCurrentPlayerId(result.players[result.current_player_index].id);
+      }
+    } catch (error) {
+      alert(`Erreur : ${error.response?.data?.detail || 'Mot invalide ou placement illégal.'}`);
+      setWordPlacements([]);
+    }
+  };
 
-            <div className="flex flex-col lg:flex-row gap-6 w-full max-w-7xl">
-                {/* Plateau */}
-                <div className="grow">
-                    <Board
-                        gameState={gameState}
-                        placements={wordPlacements}
-                        onDropTile={handleDropTile}
-                        onTileClick={handleUndoPlacement}
-                    />
-                </div>
+  const handlePassTurn = async () => {
+    if (!gameId) return;
+    try {
+      const updatedState = await gameService.passTurn(gameId, activePlayerId);
+      setGameState(updatedState);
+    } catch (error) {
+      alert(`Erreur : ${error.response?.data?.detail || 'Erreur API'}`);
+    }
+  };
 
-                {/* Panneau latéral */}
-                <div className="w-full lg:w-80 bg-white p-4 rounded-xl shadow-xl">
-                    <ScorePanel
-                        players={gameState.players}
-                        currentPlayerId={currentPlayerId}
-                    />
+  const handleShuffleRack = async () => {
+    if (!gameId) return;
+    try {
+      const updatedState = await gameService.shuffleRack(gameId, currentPlayerId);
+      setGameState(updatedState);
+    } catch (error) {
+      alert(`Erreur : ${error.response?.data?.detail || 'Erreur API'}`);
+    }
+  };
 
-                    <h3 className="text-xl font-bold mt-6 mb-3 border-t pt-3">Score provisoire</h3>
-                    <div className="bg-gray-100 p-3 rounded-lg flex justify-between items-center">
-                        <span className="font-semibold text-gray-700">Points estimés :</span>
-                        <span className="text-2xl font-extrabold text-red-600">{previewScore}</span>
-                    </div>
+  const handleSwapTiles = async () => {
+    if (!gameId || selectedTilesToSwap.length === 0) { alert('Sélectionnez les lettres à échanger.'); return; }
+    setWordPlacements([]);
+    try {
+      const updatedState = await gameService.swapTiles(gameId, activePlayerId, selectedTilesToSwap);
+      setGameState(updatedState);
+      setSelectedTilesToSwap([]);
+    } catch (error) {
+      alert(`Échec de l'échange : ${error.response?.data?.detail || 'Erreur API'}`);
+    }
+  };
 
-                    {/* Actions — désactivées pendant le tour de l'IA */}
-                    <div className="flex flex-col space-y-2 mt-4">
-                        <button
-                            onClick={handleValidateWord}
-                            disabled={wordPlacements.length === 0 || isSwapMode || isCurrentPlayerAI || aiThinking}
-                            className={`px-4 py-2 rounded-lg font-bold transition-colors ${
-                                wordPlacements.length > 0 && !isSwapMode && !isCurrentPlayerAI && !aiThinking
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            }`}
-                        >
-                            Valider ({wordPlacements.length} tuiles)
-                        </button>
-
-                        <button
-                            onClick={handlePassTurn}
-                            disabled={isSwapMode || wordPlacements.length > 0 || isCurrentPlayerAI || aiThinking}
-                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
-                        >
-                            Passer le Tour
-                        </button>
-
-                        <button
-                            onClick={handleShuffleRack}
-                            disabled={isSwapMode || wordPlacements.length > 0 || isCurrentPlayerAI || aiThinking}
-                            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
-                        >
-                            Mélanger
-                        </button>
-
-                        <button
-                            onClick={handleReturnToMenu}
-                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg transition"
-                        >
-                            ← Menu principal
-                        </button>
-                    </div>
-
-                    <h3 className="text-lg font-semibold mt-6 mb-3 border-t pt-3">
-                        Échange de tuiles
-                    </h3>
-                    <button
-                        onClick={handleSwapTiles}
-                        disabled={selectedTilesToSwap.length === 0 || wordPlacements.length > 0 || isCurrentPlayerAI || aiThinking}
-                        className={`px-4 py-2 w-full rounded-lg font-bold transition-colors ${
-                        selectedTilesToSwap.length > 0 && wordPlacements.length === 0 && !isCurrentPlayerAI && !aiThinking
-                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        }`}
-                    >
-                        Échanger {selectedTilesToSwap.length} tuile(s)
-                    </button>
-                    <p className="text-xs text-gray-400 mt-1">
-                        Cliquez sur les tuiles du rack pour les sélectionner.
-                    </p>
-                </div>
-            </div>
-
-            {/* Rack */}
-            <div className="mt-8 w-full max-w-4xl">
-                <h2 className="text-xl font-semibold mb-2 text-center text-gray-700">
-                    {isCurrentPlayerAI
-                        ? `⏳ Tour de l'IA (${DIFFICULTY_CONFIG[difficulty]?.label})`
-                        : `Votre Rack`}
-                </h2>
-                <TileRack
-                    tiles={rackTilesForDisplay}
-                    playerId={currentPlayerId}
-                    onTileClick={!isCurrentPlayerAI && !aiThinking ? toggleTileForSwap : undefined}
-                    selectedTiles={selectedTilesToSwap}
-                />
-            </div>
-        </div>
+  const toggleTileForSwap = (letter) => {
+    setSelectedTilesToSwap(prev =>
+      prev.includes(letter) ? prev.filter(l => l !== letter) : [...prev, letter]
     );
+  };
+
+  const isSwapMode = selectedTilesToSwap.length > 0;
+  const currentRack = gameState?.players.find(p => p.id === activePlayerId)?.rack || [];
+  const tilesInUse = wordPlacements.map(p => p.originalTile);
+  const rackTilesForDisplay = currentRack.filter(tile => !tilesInUse.includes(tile));
+
+  /* ── Start Screen ──────────────────────────────────────────── */
+  if (!gameState || gameState.status === 'SETUP') {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+      }}>
+        {/* Masthead */}
+        <div style={{
+          textAlign: 'center',
+          marginBottom: '3rem',
+          maxWidth: '480px',
+        }}>
+          <div style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.7rem',
+            letterSpacing: '0.3em',
+            color: '#8A7E65',
+            textTransform: 'uppercase',
+            marginBottom: '12px',
+          }}>
+            Édition de Luxe — 1972
+          </div>
+          <h1 style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: 'clamp(3.5rem, 10vw, 6rem)',
+            fontWeight: 900,
+            color: '#1E1A12',
+            lineHeight: 0.9,
+            letterSpacing: '-0.04em',
+            margin: '0 0 8px',
+          }}>
+            SCRABBLE
+          </h1>
+          <div style={{
+            height: '4px',
+            background: 'linear-gradient(90deg, transparent, #C8803A, #C8A830, #C8803A, transparent)',
+            margin: '16px auto',
+            maxWidth: '300px',
+          }} />
+          <p style={{
+            fontFamily: "'Libre Baskerville', serif",
+            fontStyle: 'italic',
+            color: '#5E6B3A',
+            fontSize: '1rem',
+            margin: 0,
+          }}>
+            Le jeu classique des mots croisés
+          </p>
+        </div>
+
+        {/* Start button */}
+        <div style={{
+          border: '3px solid #1E1A12',
+          padding: '2rem 3rem',
+          textAlign: 'center',
+          boxShadow: '6px 6px 0 #C8803A',
+          background: '#F5EDD6',
+          maxWidth: '360px',
+          width: '100%',
+        }}>
+          <p style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.7rem',
+            color: '#8A7E65',
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+            marginBottom: '20px',
+          }}>
+            Joueur vs IA
+          </p>
+          <RetroButton onClick={handleStartGame} variant="primary" fullWidth>
+            Démarrer la partie
+          </RetroButton>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Finished Screen ───────────────────────────────────────── */
+  if (gameState.status === 'FINISHED') {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+      }}>
+        <div style={{
+          border: '3px solid #1E1A12',
+          padding: '2.5rem',
+          background: '#F5EDD6',
+          boxShadow: '8px 8px 0 #C8803A',
+          maxWidth: '400px',
+          width: '100%',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.65rem',
+            color: '#8A7E65',
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            marginBottom: '12px',
+          }}>
+            Partie Terminée
+          </div>
+          <h1 style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: '2.5rem',
+            fontWeight: 900,
+            color: '#1E1A12',
+            margin: '0 0 4px',
+          }}>
+            {gameState.winner_name}
+          </h1>
+          <p style={{
+            fontFamily: "'Libre Baskerville', serif",
+            fontStyle: 'italic',
+            color: '#5E6B3A',
+            margin: '0 0 24px',
+          }}>
+            remporte la victoire
+          </p>
+          <div style={{ marginBottom: '24px' }}>
+            <ScorePanel players={gameState.players} currentPlayerId={-1} />
+          </div>
+          <RetroButton onClick={handleStartGame} variant="primary" fullWidth>
+            Nouvelle Partie
+          </RetroButton>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Game Screen ───────────────────────────────────────────── */
+  return (
+    <div style={{ minHeight: '100vh', padding: '1.5rem', maxWidth: '1280px', margin: '0 auto' }}>
+
+      {/* Header */}
+      <header style={{
+        display: 'flex',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        marginBottom: '1.5rem',
+        borderBottom: '3px solid #1E1A12',
+        paddingBottom: '12px',
+        flexWrap: 'wrap',
+        gap: '8px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px' }}>
+          <h1 style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: 'clamp(1.8rem, 5vw, 2.8rem)',
+            fontWeight: 900,
+            color: '#1E1A12',
+            letterSpacing: '-0.04em',
+            margin: 0,
+          }}>
+            SCRABBLE
+          </h1>
+          <span style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.65rem',
+            color: '#8A7E65',
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+          }}>
+            Édition 1972
+          </span>
+        </div>
+        <div style={{
+          fontFamily: "'DM Mono', monospace",
+          fontSize: '0.65rem',
+          color: '#8A7E65',
+          letterSpacing: '0.1em',
+        }}>
+          Tour de → <span style={{ color: '#C8803A', fontWeight: 500 }}>
+            {gameState.players[gameState.current_player_index]?.name}
+          </span>
+        </div>
+      </header>
+
+      {/* Main grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 280px',
+        gap: '1.5rem',
+        alignItems: 'start',
+      }}>
+
+        {/* Board column */}
+        <div>
+          <Board
+            gameState={gameState}
+            placements={wordPlacements}
+            onDropTile={handleDropTile}
+            onTileClick={handleUndoPlacement}
+          />
+          <Legend />
+        </div>
+
+        {/* Sidebar */}
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+          <ScorePanel
+            players={gameState.players}
+            currentPlayerId={currentPlayerId}
+          />
+
+          <Divider label="Coup" />
+
+          <ScorePreview score={previewScore} count={wordPlacements.length} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+            <RetroButton
+              onClick={handleValidateWord}
+              disabled={wordPlacements.length === 0 || isSwapMode}
+              variant="primary"
+              fullWidth
+            >
+              Valider ({wordPlacements.length})
+            </RetroButton>
+            <RetroButton
+              onClick={handlePassTurn}
+              disabled={isSwapMode || wordPlacements.length > 0}
+              variant="default"
+              fullWidth
+            >
+              Passer le tour
+            </RetroButton>
+            <RetroButton
+              onClick={handleShuffleRack}
+              disabled={isSwapMode || wordPlacements.length > 0}
+              variant="tobacco"
+              fullWidth
+            >
+              Mélanger
+            </RetroButton>
+          </div>
+
+          <Divider label="Échange" />
+
+          <RetroButton
+            onClick={handleSwapTiles}
+            disabled={selectedTilesToSwap.length === 0 || wordPlacements.length > 0}
+            variant="danger"
+            fullWidth
+          >
+            Échanger {selectedTilesToSwap.length > 0 ? `(${selectedTilesToSwap.length})` : ''}
+          </RetroButton>
+          <p style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '0.58rem',
+            color: '#8A7E65',
+            letterSpacing: '0.06em',
+            marginTop: '6px',
+            lineHeight: 1.5,
+          }}>
+            Cliquez sur les tuiles du rack pour les sélectionner.
+          </p>
+        </aside>
+      </div>
+
+      {/* Rack */}
+      <div style={{ marginTop: '1.5rem' }}>
+        <div style={{
+          fontFamily: "'DM Mono', monospace",
+          fontSize: '0.65rem',
+          color: '#8A7E65',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          textAlign: 'center',
+          marginBottom: '10px',
+        }}>
+          {isSwapMode
+            ? `${selectedTilesToSwap.length} tuile(s) sélectionnée(s) — cliquez à nouveau pour désélectionner`
+            : 'Glissez vos lettres sur le plateau'}
+        </div>
+        <TileRack
+          tiles={rackTilesForDisplay}
+          playerId={currentPlayerId}
+          onTileClick={toggleTileForSwap}
+          selectedTiles={selectedTilesToSwap}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default App;
