@@ -212,16 +212,49 @@ function App() {
     }
   };
 
-  const handleDropTile = (tileLetter, r, c) => {
-    const currentRack = gameState.players.find(p => p.id === currentPlayerId)?.rack || [];
-    const availableTiles = currentRack.filter(tile => !wordPlacements.some(p => p.originalTile === tile));
-    const tileToPlace = availableTiles.find(t => t.letter === tileLetter);
+  /**
+   * handleDropTile — dépôt depuis le rack vers le plateau.
+   * Board passe rackIndex (index dans rackTilesForDisplay), pas la lettre.
+   * On retrouve la tuile par cet index dans les tuiles disponibles (non placées).
+   */
+  const handleDropTile = (rackIndex, r, c) => {
+    // rackTilesForDisplay est filtré au moment du rendu, on le recalcule ici
+    const fullRack = gameState?.players.find(p => p.id === activePlayerId)?.rack || [];
+    const placedOriginals = wordPlacements.map(pl => pl.originalTile);
+    const availableTiles = fullRack.filter(tile => !placedOriginals.includes(tile));
+
+    const tileToPlace = availableTiles[rackIndex];
     if (!tileToPlace) return;
-    setWordPlacements(prev => [...prev, { letter: tileLetter, r, c, originalTile: tileToPlace }]);
+
+    // Vérifie que la case n'est pas déjà prise par un placement temporaire
+    if (wordPlacements.some(pl => pl.r === r && pl.c === c)) return;
+
+    setWordPlacements(prev => [
+      ...prev,
+      { letter: tileToPlace.letter, r, c, originalTile: tileToPlace, rackIndex },
+    ]);
   };
 
-  const handleUndoPlacement = (r, c) => {
-    setWordPlacements(wordPlacements.filter(p => !(p.r === r && p.c === c)));
+  /**
+   * handleMoveTile — déplace une tuile temporaire d'une case à une autre.
+   * Ne touche pas au rack, juste met à jour les coordonnées dans wordPlacements.
+   */
+  const handleMoveTile = (fromR, fromC, toR, toC) => {
+    // Refus si la case destination est déjà occupée
+    if (wordPlacements.some(pl => pl.r === toR && pl.c === toC)) return;
+
+    setWordPlacements(prev =>
+      prev.map(pl =>
+        pl.r === fromR && pl.c === fromC ? { ...pl, r: toR, c: toC } : pl
+      )
+    );
+  };
+
+  /**
+   * handleReturnTile — clic sur une tuile temporaire → la remet dans le rack.
+   */
+  const handleReturnTile = (r, c) => {
+    setWordPlacements(prev => prev.filter(pl => !(pl.r === r && pl.c === c)));
   };
 
   const handleValidateWord = async () => {
@@ -489,7 +522,8 @@ function App() {
             gameState={gameState}
             placements={wordPlacements}
             onDropTile={handleDropTile}
-            onTileClick={handleUndoPlacement}
+            onMoveTile={handleMoveTile}
+            onReturnTile={handleReturnTile}
           />
           <Legend />
         </div>
@@ -573,7 +607,7 @@ function App() {
         <TileRack
           tiles={rackTilesForDisplay}
           playerId={currentPlayerId}
-          onTileClick={toggleTileForSwap}
+          onTileClick={isSwapMode ? toggleTileForSwap : undefined}
           selectedTiles={selectedTilesToSwap}
         />
       </div>

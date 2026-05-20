@@ -1,27 +1,20 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import Tile from './Tile';
 
 const BONUS_STYLES = {
-  TM: { bg: '#8B2020', label: '3M', text: '#F5D0C0' },
-  DM: { bg: '#C8803A', label: '2M', text: '#FFF0D8' },
-  TL: { bg: '#1A4A8A', label: '3L', text: '#C8DCFF' },
-  DL: { bg: '#3A7EB8', label: '2L', text: '#DCEEFF' },
-  START: { bg: '#8B4A20', label: '★', text: '#FFE8C0' },
-  DEFAULT: { bg: null, label: '', text: '' },
+  TM:      { bg: '#8B2020', label: '3M',  text: '#F5D0C0' },
+  DM:      { bg: '#C8803A', label: '2M',  text: '#FFF0D8' },
+  TL:      { bg: '#1A4A8A', label: '3L',  text: '#C8DCFF' },
+  DL:      { bg: '#3A7EB8', label: '2L',  text: '#DCEEFF' },
+  START:   { bg: '#8B4A20', label: '★',   text: '#FFE8C0' },
+  DEFAULT: { bg: null,      label: '',    text: '' },
 };
 
 const getBonus = (r, c) => {
   if (r === 7 && c === 7) return 'START';
   if (([0, 7, 14].includes(r) && [0, 7, 14].includes(c)) && !(r === 7 && c === 7)) return 'TM';
-  if (
-    (r === c || r + c === 14) &&
-    [1, 2, 3, 4, 10, 11, 12, 13].includes(r) &&
-    r !== 7 && c !== 7
-  ) return 'DM';
-  if (
-    ([1, 13].includes(r) && [5, 9].includes(c)) ||
-    ([5, 9].includes(r) && [1, 5, 9, 13].includes(c))
-  ) return 'TL';
+  if ((r === c || r + c === 14) && [1,2,3,4,10,11,12,13].includes(r) && r !== 7 && c !== 7) return 'DM';
+  if (([1, 13].includes(r) && [5, 9].includes(c)) || ([5, 9].includes(r) && [1, 5, 9, 13].includes(c))) return 'TL';
   if (
     ([0, 14].includes(r) && [3, 11].includes(c)) ||
     ([2, 12].includes(r) && [6, 8].includes(c)) ||
@@ -32,89 +25,128 @@ const getBonus = (r, c) => {
   return 'DEFAULT';
 };
 
-const Board = ({ gameState, placements, onDropTile, onTileClick }) => {
-  if (!gameState) return (
-    <div style={{
-      fontFamily: "'Playfair Display', Georgia, serif",
-      fontSize: '1.2rem',
-      color: '#5E6B3A',
-      padding: '2rem',
-      textAlign: 'center',
-    }}>
+/**
+ * Board — drag-and-drop amélioré
+ *
+ * Props:
+ *   gameState       — état complet du jeu
+ *   placements      — [{letter, r, c, originalTile, rackIndex}]
+ *   onDropTile(rackIndex, r, c)     — déposer depuis le rack
+ *   onMoveTile(fromR, fromC, toR, toC) — déplacer une tuile temporaire
+ *   onReturnTile(r, c)              — clic pour remettre dans le rack
+ */
+const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) => {
+  // ── Tous les hooks en premier, avant tout return conditionnel ──
+  const [hoverCell, setHoverCell] = useState(null);
+  const [dragSource, setDragSource] = useState(null);
+
+  // Grille fusionnée calculée à partir des props (pas de hook, juste dérivation)
+  const grid = gameState?.board?.grid ?? null;
+
+  const tempMap = {};
+  if (grid && placements) {
+    placements.forEach(p => { tempMap[`${p.r}-${p.c}`] = p; });
+  }
+
+  const handleDragOver = useCallback((e, r, c) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setHoverCell(`${r}-${c}`);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setHoverCell(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e, r, c) => {
+    e.preventDefault();
+    setHoverCell(null);
+    setDragSource(null);
+    if (!grid) return;
+    if (grid[r][c] !== null) return;
+    if (tempMap[`${r}-${c}`]) return;
+    let info;
+    try { info = JSON.parse(e.dataTransfer.getData('application/json')); } catch { return; }
+    if (info.source === 'board') {
+      onMoveTile(info.fromR, info.fromC, r, c);
+    } else {
+      if (info.rackIndex === undefined) return;
+      onDropTile(info.rackIndex, r, c);
+    }
+  }, [grid, tempMap, onDropTile, onMoveTile]);
+
+  const handleBoardDragEnd = useCallback(() => {
+    setHoverCell(null);
+    setDragSource(null);
+  }, []);
+
+  const handleBoardTileDragStart = useCallback((e, r, c) => {
+    const placement = tempMap[`${r}-${c}`];
+    if (!placement) return;
+    const payload = { source: 'board', fromR: r, fromC: c, letter: placement.letter };
+    e.dataTransfer.setData('application/json', JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = 'move';
+    setDragSource({ type: 'board', fromR: r, fromC: c });
+  }, [tempMap]);
+
+  // ── Return conditionnel après tous les hooks ───────────────────
+  if (!gameState || !grid) return (
+    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.2rem', color: '#5E6B3A', padding: '2rem', textAlign: 'center' }}>
       Chargement du plateau...
     </div>
   );
 
-  const grid = gameState.board.grid;
-
-  const handleDragOver = (e) => { e.preventDefault(); };
-
-  const handleDrop = (e, r, c) => {
-    e.preventDefault();
-    const droppedData = e.dataTransfer.getData('application/json');
-    let tileInfo;
-    try { tileInfo = JSON.parse(droppedData); } catch { return; }
-    const tileRackId = tileInfo?.id;
-    if (grid[r][c] === null && tileRackId !== undefined) {
-      onDropTile(tileRackId, r, c);
-    }
-  };
-
+  // Grille fusionnée (permanente + temporaire)
   const tempGrid = grid.map(row => [...row]);
-  const temporaryTiles = {};
-  placements.forEach(p => {
-    tempGrid[p.r][p.c] = p.originalTile;
-    temporaryTiles[`${p.r}-${p.c}`] = p.originalTile;
-  });
-
-//   const cellSize = 'calc((min(92vw, 680px) - 24px) / 15)';
+  placements.forEach(p => { tempGrid[p.r][p.c] = p.originalTile; });
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #1A3A18 0%, #2D5A27 40%, #1E4A1C 100%)',
-      borderRadius: '4px',
-      padding: '12px',
-      boxShadow: '6px 6px 0 #0A1A09, inset 0 0 40px rgba(0,0,0,0.3)',
-      border: '3px solid #8A6820',
-      position: 'relative',
-    }}>
-      {/* Corner decorations */}
-      {['0 0', '0 100%', '100% 0', '100% 100%'].map((pos, i) => (
-        <div key={i} style={{
-          position: 'absolute',
-          width: '16px', height: '16px',
-          background: '#C8A830',
-          borderRadius: '50%',
-          top: pos.split(' ')[1] === '0' ? '4px' : 'auto',
-          bottom: pos.split(' ')[1] === '100%' ? '4px' : 'auto',
-          left: pos.split(' ')[0] === '0' ? '4px' : 'auto',
-          right: pos.split(' ')[0] === '100%' ? '4px' : 'auto',
-          boxShadow: '2px 2px 0 #8A6820',
-          zIndex: 2,
-        }} />
+    <div
+      style={{
+        background: 'linear-gradient(135deg, #1A3A18 0%, #2D5A27 40%, #1E4A1C 100%)',
+        borderRadius: '4px',
+        padding: '12px',
+        boxShadow: '6px 6px 0 #0A1A09',
+        border: '3px solid #8A6820',
+        position: 'relative',
+        userSelect: 'none',
+      }}
+      onDragEnd={handleBoardDragEnd}
+    >
+      {/* Rivets de coin */}
+      {[
+        { top: '4px',  left: '4px'  },
+        { top: '4px',  right: '4px' },
+        { bottom: '4px', left: '4px' },
+        { bottom: '4px', right: '4px' },
+      ].map((pos, i) => (
+        <div key={i} style={{ position: 'absolute', width: '14px', height: '14px', background: '#C8A830', borderRadius: '50%', boxShadow: '2px 2px 0 #8A6820', zIndex: 2, ...pos }} />
       ))}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(15, 1fr)',
-        gap: '1px',
-        backgroundColor: '#1A3A18',
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(15, 1fr)', gap: '1px', backgroundColor: '#1A3A18' }}>
         {tempGrid.map((row, r) =>
           row.map((tile, c) => {
-            const bonusKey = getBonus(r, c);
-            const bonus = BONUS_STYLES[bonusKey];
-            const isTempPlaced = !!temporaryTiles[`${r}-${c}`];
+            const bonusKey  = getBonus(r, c);
+            const bonus     = BONUS_STYLES[bonusKey];
+            const cellKey   = `${r}-${c}`;
+            const isTemp    = !!tempMap[cellKey];
+            const isPerm    = grid[r][c] !== null;
+            const isHovered = hoverCell === cellKey;
+            const isDraggingFrom = dragSource?.type === 'board' && dragSource.fromR === r && dragSource.fromC === c;
 
-            const cellBg = tile
-              ? 'transparent'
-              : bonus.bg
-              ? bonus.bg
-              : 'rgba(45, 90, 39, 0.6)';
+            // Couleur de fond de la cellule
+            let cellBg;
+            if (tile)       cellBg = 'transparent';
+            else if (isHovered && !isPerm) cellBg = 'rgba(200, 168, 48, 0.35)';
+            else if (bonus.bg) cellBg = bonus.bg;
+            else            cellBg = 'rgba(45, 90, 39, 0.6)';
 
             return (
               <div
-                key={`${r}-${c}`}
+                key={cellKey}
+                data-cell={cellKey}
                 style={{
                   aspectRatio: '1',
                   display: 'flex',
@@ -122,21 +154,23 @@ const Board = ({ gameState, placements, onDropTile, onTileClick }) => {
                   alignItems: 'center',
                   backgroundColor: cellBg,
                   borderRadius: '1px',
-                  transition: 'background 0.1s',
+                  transition: 'background 0.08s',
                   position: 'relative',
-                  overflow: 'hidden',
+                  outline: isHovered && !isPerm && !isTemp ? '2px solid rgba(200,168,48,0.7)' : 'none',
+                  outlineOffset: '-1px',
+                  opacity: isDraggingFrom ? 0.4 : 1,
                 }}
-                onDragOver={handleDragOver}
+                onDragOver={(e) => handleDragOver(e, r, c)}
+                onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, r, c)}
               >
                 {tile ? (
-                  <Tile
-                    letter={tile.letter}
-                    score={tile.score}
-                    isDraggable={false}
-                    isTempPlaced={isTempPlaced}
-                    id={`board-${r}-${c}`}
-                    onClick={isTempPlaced ? () => onTileClick(r, c) : null}
+                  <TileBoardCell
+                    tile={tile}
+                    isTemp={isTemp}
+                    r={r} c={c}
+                    onReturnTile={onReturnTile}
+                    onDragStart={handleBoardTileDragStart}
                   />
                 ) : (
                   bonus.label && (
@@ -148,6 +182,7 @@ const Board = ({ gameState, placements, onDropTile, onTileClick }) => {
                       textAlign: 'center',
                       lineHeight: 1,
                       letterSpacing: '-0.02em',
+                      pointerEvents: 'none',
                     }}>
                       {bonus.label}
                     </span>
@@ -158,6 +193,86 @@ const Board = ({ gameState, placements, onDropTile, onTileClick }) => {
           })
         )}
       </div>
+    </div>
+  );
+};
+
+// Tuile posée sur le plateau (permanente ou temporaire)
+const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
+  const [isOver, setIsOver] = useState(false);
+
+  const baseStyle = {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    borderRadius: '2px',
+    fontFamily: "'Playfair Display', Georgia, serif",
+    transition: 'transform 0.1s, opacity 0.1s',
+  };
+
+  if (isTemp) {
+    return (
+      <div
+        draggable
+        onDragStart={(e) => onDragStart(e, r, c)}
+        onClick={() => onReturnTile(r, c)}
+        onMouseEnter={() => setIsOver(true)}
+        onMouseLeave={() => setIsOver(false)}
+        title="Cliquez pour récupérer — glissez pour déplacer"
+        style={{
+          ...baseStyle,
+          background: isOver ? '#B8D888' : '#D4E8A8',
+          border: '2px solid #7AAA30',
+          boxShadow: '2px 2px 0 #4A7A10',
+          cursor: 'grab',
+          transform: isOver ? 'scale(1.06)' : 'none',
+        }}
+      >
+        <span style={{ fontSize: 'clamp(0.55rem, 1.5vw, 0.85rem)', fontWeight: 700, color: '#2A4A10', lineHeight: 1 }}>
+          {tile.letter === '*' ? '★' : tile.letter}
+        </span>
+        {tile.score > 0 && (
+          <span style={{ position: 'absolute', bottom: '1px', right: '2px', fontSize: 'clamp(0.3rem, 0.7vw, 0.45rem)', color: '#4A7A10', fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>
+            {tile.score}
+          </span>
+        )}
+        {/* Indicateur "retour" au hover */}
+        {isOver && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(42, 74, 16, 0.15)',
+            borderRadius: '2px',
+            pointerEvents: 'none',
+          }}>
+            <span style={{ fontSize: 'clamp(0.4rem, 1vw, 0.6rem)', color: '#2A4A10', opacity: 0.8 }}>↩</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Tuile permanente (non draggable, non cliquable)
+  return (
+    <div style={{
+      ...baseStyle,
+      background: tile.letter === '*' ? '#E8E0CC' : '#F0D890',
+      border: `2px solid ${tile.letter === '*' ? '#B0A080' : '#C8A830'}`,
+      boxShadow: '2px 2px 0 #8A6820',
+      cursor: 'default',
+    }}>
+      <span style={{ fontSize: 'clamp(0.55rem, 1.5vw, 0.85rem)', fontWeight: 700, color: '#2A1800', lineHeight: 1 }}>
+        {tile.letter === '*' ? '★' : tile.letter}
+      </span>
+      {tile.score > 0 && (
+        <span style={{ position: 'absolute', bottom: '1px', right: '2px', fontSize: 'clamp(0.3rem, 0.7vw, 0.45rem)', color: '#6B4010', fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>
+          {tile.score}
+        </span>
+      )}
     </div>
   );
 };
