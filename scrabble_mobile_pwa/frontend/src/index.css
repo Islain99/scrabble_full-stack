@@ -1,0 +1,159 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+
+:root {
+  --cream:    #F5EDD6;
+  --cream-dk: #E8D9B5;
+  --tobacco:  #C8803A;
+  --tobacco-dk: #A05E20;
+  --brick:    #B34A2A;
+  --olive:    #5E6B3A;
+  --olive-lt: #8A9B56;
+  --ink:      #1E1A12;
+  --ink-lt:   #3D3626;
+  --muted:    #8A7E65;
+  --board-green: #2D5A27;
+  --board-green-lt: #3D7535;
+  --tile-bg:  #F0D890;
+  --tile-border: #C8A830;
+  --tile-shadow: #8A6820;
+
+  font-family: 'Libre Baskerville', Georgia, serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--ink);
+  background-color: var(--cream);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--cream);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(200,128,58,0.08) 39px,
+      rgba(200,128,58,0.08) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      rgba(200,128,58,0.08) 39px,
+      rgba(200,128,58,0.08) 40px
+    );
+}
+
+h1, h2, h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+button {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 2px solid var(--ink);
+  padding: 0.6em 1.2em;
+  background-color: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+button:hover {
+  background-color: var(--ink);
+  color: var(--cream);
+}
+
+button:disabled {
+  border-color: var(--muted);
+  color: var(--muted);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
+a {
+  color: var(--tobacco);
+  text-decoration: underline;
+}
+/* ============================================================== */
+/*  MOBILE / PWA — adaptations tactiles                           */
+/* ============================================================== */
+
+html, body {
+  /* Empêche le zoom par double-tap et la sélection accidentelle */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+#root {
+  /* Respecte les encoches (notch) et la barre d'accueil iOS/Android */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Sur petit écran, on allège le fond quadrillé (plus lisible) */
+@media (max-width: 768px) {
+  body {
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 47px,
+        rgba(200,128,58,0.05) 47px, rgba(200,128,58,0.05) 48px),
+      repeating-linear-gradient(90deg, transparent, transparent 47px,
+        rgba(200,128,58,0.05) 47px, rgba(200,128,58,0.05) 48px);
+  }
+  body { min-width: 0; }
+}
+
+/* Rack collant en bas de l'écran sur mobile */
+.mobile-rack-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(245, 237, 214, 0.96);
+  backdrop-filter: blur(4px);
+  padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+  border-top: 2px solid var(--ink);
+  box-shadow: 0 -4px 12px rgba(30, 26, 18, 0.12);
+}
+
+/* Pulsation douce de la lettre sélectionnée (mode tap) */
+@keyframes tile-selected-pulse {
+  0%, 100% { transform: translateY(-4px); }
+  50%      { transform: translateY(-7px); }
+}
+.tile-selected-anim {
+  animation: tile-selected-pulse 0.9s ease-in-out infinite;
+}
+
+/* Surbrillance des cases jouables quand une lettre est sélectionnée */
+@keyframes cell-target-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 2px rgba(200,168,48,0.45); }
+  50%      { box-shadow: inset 0 0 0 3px rgba(200,168,48,0.85); }
+}
+.cell-targetable {
+  animation: cell-target-pulse 1.1s ease-in-out infinite;
+}
