@@ -1,0 +1,18 @@
+{
+  "appId": "com.islain.scrabble",
+  "appName": "Scrabble",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#2D5A27",
+      "showSpinner": false
+    }
+  }
+}

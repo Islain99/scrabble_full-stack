@@ -13,7 +13,12 @@ origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://scrabble-full-stack.vercel.app",
-    "https://scrabble-full-stack-mup1.vercel.app"
+    "https://scrabble-full-stack-mup1.vercel.app",
+    
+    # --- Ajouts Capacitor (apps natives) ---
+    "capacitor://localhost",   # iOS
+    "http://localhost",        # Android (WebView)
+    "https://localhost"
 ]
 
 app.add_middleware(
