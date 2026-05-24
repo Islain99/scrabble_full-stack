@@ -12,6 +12,7 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:8081",
     "https://scrabble-full-stack.vercel.app",
     "https://scrabble-full-stack-mup1.vercel.app",
     
