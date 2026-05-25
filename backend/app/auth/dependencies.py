@@ -1,4 +1,10 @@
 # app/auth/dependencies.py
+#
+# ⚡ Changements vs version précédente :
+#   - `except (firebase_auth.InvalidIdTokenError, Exception)` splité en deux blocs
+#     distincts pour ne pas masquer les erreurs internes en 401.
+#   - Les erreurs inattendues remontent en 500 (comportement FastAPI par défaut).
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,16 +43,26 @@ async def get_current_user(
             detail="Token expiré — veuillez vous reconnecter.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except (firebase_auth.InvalidIdTokenError, Exception) as e:
+    except (
+        firebase_auth.InvalidIdTokenError,
+        firebase_auth.RevokedIdTokenError,
+        firebase_auth.CertificateFetchError,
+    ):
+        # Erreurs Firebase connues → 401
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalide.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Les autres exceptions (réseau, bug interne, etc.) remontent en 500
+    # — FastAPI les capture et renvoie une réponse 500 générique.
 
     firebase_uid = decoded.get("uid")
     if not firebase_uid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="UID manquant.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="UID manquant dans le token.",
+        )
 
     # 2. Trouver l'utilisateur dans PostgreSQL
     result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
@@ -59,7 +75,10 @@ async def get_current_user(
         )
 
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Compte désactivé.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Compte désactivé.",
+        )
 
     return user
 

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://scrabblefull-stack-production.up.railway.app/game';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/game';
 
 export const startGame = async (playerNames, difficulty = 'medium') => {
     try {
