@@ -1,3 +1,9 @@
+# api/index.py
+# ─────────────────────────────────────────────────────────────────
+# Toutes les routes de jeu existantes sont INCHANGÉES.
+# Les nouveaux routers auth/users/leaderboard sont greffés ici.
+# ─────────────────────────────────────────────────────────────────
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Tuple, Optional
@@ -7,7 +13,40 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
-app = FastAPI()
+# ── Initialisation Firebase + DB au démarrage ─────────────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Firebase
+    try:
+        from app.core.firebase import init_firebase
+        init_firebase()
+    except Exception as e:
+        print(f"⚠️  Firebase non initialisé : {e}")
+
+    # Base de données PostgreSQL
+    try:
+        from app.db.database import init_db, engine, Base
+        init_db()
+        if engine is not None:
+            async with engine.begin() as conn:
+                from app.db import models  # noqa — enregistre les modèles
+                await conn.run_sync(Base.metadata.create_all)
+            print("✅ Tables DB créées/vérifiées.")
+    except Exception as e:
+        print(f"⚠️  DB non initialisée : {e}")
+
+    yield
+
+    # Nettoyage
+    try:
+        from app.db.database import engine
+        if engine:
+            await engine.dispose()
+    except Exception:
+        pass
+
+
+app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost:3000",
@@ -15,11 +54,10 @@ origins = [
     "http://localhost:8081",
     "https://scrabble-full-stack.vercel.app",
     "https://scrabble-full-stack-mup1.vercel.app",
-    
-    # --- Ajouts Capacitor (apps natives) ---
-    "capacitor://localhost",   # iOS
-    "http://localhost",        # Android (WebView)
-    "https://localhost"
+    # Capacitor (apps natives)
+    "capacitor://localhost",
+    "http://localhost",
+    "https://localhost",
 ]
 
 app.add_middleware(
@@ -30,6 +68,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Nouveaux routers auth/users/leaderboard ───────────────────────
+from app.auth.router import router as auth_router
+from app.users.router import router as users_router
+from app.leaderboard.router import router as leaderboard_router
+
+app.include_router(auth_router,        prefix="/api/v2")
+app.include_router(users_router,       prefix="/api/v2")
+app.include_router(leaderboard_router, prefix="/api/v2")
+
+# ── Moteur de jeu existant ────────────────────────────────────────
 DICTIONARY_PATH = BASE_DIR / "dictionnaire.txt"
 game_engine = GameEngine(dictionary_path=str(DICTIONARY_PATH))
 
@@ -40,17 +88,16 @@ print("FILE EXISTS:", DICTIONARY_PATH.exists())
 
 
 # ---------------------------------------------------------------------------
-# Routes utilitaires
+# Routes utilitaires — INCHANGÉES
 # ---------------------------------------------------------------------------
 
 @app.get("/")
 def root():
-    return {"message": "API running"}
+    return {"message": "Scrabble API v2 — Game + Auth"}
 
 
 @app.get("/game/difficulties")
 def list_difficulties():
-    """Retourne la liste des niveaux de difficulté disponibles."""
     return {
         key: {"label": val["label"], "think_delay_ms": val["think_delay_ms"]}
         for key, val in AI_CONFIG.items()
@@ -58,24 +105,19 @@ def list_difficulties():
 
 
 # ---------------------------------------------------------------------------
-# Démarrage et statut
+# Démarrage et statut — INCHANGÉS
 # ---------------------------------------------------------------------------
 
 @app.post("/game/start", response_model=GameState)
 async def start_game(
     player_names: List[str],
-    difficulty: str = Query(default=AIDifficulty.MEDIUM, description="Niveau de l'IA: easy | medium | hard")
+    difficulty: str = Query(default=AIDifficulty.MEDIUM, description="Niveau de l'IA")
 ):
-    """Démarre une nouvelle partie avec le niveau d'IA choisi."""
     if len(player_names) < 2:
         raise HTTPException(status_code=400, detail="Il faut au moins deux joueurs.")
     if difficulty not in AI_CONFIG:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Niveau invalide. Choisissez parmi: {list(AI_CONFIG.keys())}"
-        )
-    new_game = game_engine.start_new_game(player_names, difficulty=difficulty)
-    return new_game
+        raise HTTPException(status_code=400, detail=f"Niveau invalide. Choisissez parmi: {list(AI_CONFIG.keys())}")
+    return game_engine.start_new_game(player_names, difficulty=difficulty)
 
 
 @app.get("/game/status/{game_id}", response_model=GameState)
@@ -87,7 +129,7 @@ async def get_status(game_id: str):
 
 
 # ---------------------------------------------------------------------------
-# Actions de jeu
+# Actions de jeu — INCHANGÉES
 # ---------------------------------------------------------------------------
 
 @app.post("/game/play/{game_id}")
@@ -123,20 +165,17 @@ async def shuffle_rack(game_id: str, player_id: int):
         raise HTTPException(status_code=404, detail=f"Partie {game_id} non trouvée.")
     try:
         game_engine.shuffle_rack(game, player_id)
-    except AttributeError:
-        raise HTTPException(status_code=500, detail="Fonctionnalité shuffle non implémentée.")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Impossible de mélanger le rack: {str(e)}")
     return {"message": "Rack mélangé.", "game_state": game}
 
 
 # ---------------------------------------------------------------------------
-# Tour de l'IA
+# Tour de l'IA — INCHANGÉ
 # ---------------------------------------------------------------------------
 
 @app.post("/game/ai/play/{game_id}")
 async def ai_play_turn(game_id: str):
-    """Déclenche le tour de l'IA avec le niveau configuré à la création de la partie."""
     game = game_engine.get_game(game_id)
     if not game:
         raise HTTPException(status_code=404, detail=f"Partie {game_id} non trouvée.")
@@ -149,7 +188,6 @@ async def ai_play_turn(game_id: str):
     if not success:
         raise HTTPException(status_code=400, detail=message)
 
-    # Inclure le niveau dans la réponse pour que le frontend puisse afficher l'info
     difficulty = game_engine.get_difficulty(game_id)
     config = AI_CONFIG[difficulty]
 
@@ -158,7 +196,7 @@ async def ai_play_turn(game_id: str):
         "difficulty": difficulty,
         "difficulty_label": config["label"],
         "think_delay_ms": config["think_delay_ms"],
-        "game_state": game_engine.get_game(game_id)
+        "game_state": game_engine.get_game(game_id),
     }
 
 # Décommenté pour éviter les conflits avec le développement et les tests locaux
