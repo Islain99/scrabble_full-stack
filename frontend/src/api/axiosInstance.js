@@ -9,7 +9,7 @@ import { signOut } from 'firebase/auth';
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  'https://scrabblefull-stack-production.up.railway.app';
+  'http://localhost:8000'; // Défaut pour dev local, à configurer en prod via .env
 
 // ── Instance ──────────────────────────────────────────────────────
 
