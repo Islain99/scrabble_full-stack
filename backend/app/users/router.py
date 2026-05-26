@@ -1,4 +1,10 @@
 # app/users/router.py
+#
+# ⚡ Changements :
+#   - UpdateProfileRequest : ajout first_name, last_name, age, country
+#   - UserOut              : expose les nouveaux champs + profile_complete
+#   - PATCH /me            : recalcule profile_complete après chaque màj
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -8,21 +14,81 @@ from datetime import datetime
 from app.db.database import get_db
 from app.db.models import User, GameHistory
 from app.auth.dependencies import get_current_user
-from app.auth.router import UserOut
 
 router = APIRouter(prefix="/users", tags=["Utilisateurs"])
 
 
 # ── Schemas ────────────────────────────────────────────────────────
 
+class UserOut(BaseModel):
+    id: int
+    firebase_uid: str
+    email: str
+    display_name: str
+    first_name: str | None
+    last_name: str | None
+    age: int | None
+    country: str | None
+    avatar_url: str | None
+    bio: str | None
+    auth_provider: str
+    is_verified: bool
+    profile_complete: bool
+    games_played: int
+    games_won: int
+    total_score: int
+    best_score: int
+    best_word: str | None
+    best_word_score: int
+    average_score: float
+    win_rate: float
+    created_at: datetime
+    last_login_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_user(cls, user: User) -> "UserOut":
+        return cls(
+            id=user.id,
+            firebase_uid=user.firebase_uid,
+            email=user.email,
+            display_name=user.display_name,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            age=user.age,
+            country=user.country,
+            avatar_url=user.avatar_url,
+            bio=user.bio,
+            auth_provider=user.auth_provider,
+            is_verified=user.is_verified,
+            profile_complete=user.profile_complete,
+            games_played=user.games_played,
+            games_won=user.games_won,
+            total_score=user.total_score,
+            best_score=user.best_score,
+            best_word=user.best_word,
+            best_word_score=user.best_word_score,
+            average_score=user.average_score,
+            win_rate=user.win_rate,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at,
+        )
+
+
 class UpdateProfileRequest(BaseModel):
     display_name: str | None = None
-    bio: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    age: int | None = None
+    country: str | None = None
     avatar_url: str | None = None
+    bio: str | None = None
 
     @field_validator("display_name")
     @classmethod
-    def validate_name(cls, v: str | None) -> str | None:
+    def validate_display_name(cls, v: str | None) -> str | None:
         if v is None:
             return v
         v = v.strip()
@@ -30,6 +96,39 @@ class UpdateProfileRequest(BaseModel):
             raise ValueError("Le pseudo doit contenir au moins 2 caractères.")
         if len(v) > 32:
             raise ValueError("Le pseudo ne peut pas dépasser 32 caractères.")
+        return v
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) < 1:
+            raise ValueError("Ce champ ne peut pas être vide.")
+        if len(v) > 64:
+            raise ValueError("Ce champ ne peut pas dépasser 64 caractères.")
+        return v
+
+    @field_validator("age")
+    @classmethod
+    def validate_age(cls, v: int | None) -> int | None:
+        if v is None:
+            return v
+        if v < 5 or v > 120:
+            raise ValueError("Âge invalide (entre 5 et 120).")
+        return v
+
+    @field_validator("country")
+    @classmethod
+    def validate_country(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("Pays invalide.")
+        if len(v) > 100:
+            raise ValueError("Pays trop long.")
         return v
 
     @field_validator("bio")
@@ -59,7 +158,6 @@ class GameHistoryOut(BaseModel):
 
 
 class SaveGameRequest(BaseModel):
-    """Appelé par le frontend à la fin de chaque partie."""
     game_id: str
     user_score: int
     ai_name: str = "HAL 9000"
@@ -86,13 +184,27 @@ async def update_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Met à jour le pseudo, la bio ou l'avatar."""
+    """
+    Met à jour le profil du joueur.
+    Recalcule profile_complete après chaque modification.
+    """
     if payload.display_name is not None:
         current_user.display_name = payload.display_name
-    if payload.bio is not None:
-        current_user.bio = payload.bio
+    if payload.first_name is not None:
+        current_user.first_name = payload.first_name
+    if payload.last_name is not None:
+        current_user.last_name = payload.last_name
+    if payload.age is not None:
+        current_user.age = payload.age
+    if payload.country is not None:
+        current_user.country = payload.country
     if payload.avatar_url is not None:
         current_user.avatar_url = payload.avatar_url
+    if payload.bio is not None:
+        current_user.bio = payload.bio
+
+    # Recalcule le flag profile_complete
+    current_user.check_profile_complete()
 
     await db.flush()
     await db.refresh(current_user)
@@ -106,7 +218,7 @@ async def get_history(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Historique paginé des parties de l'utilisateur."""
+    """Historique paginé des parties."""
     result = await db.execute(
         select(GameHistory)
         .where(GameHistory.user_id == current_user.id)
@@ -123,12 +235,7 @@ async def save_game(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Sauvegarde une partie terminée et met à jour les stats du joueur.
-    Appelé automatiquement par le frontend quand status === 'FINISHED'.
-    Idempotent : une deuxième requête avec le même game_id retourne 409.
-    """
-    # Éviter les doublons
+    """Sauvegarde une partie terminée et met à jour les stats."""
     existing = await db.execute(
         select(GameHistory).where(GameHistory.game_id == payload.game_id)
     )
@@ -153,7 +260,6 @@ async def save_game(
     )
     db.add(game)
 
-    # Mettre à jour les stats dénormalisées
     current_user.update_stats_after_game(
         score=payload.user_score,
         won=payload.won,
@@ -168,11 +274,9 @@ async def save_game(
 
 @router.get("/{user_id}/profile", response_model=UserOut)
 async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db)):
-    """Profil public d'un joueur (accessible sans auth — pour le classement)."""
-    result = await db.execute(
-        select(User).where(User.id == user_id, User.is_active == True)
-    )
+    """Profil public d'un joueur (classement, matchmaking futur)."""
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
+        raise HTTPException(status_code=404, detail="Joueur introuvable.")
     return UserOut.from_user(user)
