@@ -25,11 +25,15 @@ async def lifespan(app: FastAPI):
 
     # Base de données PostgreSQL
     try:
-        from app.db.database import init_db, engine, Base
+        # ⚠️ Import models EN PREMIER pour que SQLAlchemy connaisse les tables
+        from app.db import models as _models  # noqa
+        from app.db.database import init_db, Base
         init_db()
-        if engine is not None:
-            async with engine.begin() as conn:
-                from app.db import models  # noqa — enregistre les modèles
+
+        # Ré-importer engine APRÈS init_db() pour avoir la valeur à jour
+        from app.db.database import engine as db_engine
+        if db_engine is not None:
+            async with db_engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             print("✅ Tables DB créées/vérifiées.")
     except Exception as e:
@@ -37,11 +41,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Nettoyage
     try:
-        from app.db.database import engine
-        if engine:
-            await engine.dispose()
+        from app.db.database import engine as db_engine
+        if db_engine:
+            await db_engine.dispose()
     except Exception:
         pass
 
