@@ -1,5 +1,4 @@
-// src/context/AuthContext.jsx — updateUserProfile enrichi avec les nouveaux champs profil
-
+// src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   onAuthStateChanged,
@@ -120,14 +119,26 @@ export function AuthProvider({ children }) {
   }, []);
 
   /**
-   * Met à jour le profil complet du joueur.
-   * Accepte : displayName, firstName, lastName, age, country, bio, avatarUrl.
+   * Met à jour le profil complet.
+   * Accepte : displayName, firstName, lastName, age, country, bio, avatarUrl
    */
   const updateUserProfile = useCallback(async ({
-    displayName, firstName, lastName, age, country, bio, avatarUrl,
+    displayName,
+    firstName,   // ← NOUVEAU
+    lastName,    // ← NOUVEAU
+    age,         // ← NOUVEAU
+    country,     // ← NOUVEAU
+    bio,
+    avatarUrl,
   }) => {
     const updated = await apiUpdateProfile({
-      displayName, firstName, lastName, age, country, bio, avatarUrl,
+      displayName,
+      firstName,
+      lastName,
+      age,
+      country,
+      bio,
+      avatarUrl,
     });
     setDbUser(updated);
     return updated;
@@ -158,17 +169,17 @@ export function AuthProvider({ children }) {
 
 function firebaseErrorMessage(code) {
   const messages = {
-    'auth/email-already-in-use':    'Cette adresse email est déjà utilisée.',
-    'auth/invalid-email':           'Adresse email invalide.',
-    'auth/weak-password':           'Mot de passe trop faible (6 caractères minimum).',
-    'auth/user-not-found':          'Aucun compte avec cet email.',
-    'auth/wrong-password':          'Mot de passe incorrect.',
-    'auth/invalid-credential':      'Email ou mot de passe incorrect.',
-    'auth/too-many-requests':       'Trop de tentatives. Réessayez dans quelques minutes.',
-    'auth/network-request-failed':  'Erreur réseau. Vérifiez votre connexion.',
-    'auth/popup-blocked':           'Popup bloquée. Autorisez les popups pour Google.',
+    'auth/email-already-in-use':   'Cette adresse email est déjà utilisée.',
+    'auth/invalid-email':          'Adresse email invalide.',
+    'auth/weak-password':          'Mot de passe trop faible (6 caractères minimum).',
+    'auth/user-not-found':         'Aucun compte avec cet email.',
+    'auth/wrong-password':         'Mot de passe incorrect.',
+    'auth/invalid-credential':     'Email ou mot de passe incorrect.',
+    'auth/too-many-requests':      'Trop de tentatives. Réessayez dans quelques minutes.',
+    'auth/network-request-failed': 'Erreur réseau. Vérifiez votre connexion.',
+    'auth/popup-blocked':          'Popup bloquée. Autorisez les popups pour Google.',
     'auth/account-exists-with-different-credential':
-                                    'Un compte existe déjà avec cet email (autre méthode).',
+                                   'Un compte existe déjà avec cet email (autre méthode).',
   };
   return messages[code] || `Erreur d'authentification (${code}).`;
 }
