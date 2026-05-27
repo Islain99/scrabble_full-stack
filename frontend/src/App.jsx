@@ -4,7 +4,7 @@
 //   - GameApp est maintenant dans <ProtectedRoute> : connexion obligatoire pour jouer.
 //   - Si connecté mais profil incomplet → redirige vers #/profile avec message.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';

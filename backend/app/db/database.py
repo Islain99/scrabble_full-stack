@@ -9,6 +9,18 @@ engine = None
 AsyncSessionLocal = None
 
 
+def _fix_db_url(url: str) -> str:
+    """
+    Railway fournit DATABASE_URL avec le schéma 'postgresql://' ou 'postgres://'.
+    SQLAlchemy async a besoin de 'postgresql+asyncpg://'.
+    """
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
 def init_db():
     """Initialise le moteur DB. Appelé au démarrage si DATABASE_URL est défini."""
     global engine, AsyncSessionLocal
@@ -17,8 +29,11 @@ def init_db():
         print("⚠️  DATABASE_URL non défini — fonctionnalités DB désactivées.")
         return
 
+    db_url = _fix_db_url(settings.DATABASE_URL)
+    print(f"🔌 Connexion DB : {db_url[:40]}...")
+
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        db_url,
         echo=not settings.is_production,
         pool_pre_ping=True,
         pool_size=5,
@@ -42,13 +57,13 @@ class Base(DeclarativeBase):
 async def get_db():
     """
     Dependency FastAPI — injecte une session DB.
-    Lève une erreur claire si la DB n'est pas configurée.
+    Lève une erreur 503 claire si DATABASE_URL n'est pas configuré.
     """
     if AsyncSessionLocal is None:
         from fastapi import HTTPException
         raise HTTPException(
             status_code=503,
-            detail="Base de données non disponible. Configurez DATABASE_URL."
+            detail="Base de données non disponible. Vérifiez DATABASE_URL dans Railway."
         )
     async with AsyncSessionLocal() as session:
         try:
