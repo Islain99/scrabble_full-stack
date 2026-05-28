@@ -96,3 +96,7 @@ a {
   color: var(--tobacco);
   text-decoration: underline;
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

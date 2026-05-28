@@ -12,7 +12,7 @@ const SORTS    = [
 ];
 
 export default function LeaderboardPage() {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('all');
@@ -20,12 +20,11 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    getLeaderboard(token, { period, sortBy })
+    getLeaderboard({ period, sortBy })
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [period, sortBy, token]);
-
+  }, [period, sortBy]);
   return (
     <div style={styles.page}>
       <div style={styles.container}>
