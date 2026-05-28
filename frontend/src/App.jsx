@@ -1,7 +1,7 @@
 // src/App.jsx
 // Routing hash-based + AuthProvider + GameApp complet avec Board, TileRack, ScorePanel
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -105,7 +105,7 @@ function GameApp() {
   const [playerName, setPlayerName]             = useState('');
   const [difficulty, setDifficulty]             = useState('medium');
   const [humanPlayerId, setHumanPlayerId]       = useState(0);
-  
+
   const actionInFlight = useRef(false);
 
    // Pré-remplir le nom depuis le profil
