@@ -93,57 +93,63 @@ function GameApp() {
   const { user } = useAuth();
 
   // ── State ─────────────────────────────────────────────────────
-  const [gameState, setGameState]           = useState(null);
-  const [gameId, setGameId]                 = useState(null);
-  const [placements, setPlacements]         = useState([]);
-  const [selectedForSwap, setSelectedForSwap] = useState([]);
-  const [isLoading, setIsLoading]           = useState(false);
-  const [error, setError]                   = useState(null);
-  const [showSwap, setShowSwap]             = useState(false);
-  const [gameStartTime, setGameStartTime]   = useState(null);
-  const [gameSaved, setGameSaved]           = useState(false);
+  const [gameState, setGameState]               = useState(null);
+  const [gameId, setGameId]                     = useState(null);
+  const [placements, setPlacements]             = useState([]);
+  const [selectedForSwap, setSelectedForSwap]   = useState([]);
+  const [isLoading, setIsLoading]               = useState(false);
+  const [error, setError]                       = useState(null);
+  const [showSwap, setShowSwap]                 = useState(false);
+  const [gameStartTime, setGameStartTime]       = useState(null);
+  const [gameSaved, setGameSaved]               = useState(false);
+  const [playerName, setPlayerName]             = useState('');
+  const [difficulty, setDifficulty]             = useState('medium');
 
   // ── Écran de démarrage : nom & difficulté ─────────────────────
   const [playerName, setPlayerName]   = useState('');
   const [difficulty, setDifficulty]   = useState('medium');
+  const [humanPlayerId, setHumanPlayerId] = useState(0);
 
-  // Pré-remplir le nom depuis le profil
+  const actionInFlight = useRef(false);
+
+   // Pré-remplir le nom depuis le profil
   useEffect(() => {
-    if (user?.display_name && !playerName) {
-      setPlayerName(user.display_name);
-    }
+    if (user?.display_name && !playerName) setPlayerName(user.display_name);
   }, [user]);
 
-  // ── Dérivés ───────────────────────────────────────────────────
+    // ── Dérivés ───────────────────────────────────────────────────
   const activePlayerId = gameState
     ? gameState.players[gameState.current_player_index].id
     : 0;
-
+ 
   const currentRack = gameState
     ? gameState.players.find(p => p.id === activePlayerId)?.rack ?? []
     : [];
-
-  const placedOriginals = placements.map(p => p.originalTile);
+ 
+  const placedOriginals    = placements.map(p => p.originalTile);
   const availableRackTiles = currentRack.filter(t => !placedOriginals.includes(t));
-
-  const previewScore = calculatePreviewScore(placements);
-
+  const previewScore       = calculatePreviewScore(placements);
+ 
   const isAITurn = gameState
     ? gameState.players[gameState.current_player_index].is_ai
     : false;
-
-  const isBlocked = isAITurn || isLoading;
-
+    
+  const isBlocked = isAITurn || isLoading || actionInFlight.current;
+ 
   const hint = isAITurn || isLoading
-  ? "⏳ L'IA réfléchit..."
-  : placements.length > 0
-    ? `${placements.length} tuile(s) — score estimé : ${previewScore} pts`
-    : 'Glissez une lettre sur le plateau';
+    ? "⏳ L'IA réfléchit..."
+    : placements.length > 0
+      ? `${placements.length} tuile(s) — score estimé : ${previewScore} pts`
+      : 'Glissez une lettre sur le plateau';
 
-  // ── Tour IA automatique ───────────────────────────────────────
+  
+    // ── Tour IA automatique ───────────────────────────────────────
   useEffect(() => {
     if (!gameState || gameState.status !== 'ACTIVE' || !gameId || !isAITurn) return;
     const timer = setTimeout(async () => {
+      // FIX: si une action humaine est encore en vol (latence réseau),
+      // l'IA ne joue pas — évite les conflits de séquencement.
+      if (actionInFlight.current) return;
       try {
         const updated = await gameService.aiPlayTurn(gameId);
         setGameState(updated);
@@ -154,7 +160,7 @@ function GameApp() {
     return () => clearTimeout(timer);
   }, [gameState, gameId, isAITurn]);
 
-  // ── Sauvegarde auto fin de partie ────────────────────────────
+    // ── Sauvegarde auto fin de partie ────────────────────────────
   useEffect(() => {
     if (!gameState || gameState.status !== 'FINISHED' || gameSaved || !user) return;
     const human = gameState.players.find(p => !p.is_ai);
@@ -171,10 +177,11 @@ function GameApp() {
       duration_seconds: gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null,
       turns_count:      gameState.passes_count || 0,
     }).catch(console.error);
-  }, [gameState?.status]);
+    // FIX: dépendances complètes pour éviter stale closure
+  }, [gameState?.status, gameId, difficulty, gameStartTime, user, gameSaved]);
 
   // ── Actions ───────────────────────────────────────────────────
-
+ 
   const handleStart = async () => {
     setIsLoading(true);
     setError(null);
@@ -183,6 +190,7 @@ function GameApp() {
     setShowSwap(false);
     setGameSaved(false);
     setGameStartTime(Date.now());
+    actionInFlight.current = false;
     try {
       const state = await gameService.startGame(
         [playerName.trim() || user?.display_name || 'Joueur', 'HAL 9000'],
@@ -190,6 +198,10 @@ function GameApp() {
       );
       setGameState(state);
       setGameId(state.game_id);
+ 
+      // FIX #1: mémoriser l'id du joueur humain dès le démarrage
+      const human = state.players.find(p => !p.is_ai);
+      setHumanPlayerId(human?.id ?? 0);
     } catch (e) {
       setError('Impossible de démarrer la partie. Vérifiez votre connexion.');
     } finally {
@@ -203,24 +215,26 @@ function GameApp() {
     if (placements.some(p => p.r === r && p.c === c)) return;
     setPlacements(prev => [...prev, { letter: tile.letter, r, c, originalTile: tile, rackIndex }]);
   }, [availableRackTiles, placements]);
-
+ 
   const handleMoveTile = useCallback((fromR, fromC, toR, toC) => {
     if (placements.some(p => p.r === toR && p.c === toC)) return;
     setPlacements(prev =>
       prev.map(p => p.r === fromR && p.c === fromC ? { ...p, r: toR, c: toC } : p)
     );
   }, [placements]);
-
+ 
   const handleReturnTile = useCallback((r, c) => {
     setPlacements(prev => prev.filter(p => !(p.r === r && p.c === c)));
   }, []);
 
   const handleValidate = async () => {
     if (!gameId || !placements.length) return;
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     setIsLoading(true);
     try {
       const api = placements.map(p => [p.r, p.c, p.letter]);
-      const result = await gameService.playWord(gameId, activePlayerId, api);
+      const result = await gameService.playWord(gameId, humanPlayerId, api);
       setGameState(result);
       setPlacements([]);
       setError(null);
@@ -229,43 +243,62 @@ function GameApp() {
       setPlacements([]);
     } finally {
       setIsLoading(false);
+      actionInFlight.current = false;
     }
   };
 
   const handlePass = async () => {
     if (!gameId) return;
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    setIsLoading(true);
     try {
-      const updated = await gameService.passTurn(gameId, activePlayerId);
+      const updated = await gameService.passTurn(gameId, humanPlayerId);
       setGameState(updated);
       setPlacements([]);
+      setError(null);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Erreur réseau.');
+    } finally {
+      setIsLoading(false);
+      actionInFlight.current = false;
     }
   };
 
   const handleShuffle = async () => {
     if (!gameId) return;
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     try {
-      const updated = await gameService.shuffleRack(gameId, activePlayerId);
+      const updated = await gameService.shuffleRack(gameId, humanPlayerId);
       setGameState(updated);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Erreur réseau.');
+    } finally {
+      actionInFlight.current = false;
     }
   };
-
+ 
   const handleSwapConfirm = async () => {
     if (!gameId || !selectedForSwap.length) return;
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
+    setIsLoading(true);
     setPlacements([]);
     try {
-      const updated = await gameService.swapTiles(gameId, activePlayerId, selectedForSwap);
+      const updated = await gameService.swapTiles(gameId, humanPlayerId, selectedForSwap);
       setGameState(updated);
       setSelectedForSwap([]);
       setShowSwap(false);
+      setError(null);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Échange impossible.');
+    } finally {
+      setIsLoading(false);
+      actionInFlight.current = false;
     }
   };
-
+ 
   const toggleSwapTile = (letter) => {
     setSelectedForSwap(prev =>
       prev.includes(letter) ? prev.filter(l => l !== letter) : [...prev, letter]

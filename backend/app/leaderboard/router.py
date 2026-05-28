@@ -65,20 +65,29 @@ async def get_leaderboard(
         .limit(limit)
     )
 
-    # Filtre temporel via GameHistory
+    # FIX: Utiliser scalar_subquery() au lieu de subquery() pour que
+    # User.id.in_(...) génère du SQL valide.
+    # AVANT (cassé) : active_ids = select(...).distinct().subquery()
+    #                 base_query.where(User.id.in_(select(active_ids)))
+    # APRÈS (correct) : scalar_subquery() produit directement une sous-requête scalaire.
     if period in ("month", "week"):
         cutoff = datetime.now(timezone.utc) - timedelta(days=30 if period == "month" else 7)
-        # Sous-requête : IDs des joueurs actifs dans la période
-        active_ids = select(GameHistory.user_id).where(
-            GameHistory.created_at >= cutoff
-        ).distinct().subquery()
-        base_query = base_query.where(User.id.in_(select(active_ids)))
+        active_ids = (
+            select(GameHistory.user_id)
+            .where(GameHistory.created_at >= cutoff)
+            .distinct()
+            .scalar_subquery()
+        )
+        base_query = base_query.where(User.id.in_(active_ids))
 
     result = await db.execute(base_query)
     users = result.scalars().all()
 
     # Total
-    count_query = select(func.count(User.id)).where(User.is_active == True, User.games_played > 0)
+    count_query = select(func.count(User.id)).where(
+        User.is_active == True,
+        User.games_played > 0,
+    )
     total = (await db.execute(count_query)).scalar_one()
 
     entries = [
@@ -101,7 +110,7 @@ async def get_leaderboard(
     # Rang de l'utilisateur connecté
     current_user_rank = next(
         (e.rank for e in entries if current_user and e.user_id == current_user.id),
-        None
+        None,
     )
 
     return LeaderboardResponse(

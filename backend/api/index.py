@@ -135,21 +135,56 @@ async def get_status(game_id: str):
 # Actions de jeu — INCHANGÉES
 # ---------------------------------------------------------------------------
 
-@app.post("/game/play/{game_id}")
-async def play_word(game_id: str, player_id: int, placements: List[Tuple[int, int, str]]):
-    success, message = game_engine.play_word(game_id, player_id, placements)
-    if not success:
-        raise HTTPException(status_code=400, detail=message)
-    return {"message": "Mot joué et score mis à jour.", "game_state": game_engine.get_game(game_id)}
-
-
 @app.post("/game/pass/{game_id}")
 async def pass_turn(game_id: str, player_id: int):
+    game = game_engine.get_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail=f"Partie {game_id} non trouvée.")
+ 
+    # FIX: Log détaillé pour diagnostiquer les désynchronisations
+    current_idx = game.current_player_index
+    current_player = game.players[current_idx]
+    if current_player.id != player_id:
+        # Fournir un message clair indiquant l'état actuel
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Ce n'est pas le tour de ce joueur. "
+                f"Tour actuel : joueur id={current_player.id} ({current_player.name}). "
+                f"Reçu : player_id={player_id}."
+            )
+        )
+ 
     success, message = game_engine.pass_turn(game_id, player_id)
     game = game_engine.get_game(game_id)
     if not success or not game:
         raise HTTPException(status_code=400, detail=message or "Erreur inconnue.")
     return {"message": "Tour passé.", "game_state": game}
+ 
+ 
+@app.post("/game/play/{game_id}")
+async def play_word(game_id: str, player_id: int, placements: List[Tuple[int, int, str]]):
+    game = game_engine.get_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail=f"Partie {game_id} non trouvée.")
+ 
+    # FIX: même log détaillé
+    current_idx = game.current_player_index
+    current_player = game.players[current_idx]
+    if current_player.id != player_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Ce n'est pas le tour de ce joueur. "
+                f"Tour actuel : joueur id={current_player.id} ({current_player.name}). "
+                f"Reçu : player_id={player_id}."
+            )
+        )
+ 
+    success, message = game_engine.play_word(game_id, player_id, placements)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"message": "Mot joué et score mis à jour.", "game_state": game_engine.get_game(game_id)}
 
 
 @app.post("/game/swap/{game_id}")

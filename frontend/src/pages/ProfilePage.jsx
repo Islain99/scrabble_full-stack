@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getHistory, updateProfile } from '../api/authService';
+import { getHistory } from '../api/authService';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // Liste de pays simplifiée (tu peux remplacer par une lib complète)
