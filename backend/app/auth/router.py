@@ -1,9 +1,4 @@
 # app/auth/router.py
-#
-# ⚡ Changements vs version précédente :
-#   - /register reçoit le token via header Bearer (HTTPBearer) au lieu du body JSON.
-#     Plus cohérent avec /login et les autres routes protégées.
-#   - RegisterRequest ne contient plus firebase_token.
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,10 +16,8 @@ router = APIRouter(prefix="/auth", tags=["Authentification"])
 bearer_scheme = HTTPBearer(auto_error=True)
 
 
-# ── Schemas ────────────────────────────────────────────────────────
-
 class RegisterRequest(BaseModel):
-    display_name: str  # firebase_token retiré — passé en header Bearer
+    display_name: str
 
     @field_validator("display_name")
     @classmethod
@@ -42,10 +35,15 @@ class UserOut(BaseModel):
     firebase_uid: str
     email: str
     display_name: str
+    first_name: str | None
+    last_name: str | None
+    age: int | None
+    country: str | None
     avatar_url: str | None
     bio: str | None
     auth_provider: str
     is_verified: bool
+    profile_complete: bool
     games_played: int
     games_won: int
     total_score: int
@@ -61,16 +59,21 @@ class UserOut(BaseModel):
         from_attributes = True
 
     @classmethod
-    def from_user(cls, user: User) -> "UserOut":
+    def from_user(cls, user: "User") -> "UserOut":
         return cls(
             id=user.id,
             firebase_uid=user.firebase_uid,
             email=user.email,
             display_name=user.display_name,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            age=user.age,
+            country=user.country,
             avatar_url=user.avatar_url,
             bio=user.bio,
             auth_provider=user.auth_provider,
             is_verified=user.is_verified,
+            profile_complete=user.profile_complete,
             games_played=user.games_played,
             games_won=user.games_won,
             total_score=user.total_score,
@@ -89,29 +92,16 @@ class LoginResponse(BaseModel):
     is_new_user: bool
 
 
-# ── Routes ─────────────────────────────────────────────────────────
-
 @router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),  # ← token en header
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Enregistre un nouvel utilisateur après création Firebase.
-    Flow :
-      1. Le client crée le compte Firebase (email/password ou OAuth)
-      2. Le client appelle cette route avec le idToken Firebase en header Bearer
-      3. Le backend crée le profil dans PostgreSQL
-    Route idempotente : si le profil existe déjà, retourne is_new_user=False.
-    """
     try:
         decoded = verify_firebase_token(credentials.credentials)
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token Firebase invalide.",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token Firebase invalide.")
 
     firebase_uid = decoded["uid"]
     email = decoded.get("email", "")
@@ -119,20 +109,15 @@ async def register(
     avatar_url = decoded.get("picture")
     email_verified = decoded.get("email_verified", False)
 
-    # Idempotent : si le profil existe déjà
     result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
     existing = result.scalar_one_or_none()
     if existing:
         existing.last_login_at = datetime.now(timezone.utc)
         return LoginResponse(user=UserOut.from_user(existing), is_new_user=False)
 
-    # Vérifier unicité email
     result = await db.execute(select(User).where(User.email == email))
     if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Un compte avec cet email existe déjà.",
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Un compte avec cet email existe déjà.")
 
     user = User(
         firebase_uid=firebase_uid,
@@ -145,8 +130,6 @@ async def register(
     db.add(user)
     await db.flush()
     await db.refresh(user)
-    # Le commit est géré automatiquement par get_db() via `await session.commit()`
-
     return LoginResponse(user=UserOut.from_user(user), is_new_user=True)
 
 
@@ -155,18 +138,10 @@ async def login(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Login : vérifie le token Firebase et met à jour last_login_at.
-    Crée automatiquement le profil PostgreSQL pour les connexions OAuth Google
-    (first-time login via Google — pas de /register séparé).
-    """
     try:
         decoded = verify_firebase_token(credentials.credentials)
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalide.",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalide.")
 
     firebase_uid = decoded["uid"]
     email = decoded.get("email", "")
@@ -181,13 +156,9 @@ async def login(
         user.last_login_at = datetime.now(timezone.utc)
         return LoginResponse(user=UserOut.from_user(user), is_new_user=False)
 
-    # Premier login Google — créer le profil automatiquement
     result = await db.execute(select(User).where(User.email == email))
     if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Un compte avec cet email existe déjà (autre méthode).",
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Un compte avec cet email existe déjà (autre méthode).")
 
     display_name = decoded.get("name") or email.split("@")[0]
     user = User(
@@ -201,11 +172,9 @@ async def login(
     db.add(user)
     await db.flush()
     await db.refresh(user)
-
     return LoginResponse(user=UserOut.from_user(user), is_new_user=True)
 
 
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
-    """Retourne le profil de l'utilisateur connecté."""
     return UserOut.from_user(current_user)
