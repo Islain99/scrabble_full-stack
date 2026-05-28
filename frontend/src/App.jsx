@@ -104,12 +104,8 @@ function GameApp() {
   const [gameSaved, setGameSaved]               = useState(false);
   const [playerName, setPlayerName]             = useState('');
   const [difficulty, setDifficulty]             = useState('medium');
-
-  // ── Écran de démarrage : nom & difficulté ─────────────────────
-  const [playerName, setPlayerName]   = useState('');
-  const [difficulty, setDifficulty]   = useState('medium');
-  const [humanPlayerId, setHumanPlayerId] = useState(0);
-
+  const [humanPlayerId, setHumanPlayerId]       = useState(0);
+  
   const actionInFlight = useRef(false);
 
    // Pré-remplir le nom depuis le profil
