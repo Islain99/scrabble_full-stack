@@ -1,6 +1,12 @@
+// frontend/src/api/gameService.js
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/game';
+// VITE_API_BASE_URL pointe vers la racine du backend (sans /game).
+// On ajoute /game ici pour les routes du moteur de jeu.
+const BASE = import.meta.env.VITE_API_BASE_URL
+  || 'https://scrabblefull-stack-production.up.railway.app';
+
+const API_URL = `${BASE}/game`;
 
 export const startGame = async (playerNames, difficulty = 'medium') => {
     try {
