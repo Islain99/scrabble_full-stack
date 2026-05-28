@@ -132,6 +132,14 @@ function GameApp() {
     ? gameState.players[gameState.current_player_index].is_ai
     : false;
 
+  const isBlocked = isAITurn || isLoading;
+
+  const hint = isAITurn || isLoading
+  ? "⏳ L'IA réfléchit..."
+  : placements.length > 0
+    ? `${placements.length} tuile(s) — score estimé : ${previewScore} pts`
+    : 'Glissez une lettre sur le plateau';
+
   // ── Tour IA automatique ───────────────────────────────────────
   useEffect(() => {
     if (!gameState || gameState.status !== 'ACTIVE' || !gameId || !isAITurn) return;
@@ -377,11 +385,7 @@ function GameApp() {
 
           {/* Hint */}
           <div style={s.hint}>
-            {isAITurn
-              ? "L'IA réfléchit..."
-              : placements.length > 0
-              ? `${placements.length} tuile(s) posée(s) — score estimé : ${previewScore} pts`
-              : 'Glissez une lettre sur le plateau'}
+            {hint}
           </div>
 
           {/* Erreur */}
@@ -396,28 +400,28 @@ function GameApp() {
             <button
               style={{ ...s.actionBtn, ...s.actionPrimary }}
               onClick={handleValidate}
-              disabled={!placements.length || isAITurn || isLoading}
+              disabled={!placements.length || isBlocked}  // ← isBlocked
             >
               ✓ Valider ({placements.length})
             </button>
             <button
               style={s.actionBtn}
               onClick={handlePass}
-              disabled={!!placements.length || isAITurn}
+              disabled={!!placements.length || isBlocked}  // ← isBlocked
             >
               Passer
             </button>
             <button
               style={s.actionBtn}
               onClick={() => { setPlacements([]); setShowSwap(true); }}
-              disabled={isAITurn || !!placements.length}
+              disabled={isBlocked || !!placements.length}  // ← isBlocked
             >
               ⇄ Échanger
             </button>
             <button
               style={s.actionBtn}
               onClick={handleShuffle}
-              disabled={isAITurn || !!placements.length}
+              disabled={isBlocked || !!placements.length}  // ← isBlocked
             >
               ⇅ Mélanger
             </button>
