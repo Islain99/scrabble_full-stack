@@ -126,49 +126,46 @@ function GameApp() {
         : 'Glissez une lettre sur le plateau';
 
   // ── Tour IA ───────────────────────────────────────────────────
-  // isAIThinking est un state React (pas une ref) pour bloquer l'UI immédiatement.
-  // Dépendances minimales [isAITurn, gameId] : seuls ces deux éléments
-  // déterminent si l'IA doit jouer — évite les re-triggers sur chaque render.
-  const aiTimerRef = useRef(null);
+  // Approche : on appelle l'IA directement dans une fonction async,
+  // déclenchée soit après une action humaine (handleValidate, handlePass, handleSwapConfirm)
+  // soit via un useEffect guard minimal.
+  // PAS de setTimeout : le délai visuel est côté UI (indicateur de chargement).
+  // Le vrai délai est le temps de calcul backend (asyncio.to_thread).
+  const aiCallInProgress = useRef(false);
 
-  useEffect(() => {
-    // Nettoyer le timer précédent si présent
-    if (aiTimerRef.current) {
-      clearTimeout(aiTimerRef.current);
-      aiTimerRef.current = null;
+  const runAITurn = useCallback(async (gid) => {
+    if (aiCallInProgress.current) return;
+    aiCallInProgress.current = true;
+    setIsAIThinking(true);
+    try {
+      const updated = await gameService.aiPlayTurn(gid);
+      setGameState(updated);
+    } catch (e) {
+      console.error('Erreur IA:', e?.response?.data?.detail || e.message);
+      // En cas d'erreur réseau, resynchroniser l'état depuis le serveur
+      try {
+        const current = await gameService.getGameStatus(gid);
+        setGameState(current);
+      } catch { /* si le status aussi échoue, on laisse l'état actuel */ }
+    } finally {
+      aiCallInProgress.current = false;
+      setIsAIThinking(false);
     }
+  }, []);
 
+  // Guard de sécurité : si on arrive sur un état isAITurn=true sans l'avoir
+  // déclenché via une action (ex: rechargement de page, reconnexion),
+  // ce useEffect prend le relais. Dépendances strictement minimales.
+  const aiEffectFired = useRef(false);
+  useEffect(() => {
     if (!isAITurn || !gameId || !gameState || gameState.status !== 'ACTIVE') {
+      aiEffectFired.current = false;
       return;
     }
-
-    // Marquer immédiatement comme "IA en train de réfléchir"
-    // pour bloquer les boutons avant même que le timer parte
-    setIsAIThinking(true);
-
-    aiTimerRef.current = setTimeout(async () => {
-      try {
-        const updated = await gameService.aiPlayTurn(gameId);
-        setGameState(updated);
-      } catch (e) {
-        console.error('Erreur IA:', e?.response?.data?.detail || e.message);
-      } finally {
-        aiTimerRef.current = null;
-        setIsAIThinking(false);
-      }
-    }, 1200);
-
-    // Pas de cleanup qui met isAIThinking=false : si le composant re-render
-    // (ex: changement mineur d'état) on ne veut pas annuler un appel déjà lancé.
-    // Le cleanup nettoie seulement le timer non encore parti.
-    return () => {
-      if (aiTimerRef.current) {
-        clearTimeout(aiTimerRef.current);
-        aiTimerRef.current = null;
-        setIsAIThinking(false); // annulé avant d'être parti → relâcher le verrou
-      }
-    };
-  }, [isAITurn, gameId]); // dépendances minimales et stables
+    if (aiEffectFired.current || aiCallInProgress.current) return;
+    aiEffectFired.current = true;
+    runAITurn(gameId);
+  }, [isAITurn, gameId, runAITurn]);
 
   // ── Sauvegarde fin de partie ──────────────────────────────────
   useEffect(() => {
@@ -201,8 +198,9 @@ function GameApp() {
     setGameSaved(false);
     setGameStartTime(Date.now());
     actionInFlight.current = false;
+    aiCallInProgress.current = false;
+    aiEffectFired.current = false;
     setIsAIThinking(false);
-    if (aiTimerRef.current) { clearTimeout(aiTimerRef.current); aiTimerRef.current = null; }
     try {
       const state = await gameService.startGame(
         [playerName.trim() || user?.display_name || 'Joueur', 'HAL 9000'],
@@ -244,11 +242,15 @@ function GameApp() {
     setIsLoading(true);
     try {
       const api = placements.map(p => [p.r, p.c, p.letter]);
-      // FIX: humanPlayerId au lieu de activePlayerId
       const result = await gameService.playWord(gameId, humanPlayerId, api);
       setGameState(result);
       setPlacements([]);
       setError(null);
+      // Déclencher le tour IA immédiatement si c'est son tour
+      const nextPlayer = result.players[result.current_player_index];
+      if (nextPlayer?.is_ai && result.status === 'ACTIVE') {
+        runAITurn(result.game_id);
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || 'Mot invalide ou placement illégal.');
       setPlacements([]);
@@ -263,11 +265,14 @@ function GameApp() {
     actionInFlight.current = true;
     setIsLoading(true);
     try {
-      // FIX: humanPlayerId + setIsLoading (manquait dans la version originale)
       const updated = await gameService.passTurn(gameId, humanPlayerId);
       setGameState(updated);
       setPlacements([]);
       setError(null);
+      const nextPlayer = updated.players[updated.current_player_index];
+      if (nextPlayer?.is_ai && updated.status === 'ACTIVE') {
+        runAITurn(updated.game_id);
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || 'Erreur réseau.');
     } finally {
@@ -300,6 +305,10 @@ function GameApp() {
       setSelectedForSwap([]);
       setShowSwap(false);
       setError(null);
+      const nextPlayer = updated.players[updated.current_player_index];
+      if (nextPlayer?.is_ai && updated.status === 'ACTIVE') {
+        runAITurn(updated.game_id);
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || 'Échange impossible.');
     } finally {
@@ -393,8 +402,10 @@ function GameApp() {
           )}
           <button style={s.startBtn} onClick={() => {
             setGameState(null); setGameId(null); setPlacements([]);
-            setGameSaved(false); setIsAIThinking(false); actionInFlight.current = false;
-            if (aiTimerRef.current) { clearTimeout(aiTimerRef.current); aiTimerRef.current = null; }
+            setGameSaved(false); setIsAIThinking(false);
+            actionInFlight.current = false;
+            aiCallInProgress.current = false;
+            aiEffectFired.current = false;
           }}>
             Rejouer
           </button>
@@ -408,16 +419,51 @@ function GameApp() {
 
   return (
     <div style={s.gamePage}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+        @keyframes progressSlide {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        .ai-dot::after { content: '...'; animation: dots 1.2s steps(1) infinite; }
+        @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} 100%{content:'.'} }
+      `}</style>
 
+      {/* Header */}
       <div style={s.gameHeader}>
         <span style={s.gameTitle}>SCRABBLE</span>
         <span style={s.gameTurn}>
-          Tour : <strong style={{ color: '#C8803A' }}>{currentPlayer.name}</strong>
-          {isAITurn && ' ⏳'}
+          Tour : <strong style={{ color: isAIThinking ? '#C8A830' : '#C8803A' }}>
+            {currentPlayer.name}
+          </strong>
+          {isAIThinking && (
+            <span className="ai-dot" style={{
+              marginLeft: '6px',
+              fontFamily: "'DM Mono', monospace",
+              fontSize: '0.6rem',
+              color: '#C8A830',
+              letterSpacing: '0.1em',
+            }}>réfléchit</span>
+          )}
         </span>
         <span style={s.tilesLeft}>🎲 {gameState.remaining_tiles.length} tuiles</span>
       </div>
+
+      {/* Bannière IA visible — apparaît uniquement quand l'IA joue */}
+      {isAIThinking && (
+        <div style={s.aiBanner}>
+          <div style={s.aiSpinner} />
+          <div>
+            <div style={s.aiBannerTitle}>HAL 9000 analyse le plateau</div>
+            <div style={s.aiBannerSub}>Calcul du meilleur coup en cours...</div>
+          </div>
+          {/* Barre de progression animée */}
+          <div style={s.aiProgress}>
+            <div style={s.aiProgressBar} />
+          </div>
+        </div>
+      )}
 
       <div style={s.gameLayout}>
         {/* Sidebar gauche */}
@@ -561,6 +607,40 @@ const s = {
   gameTitle: { fontFamily: "'Playfair Display', serif", fontSize: '1.2rem', fontWeight: 900, color: '#C8A830', letterSpacing: '-0.02em' },
   gameTurn: { fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#8A7E65', letterSpacing: '0.05em', flex: 1 },
   tilesLeft: { fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65' },
+  // ── Indicateur IA ─────────────────────────────────────────────
+  aiBanner: {
+    display: 'flex', alignItems: 'center', gap: '14px',
+    padding: '10px 20px',
+    background: '#1E1A12',
+    borderBottom: '3px solid #C8A830',
+    position: 'relative', overflow: 'hidden',
+  },
+  aiSpinner: {
+    width: '22px', height: '22px', flexShrink: 0,
+    border: '2.5px solid rgba(200,168,48,0.25)',
+    borderTopColor: '#C8A830',
+    borderRadius: '50%',
+    animation: 'spin 0.9s linear infinite',
+  },
+  aiBannerTitle: {
+    fontFamily: "'Playfair Display', serif", fontSize: '0.85rem',
+    fontWeight: 700, color: '#C8A830',
+  },
+  aiBannerSub: {
+    fontFamily: "'DM Mono', monospace", fontSize: '0.58rem',
+    color: '#8A7E65', letterSpacing: '0.08em', marginTop: '2px',
+  },
+  aiProgress: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px',
+    background: 'rgba(200,168,48,0.15)',
+  },
+  aiProgressBar: {
+    height: '100%',
+    background: 'linear-gradient(90deg, #C8A830, #F0D890, #C8A830)',
+    backgroundSize: '200% 100%',
+    animation: 'progressSlide 1.5s ease-in-out infinite',
+    width: '100%',
+  },
   gameLayout: { display: 'flex', gap: '16px', padding: '16px', flex: 1, flexWrap: 'wrap' },
   sidebar: { display: 'flex', flexDirection: 'column', gap: '12px', width: '220px', flexShrink: 0 },
   center: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1 },

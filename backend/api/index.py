@@ -3,6 +3,7 @@
 # Toutes les routes de jeu existantes sont INCHANGÉES.
 # Les nouveaux routers auth/users/leaderboard sont greffés ici.
 # ─────────────────────────────────────────────────────────────────
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -222,7 +223,9 @@ async def ai_play_turn(game_id: str):
     if not current_player.is_ai:
         raise HTTPException(status_code=400, detail="Ce n'est pas le tour de l'IA.")
 
-    success, message = game_engine.ai_play_turn(game_id, current_player.id)
+    success, message = await asyncio.to_thread(
+        game_engine.ai_play_turn, game_id, current_player.id
+    )
     if not success:
         raise HTTPException(status_code=400, detail=message)
 
