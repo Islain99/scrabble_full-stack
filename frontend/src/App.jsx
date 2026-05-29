@@ -285,8 +285,7 @@ function GameApp() {
             best_word:        null,
             best_word_score:  0,
           });
-        } catch { /* silencieux */ }
-      } catch (saveErr) {
+        } catch (saveErr) {
           if (saveErr?.response?.status !== 409) {
             console.warn('Sauvegarde abandon échouée:', saveErr?.response?.data?.detail || saveErr.message);
           }
