@@ -11,8 +11,7 @@ import Board from './components/Board';
 import TileRack from './components/TileRack';
 import ScorePanel from './components/ScorePanel';
 import * as gameService from './api/gameService';
-import { saveGame } from './api/authService';
-import './index.css';
+import { saveGame } from './api/authService';import './index.css';
 import { POINTS_LETTRES } from './data/constants';
 
 const CLIENT_POINTS = POINTS_LETTRES;
@@ -232,6 +231,54 @@ function GameApp() {
     );
   };
 
+  // ── Abandon ──────────────────────────────────────────────────
+  const [showAbandonModal, setShowAbandonModal] = useState(false);
+
+  const handleAbandonConfirm = async () => {
+    setShowAbandonModal(false);
+
+    const humanPlayer = gameState.players.find(p => !p.is_ai);
+    const aiPlayer    = gameState.players.find(p => p.is_ai);
+
+    try {
+      // 1. Informer le backend — marque FINISHED, libère la mémoire serveur
+      const finalState = await gameService.abandonGame(gameId, humanPlayer?.id ?? 0);
+
+      // 2. Sauvegarder dans l'historique PostgreSQL si connecté
+      if (isAuthenticated && token && humanPlayer && aiPlayer) {
+        const duration = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null;
+        try {
+          await saveGame(token, {
+            game_id:          gameId + '_abandoned',
+            user_score:       humanPlayer.score,
+            ai_name:          aiPlayer.name,
+            ai_score:         aiPlayer.score,
+            ai_difficulty:    'medium',
+            won:              false,
+            duration_seconds: duration,
+            turns_count:      gameState.passes_count,
+          });
+        } catch { /* sauvegarde silencieuse */ }
+      }
+
+      // 3. Mettre à jour l'UI avec le state final (écran de défaite)
+      setGameState(finalState);
+      setWordPlacements([]);
+      setSelectedTilesToSwap([]);
+
+    } catch (err) {
+      // Le backend est indisponible — reset local quand même
+      console.warn('Abandon backend error:', err?.response?.data?.detail || err.message);
+      setGameState(null);
+      setGameId(null);
+      setWordPlacements([]);
+      setSelectedTilesToSwap([]);
+      setCurrentPlayerId(0);
+      setGameStartTime(null);
+      setGameSaved(false);
+    }
+  };
+
   const isSwapMode = selectedTilesToSwap.length > 0;
   const currentRack = gameState?.players.find(p => p.id === activePlayerId)?.rack || [];
   const tilesInUse = wordPlacements.map(p => p.originalTile);
@@ -389,8 +436,109 @@ function GameApp() {
             </RetroButton>
           </div>
 
+          {/* Abandonner */}
+          <div style={{ borderTop: '1px solid rgba(139,32,32,0.2)', paddingTop: '14px', marginTop: '4px' }}>
+            <RetroButton
+              onClick={() => setShowAbandonModal(true)}
+              variant="danger" fullWidth
+            >
+              ✕ Abandonner la partie
+            </RetroButton>
+          </div>
+
         </aside>
       </div>
+
+      {/* ── Modal confirmation abandon ─────────────────────── */}
+      {showAbandonModal && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(30,26,18,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem',
+        }}
+          onClick={() => setShowAbandonModal(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#F5EDD6',
+              border: '3px solid #8B2020',
+              borderRadius: '3px',
+              padding: '2rem 2.4rem',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '8px 8px 0 #8B2020',
+              textAlign: 'center',
+            }}
+          >
+            {/* Icône */}
+            <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🏳️</div>
+
+            <h2 style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontSize: '1.6rem', fontWeight: 900,
+              color: '#8B2020', margin: '0 0 8px',
+              letterSpacing: '-0.02em',
+            }}>
+              Abandonner ?
+            </h2>
+
+            <p style={{
+              fontFamily: "'Libre Baskerville', serif",
+              fontSize: '0.95rem', color: '#5E4A3A',
+              fontStyle: 'italic', margin: '0 0 6px',
+            }}>
+              La partie sera comptée comme une défaite.
+            </p>
+
+            {/* Scores actuels */}
+            <div style={{
+              background: '#EDE0C0',
+              border: '1.5px solid rgba(139,32,32,0.2)',
+              borderRadius: '2px',
+              padding: '10px 14px',
+              margin: '16px 0',
+              display: 'flex',
+              justifyContent: 'space-around',
+            }}>
+              {gameState.players.map(p => (
+                <div key={p.id} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    {p.name}
+                  </div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, color: '#1E1A12' }}>
+                    {p.score}
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#8A7E65' }}>pts</div>
+                </div>
+              ))}
+            </div>
+
+            {isAuthenticated && (
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65', letterSpacing: '0.05em', margin: '0 0 20px' }}>
+                La partie sera enregistrée dans votre historique.
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <RetroButton
+                onClick={() => setShowAbandonModal(false)}
+                variant="default"
+              >
+                Continuer à jouer
+              </RetroButton>
+              <RetroButton
+                onClick={handleAbandonConfirm}
+                variant="danger"
+              >
+                Confirmer l'abandon
+              </RetroButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

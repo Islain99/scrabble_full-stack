@@ -455,6 +455,48 @@ class GameEngine:
         else:
             raise ValueError("Joueur non trouvé dans la partie.")
 
+    def abandon_game(self, game_id: str, abandoning_player_id: int) -> tuple[bool, str, "GameState | None"]:
+        """
+        Le joueur humain abandonne la partie.
+
+        - Marque la partie FINISHED
+        - Désigne l'IA comme gagnante
+        - Retire la partie de active_games (libère la mémoire)
+        - Retourne (success, message, final_game_state)
+        """
+        current_game = self.get_game(game_id)
+        if not current_game:
+            return (False, "Partie introuvable.", None)
+
+        if current_game.status == GameStatus.FINISHED:
+            return (False, "La partie est déjà terminée.", current_game)
+
+        # Identifier le joueur qui abandonne et l'adversaire
+        abandoning_player = next(
+            (p for p in current_game.players if p.id == abandoning_player_id), None
+        )
+        if not abandoning_player:
+            return (False, "Joueur introuvable dans cette partie.", None)
+
+        winner = next(
+            (p for p in current_game.players if p.id != abandoning_player_id), None
+        )
+        if not winner:
+            return (False, "Adversaire introuvable.", None)
+
+        # Finaliser la partie
+        current_game.status = GameStatus.FINISHED
+        current_game.winner_name = winner.name
+
+        # Snapshot avant suppression (pour la réponse HTTP)
+        final_state = current_game.model_copy(deep=True)
+
+        # Nettoyer la mémoire
+        self.active_games.pop(game_id, None)
+        self.game_difficulty.pop(game_id, None)
+
+        return (True, f"{abandoning_player.name} a abandonné. {winner.name} remporte la partie.", final_state)
+    
     # ------------------------------------------------------------------
     # Fin de partie
     # ------------------------------------------------------------------

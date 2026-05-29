@@ -1,8 +1,6 @@
 // frontend/src/api/gameService.js
 import axios from 'axios';
 
-// VITE_API_BASE_URL pointe vers la racine du backend (sans /game).
-// On ajoute /game ici pour les routes du moteur de jeu.
 const BASE = import.meta.env.VITE_API_BASE_URL
   || 'https://scrabblefull-stack-production.up.railway.app';
 
@@ -60,4 +58,12 @@ export const aiPlayTurn = async (gameId) => {
 export const getDifficulties = async () => {
     const response = await axios.get(`${API_URL}/difficulties`);
     return response.data;
+};
+
+export const abandonGame = async (gameId, playerId) => {
+    const response = await axios.post(
+        `${API_URL}/abandon/${gameId}?player_id=${playerId}`
+    );
+    // Retourne le GameState final (status FINISHED, winner_name = IA)
+    return response.data.game_state;
 };
