@@ -11,7 +11,8 @@ import Board from './components/Board';
 import TileRack from './components/TileRack';
 import ScorePanel from './components/ScorePanel';
 import * as gameService from './api/gameService';
-import { saveGame } from './api/authService';import './index.css';
+import { saveGame, getHistory } from './api/authService';
+import './index.css';
 import { POINTS_LETTRES } from './data/constants';
 
 const CLIENT_POINTS = POINTS_LETTRES;
@@ -67,7 +68,7 @@ function Router() {
 // ── Game App ──────────────────────────────────────────────────────
 
 function GameApp() {
-  const { user, token, isAuthenticated, getFreshToken } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [gameState, setGameState]           = useState(null);
   const [gameId, setGameId]                 = useState(null);
@@ -119,32 +120,35 @@ function GameApp() {
     if (!humanPlayer || !aiPlayer) return;
 
     const duration = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null;
-    const won = gameState.winner_name === humanPlayer.name;
+
+    // Construire le payload avec des types explicites pour éviter les 422
+    const payload = {
+      game_id:          String(gameId),
+      user_score:       Number(humanPlayer.score)  || 0,
+      ai_name:          String(aiPlayer.name)      || 'HAL 9000',
+      ai_score:         Number(aiPlayer.score)     || 0,
+      ai_difficulty:    'medium',
+      won:              gameState.winner_name === humanPlayer.name,
+      duration_seconds: duration !== null ? Number(duration) : null,
+      turns_count:      Number(gameState.passes_count) || 0,
+      best_word:        null,
+      best_word_score:  0,
+    };
 
     const doSave = async () => {
       try {
-        // Rafraîchir le token avant l'appel (évite les erreurs 401)
-        const freshToken = await getFreshToken();
-        if (!freshToken) return;
-
-        await saveGame(freshToken, {
-          game_id:          gameId,
-          user_score:       humanPlayer.score,
-          ai_name:          aiPlayer.name,
-          ai_score:         aiPlayer.score,
-          ai_difficulty:    'medium',
-          won,
-          duration_seconds: duration,
-          turns_count:      gameState.passes_count,
-        });
+        // axiosInstance injecte le token automatiquement
+        console.log('Sauvegarde payload:', JSON.stringify(payload));
+        await saveGame(payload);
         setGameSaved(true);
+        console.log('Partie sauvegardee OK');
       } catch (err) {
-        // 409 = partie déjà enregistrée (doublon) → on l'ignore
-        if (err?.response?.status === 409) {
-          setGameSaved(true);
-          return;
-        }
-        console.warn('Sauvegarde partie échouée:', err?.response?.data?.detail || err.message);
+        if (err?.response?.status === 409) { setGameSaved(true); return; }
+        console.error('Sauvegarde echouee', {
+          status:  err?.response?.status,
+          detail:  JSON.stringify(err?.response?.data),
+          payload: JSON.stringify(payload),
+        });
       }
     };
 
@@ -255,22 +259,48 @@ function GameApp() {
   const handleAbandonConfirm = async () => {
     setShowAbandonModal(false);
 
-    const humanPlayer = gameState.players.find(p => !p.is_ai);
+    // Capturer toutes les valeurs AVANT tout setState
+    const humanPlayer  = gameState.players.find(p => !p.is_ai);
+    const aiPlayer     = gameState.players.find(p => p.is_ai);
+    const capturedId   = gameId;
+    const duration     = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null;
+    const turnsCount   = gameState.passes_count;
 
     try {
-      // 1. Informer le backend — marque FINISHED, libère la mémoire serveur
-      const finalState = await gameService.abandonGame(gameId, humanPlayer?.id ?? 0);
+      // 1. Informer le backend
+      const finalState = await gameService.abandonGame(capturedId, humanPlayer?.id ?? 0);
 
-      // 2. Mettre à jour l'UI — le useEffect de sauvegarde auto se déclenche
-      //    automatiquement quand il détecte status === 'FINISHED'
+      // 2. Sauvegarder dans l'historique — directement ici, token forcé frais
+      if (isAuthenticated) {
+        try {
+          await saveGame({
+            game_id:          String(gameId),
+            user_score:       Number(humanPlayer?.score) || 0,
+            ai_name:          String(aiPlayer?.name)     || 'HAL 9000',
+            ai_score:         Number(aiPlayer?.score)    || 0,
+            ai_difficulty:    'medium',
+            won:              false,
+            duration_seconds: gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null,
+            turns_count:      Number(gameState.passes_count) || 0,
+            best_word:        null,
+            best_word_score:  0,
+          });
+        } catch { /* silencieux */ }
+      } catch (saveErr) {
+          if (saveErr?.response?.status !== 409) {
+            console.warn('Sauvegarde abandon échouée:', saveErr?.response?.data?.detail || saveErr.message);
+          }
+        }
+      }
+
+      // 3. Mettre à jour l'UI — setGameSaved(true) empêche le useEffect de re-sauvegarder
+      setGameSaved(true);
       setWordPlacements([]);
       setSelectedTilesToSwap([]);
-      setGameSaved(false); // garantit que la sauvegarde auto se lance
-      setGameState(finalState); // déclenche le useEffect
+      setGameState(finalState);
 
     } catch (err) {
       console.warn('Abandon backend error:', err?.response?.data?.detail || err.message);
-      // Backend indisponible — reset local
       setGameState(null);
       setGameId(null);
       setWordPlacements([]);
