@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import Tile from './Tile';
 
 const BONUS_STYLES = {
   TM:      { bg: '#8B2020', label: '3M',  text: '#F5D0C0' },
@@ -25,24 +24,11 @@ const getBonus = (r, c) => {
   return 'DEFAULT';
 };
 
-/**
- * Board — drag-and-drop amélioré
- *
- * Props:
- *   gameState       — état complet du jeu
- *   placements      — [{letter, r, c, originalTile, rackIndex}]
- *   onDropTile(rackIndex, r, c)     — déposer depuis le rack
- *   onMoveTile(fromR, fromC, toR, toC) — déplacer une tuile temporaire
- *   onReturnTile(r, c)              — clic pour remettre dans le rack
- */
 const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) => {
-  // ── Tous les hooks en premier, avant tout return conditionnel ──
   const [hoverCell, setHoverCell] = useState(null);
   const [dragSource, setDragSource] = useState(null);
 
-  // Grille fusionnée calculée à partir des props (pas de hook, juste dérivation)
   const grid = gameState?.board?.grid ?? null;
-
   const tempMap = {};
   if (grid && placements) {
     placements.forEach(p => { tempMap[`${p.r}-${p.c}`] = p; });
@@ -55,9 +41,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
   }, []);
 
   const handleDragLeave = useCallback((e) => {
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setHoverCell(null);
-    }
+    if (!e.currentTarget.contains(e.relatedTarget)) setHoverCell(null);
   }, []);
 
   const handleDrop = useCallback((e, r, c) => {
@@ -85,47 +69,51 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
   const handleBoardTileDragStart = useCallback((e, r, c) => {
     const placement = tempMap[`${r}-${c}`];
     if (!placement) return;
-    const payload = { source: 'board', fromR: r, fromC: c, letter: placement.letter };
-    e.dataTransfer.setData('application/json', JSON.stringify(payload));
+    e.dataTransfer.setData('application/json', JSON.stringify({ source: 'board', fromR: r, fromC: c, letter: placement.letter }));
     e.dataTransfer.effectAllowed = 'move';
     setDragSource({ type: 'board', fromR: r, fromC: c });
   }, [tempMap]);
 
-  // ── Return conditionnel après tous les hooks ───────────────────
   if (!gameState || !grid) return (
-    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.2rem', color: '#5E6B3A', padding: '2rem', textAlign: 'center' }}>
+    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.4rem', color: '#5E6B3A', padding: '3rem', textAlign: 'center' }}>
       Chargement du plateau...
     </div>
   );
 
-  // Grille fusionnée (permanente + temporaire)
   const tempGrid = grid.map(row => [...row]);
   placements.forEach(p => { tempGrid[p.r][p.c] = p.originalTile; });
 
   return (
+    /* Le plateau prend TOUTE la largeur disponible de son conteneur.
+       Les cases sont carrées via aspect-ratio sur le conteneur. */
     <div
       style={{
+        width: '100%',
+        aspectRatio: '1 / 1',
         background: 'linear-gradient(135deg, #1A3A18 0%, #2D5A27 40%, #1E4A1C 100%)',
-        borderRadius: '4px',
-        padding: '12px',
+        borderRadius: '6px',
+        padding: '14px',
         boxShadow: '6px 6px 0 #0A1A09',
         border: '3px solid #8A6820',
         position: 'relative',
         userSelect: 'none',
+        boxSizing: 'border-box',
       }}
       onDragEnd={handleBoardDragEnd}
     >
-      {/* Rivets de coin */}
-      {[
-        { top: '4px',  left: '4px'  },
-        { top: '4px',  right: '4px' },
-        { bottom: '4px', left: '4px' },
-        { bottom: '4px', right: '4px' },
-      ].map((pos, i) => (
-        <div key={i} style={{ position: 'absolute', width: '14px', height: '14px', background: '#C8A830', borderRadius: '50%', boxShadow: '2px 2px 0 #8A6820', zIndex: 2, ...pos }} />
+      {[{ top: '5px', left: '5px' }, { top: '5px', right: '5px' }, { bottom: '5px', left: '5px' }, { bottom: '5px', right: '5px' }].map((pos, i) => (
+        <div key={i} style={{ position: 'absolute', width: '16px', height: '16px', background: '#C8A830', borderRadius: '50%', boxShadow: '2px 2px 0 #8A6820', zIndex: 2, ...pos }} />
       ))}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(15, 1fr)', gap: '1px', backgroundColor: '#1A3A18' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(15, 1fr)',
+        gridTemplateRows: 'repeat(15, 1fr)',
+        gap: '1px',
+        backgroundColor: '#1A3A18',
+        width: '100%',
+        height: '100%',
+      }}>
         {tempGrid.map((row, r) =>
           row.map((tile, c) => {
             const bonusKey  = getBonus(r, c);
@@ -136,19 +124,16 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
             const isHovered = hoverCell === cellKey;
             const isDraggingFrom = dragSource?.type === 'board' && dragSource.fromR === r && dragSource.fromC === c;
 
-            // Couleur de fond de la cellule
             let cellBg;
-            if (tile)       cellBg = 'transparent';
-            else if (isHovered && !isPerm) cellBg = 'rgba(200, 168, 48, 0.35)';
-            else if (bonus.bg) cellBg = bonus.bg;
-            else            cellBg = 'rgba(45, 90, 39, 0.6)';
+            if (tile)                      cellBg = 'transparent';
+            else if (isHovered && !isPerm) cellBg = 'rgba(200,168,48,0.4)';
+            else if (bonus.bg)             cellBg = bonus.bg;
+            else                           cellBg = 'rgba(45,90,39,0.6)';
 
             return (
               <div
                 key={cellKey}
-                data-cell={cellKey}
                 style={{
-                  aspectRatio: '1',
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
@@ -156,9 +141,10 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
                   borderRadius: '1px',
                   transition: 'background 0.08s',
                   position: 'relative',
-                  outline: isHovered && !isPerm && !isTemp ? '2px solid rgba(200,168,48,0.7)' : 'none',
+                  outline: isHovered && !isPerm && !isTemp ? '2px solid rgba(200,168,48,0.8)' : 'none',
                   outlineOffset: '-1px',
-                  opacity: isDraggingFrom ? 0.4 : 1,
+                  opacity: isDraggingFrom ? 0.35 : 1,
+                  overflow: 'hidden',
                 }}
                 onDragOver={(e) => handleDragOver(e, r, c)}
                 onDragLeave={handleDragLeave}
@@ -166,16 +152,14 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
               >
                 {tile ? (
                   <TileBoardCell
-                    tile={tile}
-                    isTemp={isTemp}
-                    r={r} c={c}
+                    tile={tile} isTemp={isTemp} r={r} c={c}
                     onReturnTile={onReturnTile}
                     onDragStart={handleBoardTileDragStart}
                   />
                 ) : (
                   bonus.label && (
                     <span style={{
-                      fontSize: 'clamp(0.35rem, 1vw, 0.55rem)',
+                      fontSize: 'clamp(0.4rem, 1.1vw, 0.65rem)',
                       fontWeight: 700,
                       color: bonus.text,
                       fontFamily: "'DM Mono', monospace",
@@ -183,6 +167,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
                       lineHeight: 1,
                       letterSpacing: '-0.02em',
                       pointerEvents: 'none',
+                      userSelect: 'none',
                     }}>
                       {bonus.label}
                     </span>
@@ -197,22 +182,8 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
   );
 };
 
-// Tuile posée sur le plateau (permanente ou temporaire)
 const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
   const [isOver, setIsOver] = useState(false);
-
-  const baseStyle = {
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    borderRadius: '2px',
-    fontFamily: "'Playfair Display', Georgia, serif",
-    transition: 'transform 0.1s, opacity 0.1s',
-  };
 
   if (isTemp) {
     return (
@@ -224,52 +195,52 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
         onMouseLeave={() => setIsOver(false)}
         title="Cliquez pour récupérer — glissez pour déplacer"
         style={{
-          ...baseStyle,
+          width: '100%', height: '100%',
+          display: 'flex', flexDirection: 'column',
+          justifyContent: 'center', alignItems: 'center',
+          position: 'relative',
           background: isOver ? '#B8D888' : '#D4E8A8',
           border: '2px solid #7AAA30',
           boxShadow: '2px 2px 0 #4A7A10',
           cursor: 'grab',
-          transform: isOver ? 'scale(1.06)' : 'none',
+          borderRadius: '2px',
+          transition: 'background 0.1s, transform 0.1s',
+          transform: isOver ? 'scale(1.05)' : 'none',
         }}
       >
-        <span style={{ fontSize: 'clamp(0.55rem, 1.5vw, 0.85rem)', fontWeight: 700, color: '#2A4A10', lineHeight: 1 }}>
+        <span style={{ fontSize: 'clamp(0.7rem, 1.8vw, 1.1rem)', fontWeight: 700, color: '#2A4A10', fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1, pointerEvents: 'none' }}>
           {tile.letter === '*' ? '★' : tile.letter}
         </span>
         {tile.score > 0 && (
-          <span style={{ position: 'absolute', bottom: '1px', right: '2px', fontSize: 'clamp(0.3rem, 0.7vw, 0.45rem)', color: '#4A7A10', fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>
+          <span style={{ position: 'absolute', bottom: '2px', right: '3px', fontSize: 'clamp(0.35rem, 0.8vw, 0.5rem)', color: '#4A7A10', fontFamily: "'DM Mono', monospace", lineHeight: 1, pointerEvents: 'none' }}>
             {tile.score}
           </span>
         )}
-        {/* Indicateur "retour" au hover */}
         {isOver && (
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(42, 74, 16, 0.15)',
-            borderRadius: '2px',
-            pointerEvents: 'none',
-          }}>
-            <span style={{ fontSize: 'clamp(0.4rem, 1vw, 0.6rem)', color: '#2A4A10', opacity: 0.8 }}>↩</span>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(42,74,16,0.15)', borderRadius: '2px', pointerEvents: 'none' }}>
+            <span style={{ fontSize: 'clamp(0.5rem, 1.2vw, 0.8rem)', color: '#2A4A10' }}>↩</span>
           </div>
         )}
       </div>
     );
   }
 
-  // Tuile permanente (non draggable, non cliquable)
   return (
     <div style={{
-      ...baseStyle,
+      width: '100%', height: '100%',
+      display: 'flex', flexDirection: 'column',
+      justifyContent: 'center', alignItems: 'center',
+      position: 'relative',
       background: tile.letter === '*' ? '#E8E0CC' : '#F0D890',
       border: `2px solid ${tile.letter === '*' ? '#B0A080' : '#C8A830'}`,
       boxShadow: '2px 2px 0 #8A6820',
-      cursor: 'default',
+      borderRadius: '2px',
     }}>
-      <span style={{ fontSize: 'clamp(0.55rem, 1.5vw, 0.85rem)', fontWeight: 700, color: '#2A1800', lineHeight: 1 }}>
+      <span style={{ fontSize: 'clamp(0.7rem, 1.8vw, 1.1rem)', fontWeight: 700, color: '#2A1800', fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1 }}>
         {tile.letter === '*' ? '★' : tile.letter}
       </span>
       {tile.score > 0 && (
-        <span style={{ position: 'absolute', bottom: '1px', right: '2px', fontSize: 'clamp(0.3rem, 0.7vw, 0.45rem)', color: '#6B4010', fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>
+        <span style={{ position: 'absolute', bottom: '2px', right: '3px', fontSize: 'clamp(0.35rem, 0.8vw, 0.5rem)', color: '#6B4010', fontFamily: "'DM Mono', monospace", lineHeight: 1 }}>
           {tile.score}
         </span>
       )}
