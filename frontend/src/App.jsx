@@ -114,11 +114,15 @@ function GameApp() {
   const isAITurn = gameState
     ? gameState.players[gameState.current_player_index].is_ai : false;
 
-  // isBlocked = tour IA en cours OU requête humaine en vol OU chargement
-  const isBlocked = isAIThinking || isLoading;
+  // Garde synchrone absolu : l'humain ne peut agir QUE si c'est son tour
+  // selon le gameState courant. Indépendant de tout state async.
+  const isHumanTurn = gameState?.status === 'ACTIVE' && !isAITurn;
 
-  const hint = isAIThinking
-    ? "⏳ L'IA réfléchit..."
+  // isBlocked = pas le tour humain OU requête en cours
+  const isBlocked = !isHumanTurn || isLoading || isAIThinking;
+
+  const hint = !isHumanTurn
+    ? (isAIThinking ? "⏳ HAL 9000 réfléchit..." : "⏳ Tour de l'IA...")
     : isLoading
       ? '⏳ Traitement...'
       : placements.length > 0
@@ -126,11 +130,10 @@ function GameApp() {
         : 'Glissez une lettre sur le plateau';
 
   // ── Tour IA ───────────────────────────────────────────────────
-  // Approche : on appelle l'IA directement dans une fonction async,
-  // déclenchée soit après une action humaine (handleValidate, handlePass, handleSwapConfirm)
-  // soit via un useEffect guard minimal.
-  // PAS de setTimeout : le délai visuel est côté UI (indicateur de chargement).
-  // Le vrai délai est le temps de calcul backend (asyncio.to_thread).
+  // runAITurn est appelé UNIQUEMENT depuis les handlers d'actions humaines
+  // (handleValidate, handlePass, handleSwapConfirm), sur le résultat frais
+  // retourné par le backend. Aucun useEffect, aucun timer — supprimés car
+  // ils causaient des déclenchements parasites après des 400.
   const aiCallInProgress = useRef(false);
 
   const runAITurn = useCallback(async (gid) => {
@@ -142,30 +145,16 @@ function GameApp() {
       setGameState(updated);
     } catch (e) {
       console.error('Erreur IA:', e?.response?.data?.detail || e.message);
-      // En cas d'erreur réseau, resynchroniser l'état depuis le serveur
+      // Resynchroniser depuis le serveur pour éviter un état désynchronisé
       try {
         const current = await gameService.getGameStatus(gid);
         setGameState(current);
-      } catch { /* si le status aussi échoue, on laisse l'état actuel */ }
+      } catch { /* laisser l'état actuel si le status aussi échoue */ }
     } finally {
       aiCallInProgress.current = false;
       setIsAIThinking(false);
     }
   }, []);
-
-  // Guard de sécurité : si on arrive sur un état isAITurn=true sans l'avoir
-  // déclenché via une action (ex: rechargement de page, reconnexion),
-  // ce useEffect prend le relais. Dépendances strictement minimales.
-  const aiEffectFired = useRef(false);
-  useEffect(() => {
-    if (!isAITurn || !gameId || !gameState || gameState.status !== 'ACTIVE') {
-      aiEffectFired.current = false;
-      return;
-    }
-    if (aiEffectFired.current || aiCallInProgress.current) return;
-    aiEffectFired.current = true;
-    runAITurn(gameId);
-  }, [isAITurn, gameId, runAITurn]);
 
   // ── Sauvegarde fin de partie ──────────────────────────────────
   useEffect(() => {
@@ -199,7 +188,6 @@ function GameApp() {
     setGameStartTime(Date.now());
     actionInFlight.current = false;
     aiCallInProgress.current = false;
-    aiEffectFired.current = false;
     setIsAIThinking(false);
     try {
       const state = await gameService.startGame(
@@ -237,7 +225,7 @@ function GameApp() {
   }, []);
 
   const handleValidate = async () => {
-    if (!gameId || !placements.length || actionInFlight.current) return;
+    if (!gameId || !placements.length || !isHumanTurn || actionInFlight.current) return;
     actionInFlight.current = true;
     setIsLoading(true);
     try {
@@ -252,8 +240,10 @@ function GameApp() {
         runAITurn(result.game_id);
       }
     } catch (e) {
+      // NE PAS vider les placements : l'utilisateur garde ses tuiles sur le
+      // plateau et peut corriger son coup. setPlacements([]) après un 400
+      // réactivait le bouton "Passer" et causait des pass parasites.
       setError(e?.response?.data?.detail || 'Mot invalide ou placement illégal.');
-      setPlacements([]);
     } finally {
       setIsLoading(false);
       actionInFlight.current = false;
@@ -261,7 +251,7 @@ function GameApp() {
   };
 
   const handlePass = async () => {
-    if (!gameId || actionInFlight.current) return;
+    if (!gameId || !isHumanTurn || actionInFlight.current) return;
     actionInFlight.current = true;
     setIsLoading(true);
     try {
@@ -282,7 +272,7 @@ function GameApp() {
   };
 
   const handleShuffle = async () => {
-    if (!gameId || actionInFlight.current) return;
+    if (!gameId || !isHumanTurn || actionInFlight.current) return;
     actionInFlight.current = true;
     try {
       const updated = await gameService.shuffleRack(gameId, humanPlayerId);
@@ -295,7 +285,7 @@ function GameApp() {
   };
 
   const handleSwapConfirm = async () => {
-    if (!gameId || !selectedForSwap.length || actionInFlight.current) return;
+    if (!gameId || !selectedForSwap.length || !isHumanTurn || actionInFlight.current) return;
     actionInFlight.current = true;
     setIsLoading(true);
     setPlacements([]);
@@ -405,7 +395,6 @@ function GameApp() {
             setGameSaved(false); setIsAIThinking(false);
             actionInFlight.current = false;
             aiCallInProgress.current = false;
-            aiEffectFired.current = false;
           }}>
             Rejouer
           </button>
@@ -450,8 +439,8 @@ function GameApp() {
         <span style={s.tilesLeft}>🎲 {gameState.remaining_tiles.length} tuiles</span>
       </div>
 
-      {/* Bannière IA visible — apparaît uniquement quand l'IA joue */}
-      {isAIThinking && (
+      {/* Bannière IA — visible quand ce n'est pas le tour humain */}
+      {!isHumanTurn && (
         <div style={s.aiBanner}>
           <div style={s.aiSpinner} />
           <div>
@@ -550,7 +539,7 @@ function GameApp() {
             onReturnTile={handleReturnTile}
           />
 
-          {!isAITurn && !showSwap && (
+          {isHumanTurn && !showSwap && (
             <div style={s.rackWrap}>
               {/* FIX: props alignées avec la nouvelle interface TileRack */}
               <TileRack
