@@ -1,6 +1,4 @@
 // src/App.jsx
-// Routing hash-based + AuthProvider + GameApp complet avec Board, TileRack, ScorePanel
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
@@ -17,7 +15,7 @@ import { saveGame } from './api/authService';
 import './index.css';
 import { POINTS_LETTRES, BONUS_MAP } from './data/constants';
 
-// ── Router hash-based ─────────────────────────────────────────────
+// ── Router ────────────────────────────────────────────────────────
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/');
@@ -30,39 +28,22 @@ function useHashRoute() {
 }
 
 export default function App() {
-  return (
-    <AuthProvider>
-      <Router />
-    </AuthProvider>
-  );
+  return <AuthProvider><Router /></AuthProvider>;
 }
 
 function Router() {
   const hash = useHashRoute();
-
   const renderPage = () => {
     if (hash === '#/login')       return <LoginPage />;
     if (hash === '#/register')    return <RegisterPage />;
     if (hash === '#/leaderboard') return <LeaderboardPage />;
-    if (hash === '#/profile')     return (
-      <ProtectedRoute><ProfilePage /></ProtectedRoute>
-    );
-    return (
-      <ProtectedRoute requireCompleteProfile>
-        <GameApp />
-      </ProtectedRoute>
-    );
+    if (hash === '#/profile')     return <ProtectedRoute><ProfilePage /></ProtectedRoute>;
+    return <ProtectedRoute requireCompleteProfile><GameApp /></ProtectedRoute>;
   };
-
-  return (
-    <div>
-      <Navbar />
-      {renderPage()}
-    </div>
-  );
+  return <div><Navbar />{renderPage()}</div>;
 }
 
-// ── Calcul score preview ──────────────────────────────────────────
+// ── Score preview ─────────────────────────────────────────────────
 
 function calculatePreviewScore(placements) {
   if (!placements.length) return 0;
@@ -80,71 +61,68 @@ function calculatePreviewScore(placements) {
   return score * wordMultiplier;
 }
 
-// ── Game App ──────────────────────────────────────────────────────
+// ── Difficulté ────────────────────────────────────────────────────
 
 const DIFFICULTIES = [
-  { key: 'beginner', label: 'Débutant', emoji: '🐣', desc: 'Mots courts, beaucoup d\'erreurs' },
+  { key: 'beginner', label: 'Débutant', emoji: '🐣', desc: "Mots courts, beaucoup d'erreurs" },
   { key: 'easy',     label: 'Facile',   emoji: '🟢', desc: 'Mots courts, ignore les bonus' },
   { key: 'medium',   label: 'Moyen',    emoji: '🟡', desc: 'Équilibré, quelques bonus' },
   { key: 'hard',     label: 'Expert',   emoji: '🔴', desc: 'Maximise chaque score' },
 ];
 
+// ── GameApp ───────────────────────────────────────────────────────
+
 function GameApp() {
   const { user } = useAuth();
 
-  // ── State ─────────────────────────────────────────────────────
-  const [gameState, setGameState]               = useState(null);
-  const [gameId, setGameId]                     = useState(null);
-  const [placements, setPlacements]             = useState([]);
-  const [selectedForSwap, setSelectedForSwap]   = useState([]);
-  const [isLoading, setIsLoading]               = useState(false);
-  const [error, setError]                       = useState(null);
-  const [showSwap, setShowSwap]                 = useState(false);
-  const [gameStartTime, setGameStartTime]       = useState(null);
-  const [gameSaved, setGameSaved]               = useState(false);
-  const [playerName, setPlayerName]             = useState('');
-  const [difficulty, setDifficulty]             = useState('medium');
-  const [humanPlayerId, setHumanPlayerId]       = useState(0);
+  const [gameState, setGameState]             = useState(null);
+  const [gameId, setGameId]                   = useState(null);
+  const [placements, setPlacements]           = useState([]);
+  const [selectedForSwap, setSelectedForSwap] = useState([]);
+  const [isLoading, setIsLoading]             = useState(false);
+  const [error, setError]                     = useState(null);
+  const [showSwap, setShowSwap]               = useState(false);
+  const [gameStartTime, setGameStartTime]     = useState(null);
+  const [gameSaved, setGameSaved]             = useState(false);
+  const [playerName, setPlayerName]           = useState('');
+  const [difficulty, setDifficulty]           = useState('medium');
 
+  // FIX: id stable du joueur humain — ne change pas quand l'IA joue
+  const [humanPlayerId, setHumanPlayerId] = useState(0);
+
+  // FIX: verrou contre les doubles appels et race conditions
   const actionInFlight = useRef(false);
 
-   // Pré-remplir le nom depuis le profil
   useEffect(() => {
     if (user?.display_name && !playerName) setPlayerName(user.display_name);
   }, [user]);
 
-    // ── Dérivés ───────────────────────────────────────────────────
+  // ── Dérivés ───────────────────────────────────────────────────
   const activePlayerId = gameState
-    ? gameState.players[gameState.current_player_index].id
-    : 0;
- 
+    ? gameState.players[gameState.current_player_index].id : 0;
+
   const currentRack = gameState
-    ? gameState.players.find(p => p.id === activePlayerId)?.rack ?? []
-    : [];
- 
+    ? gameState.players.find(p => p.id === activePlayerId)?.rack ?? [] : [];
+
   const placedOriginals    = placements.map(p => p.originalTile);
   const availableRackTiles = currentRack.filter(t => !placedOriginals.includes(t));
   const previewScore       = calculatePreviewScore(placements);
- 
+
   const isAITurn = gameState
-    ? gameState.players[gameState.current_player_index].is_ai
-    : false;
-    
-  const isBlocked = isAITurn || isLoading || actionInFlight.current;
- 
-  const hint = isAITurn || isLoading
+    ? gameState.players[gameState.current_player_index].is_ai : false;
+
+  const isBlocked = isAITurn || isLoading;
+
+  const hint = isBlocked
     ? "⏳ L'IA réfléchit..."
     : placements.length > 0
       ? `${placements.length} tuile(s) — score estimé : ${previewScore} pts`
       : 'Glissez une lettre sur le plateau';
 
-  
-    // ── Tour IA automatique ───────────────────────────────────────
+  // ── Tour IA ───────────────────────────────────────────────────
   useEffect(() => {
     if (!gameState || gameState.status !== 'ACTIVE' || !gameId || !isAITurn) return;
     const timer = setTimeout(async () => {
-      // FIX: si une action humaine est encore en vol (latence réseau),
-      // l'IA ne joue pas — évite les conflits de séquencement.
       if (actionInFlight.current) return;
       try {
         const updated = await gameService.aiPlayTurn(gameId);
@@ -156,7 +134,7 @@ function GameApp() {
     return () => clearTimeout(timer);
   }, [gameState, gameId, isAITurn]);
 
-    // ── Sauvegarde auto fin de partie ────────────────────────────
+  // ── Sauvegarde fin de partie ──────────────────────────────────
   useEffect(() => {
     if (!gameState || gameState.status !== 'FINISHED' || gameSaved || !user) return;
     const human = gameState.players.find(p => !p.is_ai);
@@ -173,12 +151,12 @@ function GameApp() {
       duration_seconds: gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null,
       turns_count:      gameState.passes_count || 0,
     }).catch(console.error);
-    // FIX: dépendances complètes pour éviter stale closure
   }, [gameState?.status, gameId, difficulty, gameStartTime, user, gameSaved]);
 
   // ── Actions ───────────────────────────────────────────────────
- 
+
   const handleStart = async () => {
+    if (actionInFlight.current) return;
     setIsLoading(true);
     setError(null);
     setPlacements([]);
@@ -194,8 +172,7 @@ function GameApp() {
       );
       setGameState(state);
       setGameId(state.game_id);
- 
-      // FIX #1: mémoriser l'id du joueur humain dès le démarrage
+      // FIX: mémoriser l'id du joueur humain une fois pour toutes
       const human = state.players.find(p => !p.is_ai);
       setHumanPlayerId(human?.id ?? 0);
     } catch (e) {
@@ -211,25 +188,25 @@ function GameApp() {
     if (placements.some(p => p.r === r && p.c === c)) return;
     setPlacements(prev => [...prev, { letter: tile.letter, r, c, originalTile: tile, rackIndex }]);
   }, [availableRackTiles, placements]);
- 
+
   const handleMoveTile = useCallback((fromR, fromC, toR, toC) => {
     if (placements.some(p => p.r === toR && p.c === toC)) return;
-    setPlacements(prev =>
-      prev.map(p => p.r === fromR && p.c === fromC ? { ...p, r: toR, c: toC } : p)
-    );
+    setPlacements(prev => prev.map(p =>
+      p.r === fromR && p.c === fromC ? { ...p, r: toR, c: toC } : p
+    ));
   }, [placements]);
- 
+
   const handleReturnTile = useCallback((r, c) => {
     setPlacements(prev => prev.filter(p => !(p.r === r && p.c === c)));
   }, []);
 
   const handleValidate = async () => {
-    if (!gameId || !placements.length) return;
-    if (actionInFlight.current) return;
+    if (!gameId || !placements.length || actionInFlight.current) return;
     actionInFlight.current = true;
     setIsLoading(true);
     try {
       const api = placements.map(p => [p.r, p.c, p.letter]);
+      // FIX: humanPlayerId au lieu de activePlayerId
       const result = await gameService.playWord(gameId, humanPlayerId, api);
       setGameState(result);
       setPlacements([]);
@@ -244,11 +221,11 @@ function GameApp() {
   };
 
   const handlePass = async () => {
-    if (!gameId) return;
-    if (actionInFlight.current) return;
+    if (!gameId || actionInFlight.current) return;
     actionInFlight.current = true;
     setIsLoading(true);
     try {
+      // FIX: humanPlayerId + setIsLoading (manquait dans la version originale)
       const updated = await gameService.passTurn(gameId, humanPlayerId);
       setGameState(updated);
       setPlacements([]);
@@ -262,8 +239,7 @@ function GameApp() {
   };
 
   const handleShuffle = async () => {
-    if (!gameId) return;
-    if (actionInFlight.current) return;
+    if (!gameId || actionInFlight.current) return;
     actionInFlight.current = true;
     try {
       const updated = await gameService.shuffleRack(gameId, humanPlayerId);
@@ -274,10 +250,9 @@ function GameApp() {
       actionInFlight.current = false;
     }
   };
- 
+
   const handleSwapConfirm = async () => {
-    if (!gameId || !selectedForSwap.length) return;
-    if (actionInFlight.current) return;
+    if (!gameId || !selectedForSwap.length || actionInFlight.current) return;
     actionInFlight.current = true;
     setIsLoading(true);
     setPlacements([]);
@@ -294,7 +269,7 @@ function GameApp() {
       actionInFlight.current = false;
     }
   };
- 
+
   const toggleSwapTile = (letter) => {
     setSelectedForSwap(prev =>
       prev.includes(letter) ? prev.filter(l => l !== letter) : [...prev, letter]
@@ -378,7 +353,10 @@ function GameApp() {
           {gameState.winner_name && (
             <p style={s.winnerMsg}>Gagnant : <strong>{gameState.winner_name}</strong></p>
           )}
-          <button style={s.startBtn} onClick={() => { setGameState(null); setGameId(null); setPlacements([]); }}>
+          <button style={s.startBtn} onClick={() => {
+            setGameState(null); setGameId(null); setPlacements([]);
+            setGameSaved(false); actionInFlight.current = false;
+          }}>
             Rejouer
           </button>
         </div>
@@ -391,20 +369,19 @@ function GameApp() {
 
   return (
     <div style={s.gamePage}>
-      {/* Header */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
       <div style={s.gameHeader}>
         <span style={s.gameTitle}>SCRABBLE</span>
         <span style={s.gameTurn}>
           Tour : <strong style={{ color: '#C8803A' }}>{currentPlayer.name}</strong>
           {isAITurn && ' ⏳'}
         </span>
-        <span style={s.tilesLeft}>
-          🎲 {gameState.remaining_tiles.length} tuiles
-        </span>
+        <span style={s.tilesLeft}>🎲 {gameState.remaining_tiles.length} tuiles</span>
       </div>
 
       <div style={s.gameLayout}>
-        {/* Colonne gauche : scores + actions */}
+        {/* Sidebar gauche */}
         <div style={s.sidebar}>
           <ScorePanel
             players={gameState.players}
@@ -412,62 +389,55 @@ function GameApp() {
             localUserId={user?.firebase_uid}
           />
 
-          {/* Hint */}
-          <div style={s.hint}>
-            {hint}
-          </div>
+          <div style={s.hint}>{hint}</div>
 
-          {/* Erreur */}
           {error && (
             <div style={s.errorBox} onClick={() => setError(null)} title="Cliquez pour fermer">
               ⚠ {error}
             </div>
           )}
 
-          {/* Boutons d'action */}
           <div style={s.actions}>
             <button
               style={{ ...s.actionBtn, ...s.actionPrimary }}
               onClick={handleValidate}
-              disabled={!placements.length || isBlocked}  // ← isBlocked
+              disabled={!placements.length || isBlocked}
             >
               ✓ Valider ({placements.length})
             </button>
             <button
               style={s.actionBtn}
               onClick={handlePass}
-              disabled={!!placements.length || isBlocked}  // ← isBlocked
+              disabled={!!placements.length || isBlocked}
             >
               Passer
             </button>
             <button
               style={s.actionBtn}
               onClick={() => { setPlacements([]); setShowSwap(true); }}
-              disabled={isBlocked || !!placements.length}  // ← isBlocked
+              disabled={isBlocked || !!placements.length}
             >
               ⇄ Échanger
             </button>
             <button
               style={s.actionBtn}
               onClick={handleShuffle}
-              disabled={isBlocked || !!placements.length}  // ← isBlocked
+              disabled={isBlocked || !!placements.length}
             >
               ⇅ Mélanger
             </button>
           </div>
 
-          {/* Panel échange */}
           {showSwap && (
             <div style={s.swapPanel}>
               <p style={s.swapTitle}>Sélectionnez les lettres à échanger</p>
+              {/* FIX: props alignées avec la nouvelle interface TileRack */}
               <TileRack
                 tiles={availableRackTiles}
-                playerId={activePlayerId}
-                isSwapMode
+                playerId={humanPlayerId}
+                isSwapMode={true}
                 tilesSelectedForSwap={selectedForSwap}
                 onSwapTilePress={toggleSwapTile}
-                onTilePress={() => {}}
-                selectedTile={null}
               />
               <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
                 <button style={s.actionBtn} onClick={() => { setShowSwap(false); setSelectedForSwap([]); }}>
@@ -497,11 +467,10 @@ function GameApp() {
 
           {!isAITurn && !showSwap && (
             <div style={s.rackWrap}>
+              {/* FIX: props alignées avec la nouvelle interface TileRack */}
               <TileRack
                 tiles={availableRackTiles}
-                playerId={activePlayerId}
-                selectedTile={null}
-                onTilePress={() => {}}
+                playerId={humanPlayerId}
                 isSwapMode={false}
                 tilesSelectedForSwap={[]}
                 onSwapTilePress={() => {}}
@@ -512,7 +481,9 @@ function GameApp() {
           {isLoading && (
             <div style={s.loadingBar}>
               <div style={s.spinner} />
-              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#8A7E65' }}>
+                {isAITurn ? "L'IA réfléchit..." : 'Traitement...'}
+              </span>
             </div>
           )}
         </div>
@@ -524,126 +495,44 @@ function GameApp() {
 // ── Styles ────────────────────────────────────────────────────────
 
 const s = {
-  // Démarrage / Fin
-  page: {
-    minHeight: '100vh', background: '#F5EDD6',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
-  },
-  startCard: {
-    background: '#FFFBF0', border: '3px solid #1E1A12', borderRadius: '4px',
-    padding: '32px', maxWidth: '480px', width: '100%',
-    boxShadow: '6px 6px 0 #C8803A',
-  },
-  endCard: {
-    background: '#FFFBF0', border: '3px solid #1E1A12', borderRadius: '4px',
-    padding: '40px', maxWidth: '400px', width: '100%',
-    boxShadow: '6px 6px 0 #C8803A', textAlign: 'center',
-  },
-  edition: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', letterSpacing: '0.2em',
-    textTransform: 'uppercase', color: '#8A7E65', margin: '0 0 4px', textAlign: 'center',
-  },
-  title: {
-    fontFamily: "'Playfair Display', serif", fontSize: '3.5rem', fontWeight: 900,
-    color: '#1E1A12', letterSpacing: '-0.04em', margin: '0', textAlign: 'center',
-  },
-  goldBar: { height: '3px', background: '#C8A830', margin: '10px auto', width: '80px', borderRadius: '2px' },
-  subtitle: {
-    fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: '0.9rem',
-    color: '#5E6B3A', textAlign: 'center', margin: '0 0 24px',
-  },
-  section: { marginBottom: '20px' },
-  sectionLabel: {
-    display: 'block', fontFamily: "'DM Mono', monospace", fontSize: '0.6rem',
-    letterSpacing: '0.15em', textTransform: 'uppercase', color: '#8A7E65', marginBottom: '8px',
-  },
-  input: {
-    width: '100%', fontFamily: "'DM Mono', monospace", fontSize: '0.9rem',
-    color: '#1E1A12', background: '#EDE0C0', border: '2px solid #1E1A12',
-    borderRadius: '2px', padding: '10px 12px', boxSizing: 'border-box', outline: 'none',
-  },
-  diffGrid: { display: 'flex', flexDirection: 'column', gap: '8px' },
-  diffBtn: {
-    display: 'flex', alignItems: 'center', gap: '12px',
-    background: '#EDE0C0', border: '2px solid #8A7E65', borderRadius: '2px',
-    padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
-  },
+  page: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem', background: '#F5EDD6' },
+  startCard: { width: '100%', maxWidth: '480px', background: '#FFFBF0', border: '3px solid #1E1A12', borderRadius: '2px', padding: '2.5rem', boxShadow: '8px 8px 0 #C8803A' },
+  endCard:   { width: '100%', maxWidth: '360px', background: '#FFFBF0', border: '3px solid #1E1A12', borderRadius: '2px', padding: '2rem', boxShadow: '8px 8px 0 #C8803A', textAlign: 'center' },
+  edition: { fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#8A7E65', margin: '0 0 8px' },
+  title: { fontFamily: "'Playfair Display', Georgia, serif", fontSize: '3.5rem', fontWeight: 900, color: '#1E1A12', letterSpacing: '-0.04em', margin: 0 },
+  goldBar: { height: '4px', background: '#C8803A', borderRadius: '2px', margin: '12px 0', width: '80px' },
+  subtitle: { fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65', letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 2rem' },
+  section: { marginBottom: '1.5rem' },
+  sectionLabel: { display: 'block', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#8A7E65', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '8px' },
+  input: { width: '100%', fontFamily: "'DM Mono', monospace", fontSize: '0.9rem', background: '#F5EDD6', border: '2px solid #C8A830', borderRadius: '2px', padding: '10px 12px', color: '#1E1A12', outline: 'none', boxSizing: 'border-box' },
+  diffGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' },
+  diffBtn: { display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'transparent', border: '2px solid #C8A830', borderRadius: '2px', cursor: 'pointer', textAlign: 'left' },
   diffBtnActive: { background: '#1E1A12', borderColor: '#C8A830', boxShadow: '3px 3px 0 #8A6820' },
-  diffEmoji: { fontSize: '1.2rem', flexShrink: 0 },
-  diffLabel: {
-    fontFamily: "'Playfair Display', serif", fontSize: '0.9rem', fontWeight: 700,
-    color: '#1E1A12', marginBottom: '2px',
-  },
-  diffDesc: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#8A7E65', letterSpacing: '0.05em',
-  },
-  startBtn: {
-    marginTop: '8px', width: '100%', background: '#5E6B3A', color: '#F5EDD6',
-    border: '2px solid #3D4A20', borderRadius: '2px', padding: '14px',
-    fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', fontWeight: 600,
-    letterSpacing: '0.15em', textTransform: 'uppercase', cursor: 'pointer',
-    boxShadow: '4px 4px 0 #2A3010',
-  },
-  scores: { margin: '20px 0' },
-  scoreRow: {
-    display: 'flex', justifyContent: 'space-between', padding: '8px 0',
-    borderBottom: '1px solid #EDE0C0',
-  },
-  scoreName: { fontFamily: "'Playfair Display', serif", fontSize: '1rem', color: '#1E1A12' },
-  scoreVal: { fontFamily: "'DM Mono', monospace", fontSize: '1rem', fontWeight: 700, color: '#C8A830' },
-  winnerMsg: { fontFamily: "'Playfair Display', serif", fontSize: '1rem', color: '#5E6B3A', margin: '8px 0 20px' },
-
-  // Jeu
-  gamePage: { minHeight: '100vh', background: '#F5EDD6', display: 'flex', flexDirection: 'column' },
-  gameHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 20px', borderBottom: '3px solid #1E1A12', background: '#FFFBF0',
-    flexWrap: 'wrap', gap: '8px',
-  },
-  gameTitle: {
-    fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', fontWeight: 900,
-    color: '#1E1A12', letterSpacing: '-0.03em',
-  },
-  gameTurn: { fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#8A7E65', letterSpacing: '0.05em' },
+  diffEmoji: { fontSize: '1.4rem' },
+  diffLabel: { fontFamily: "'Playfair Display', serif", fontSize: '0.85rem', fontWeight: 700, color: '#1E1A12' },
+  diffDesc: { fontFamily: "'DM Mono', monospace", fontSize: '0.55rem', color: '#8A7E65', letterSpacing: '0.05em', marginTop: '2px' },
+  startBtn: { width: '100%', fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#F5EDD6', background: '#5E6B3A', border: '3px solid #3D4A20', borderRadius: '2px', padding: '14px', cursor: 'pointer', boxShadow: '4px 4px 0 #2A3010', marginTop: '1rem' },
+  scores: { display: 'flex', flexDirection: 'column', gap: '8px', margin: '1rem 0' },
+  scoreRow: { display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#EDE0C0', borderRadius: '2px', border: '1px solid #C8A830' },
+  scoreName: { fontFamily: "'Playfair Display', serif", fontWeight: 700, color: '#1E1A12' },
+  scoreVal: { fontFamily: "'DM Mono', monospace", fontSize: '1rem', fontWeight: 700, color: '#5E6B3A' },
+  winnerMsg: { fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', color: '#5A4A30', margin: '0 0 1rem' },
+  gamePage: { display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 52px)', background: '#F5EDD6' },
+  gameHeader: { display: 'flex', alignItems: 'center', gap: '16px', padding: '8px 20px', background: '#1E1A12', borderBottom: '2px solid #C8A830' },
+  gameTitle: { fontFamily: "'Playfair Display', serif", fontSize: '1.2rem', fontWeight: 900, color: '#C8A830', letterSpacing: '-0.02em' },
+  gameTurn: { fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#8A7E65', letterSpacing: '0.05em', flex: 1 },
   tilesLeft: { fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65' },
   gameLayout: { display: 'flex', gap: '16px', padding: '16px', flex: 1, flexWrap: 'wrap' },
   sidebar: { display: 'flex', flexDirection: 'column', gap: '12px', width: '220px', flexShrink: 0 },
   center: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1 },
-  hint: {
-    background: '#EDE0C0', border: '1.5px solid rgba(200,168,48,0.4)', borderRadius: '2px',
-    padding: '8px 12px', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem',
-    color: '#8A7E65', letterSpacing: '0.05em',
-  },
-  errorBox: {
-    background: '#FFF0EE', border: '1.5px solid #8B2020', borderRadius: '2px',
-    padding: '8px 12px', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem',
-    color: '#8B2020', cursor: 'pointer',
-  },
+  hint: { background: '#EDE0C0', border: '1.5px solid rgba(200,168,48,0.4)', borderRadius: '2px', padding: '8px 12px', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#8A7E65', letterSpacing: '0.05em' },
+  errorBox: { background: '#FFF0EE', border: '1.5px solid #8B2020', borderRadius: '2px', padding: '8px 12px', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#8B2020', cursor: 'pointer' },
   actions: { display: 'flex', flexDirection: 'column', gap: '8px' },
-  actionBtn: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', fontWeight: 500,
-    letterSpacing: '0.1em', textTransform: 'uppercase',
-    color: '#1E1A12', background: 'transparent',
-    border: '2px solid #1E1A12', borderRadius: '2px', padding: '9px 14px',
-    cursor: 'pointer', boxShadow: '2px 2px 0 #8A7E65',
-    transition: 'opacity 0.15s',
-  },
-  actionPrimary: {
-    background: '#5E6B3A', color: '#F5EDD6',
-    border: '2px solid #3D4A20', boxShadow: '2px 2px 0 #2A3010',
-  },
-  swapPanel: {
-    background: '#FFFBF0', border: '2px solid #C8A830', borderRadius: '2px',
-    padding: '14px',
-  },
-  swapTitle: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.1em',
-    textTransform: 'uppercase', color: '#8A7E65', margin: '0 0 10px',
-  },
+  actionBtn: { fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#1E1A12', background: 'transparent', border: '2px solid #1E1A12', borderRadius: '2px', padding: '9px 14px', cursor: 'pointer', boxShadow: '2px 2px 0 #8A7E65', transition: 'opacity 0.15s' },
+  actionPrimary: { background: '#5E6B3A', color: '#F5EDD6', border: '2px solid #3D4A20', boxShadow: '2px 2px 0 #2A3010' },
+  swapPanel: { background: '#FFFBF0', border: '2px solid #C8A830', borderRadius: '2px', padding: '14px' },
+  swapTitle: { fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#8A7E65', margin: '0 0 10px' },
   rackWrap: { marginTop: '8px' },
   loadingBar: { display: 'flex', alignItems: 'center', gap: '10px', padding: '8px' },
-  spinner: {
-    width: '24px', height: '24px', border: '3px solid #C8A830', borderTopColor: '#1E1A12',
-    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-  },
+  spinner: { width: '24px', height: '24px', border: '3px solid #C8A830', borderTopColor: '#1E1A12', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
 };
