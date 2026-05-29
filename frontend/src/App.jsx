@@ -90,8 +90,11 @@ function GameApp() {
   // FIX: id stable du joueur humain — ne change pas quand l'IA joue
   const [humanPlayerId, setHumanPlayerId] = useState(0);
 
-  // FIX: verrou contre les doubles appels et race conditions
+  // Verrou contre les doubles appels humains (ref = pas de re-render)
   const actionInFlight = useRef(false);
+
+  // État dédié au tour IA — state React (pas une ref) pour bloquer l'UI proprement
+  const [isAIThinking, setIsAIThinking] = useState(false);
 
   useEffect(() => {
     if (user?.display_name && !playerName) setPlayerName(user.display_name);
@@ -111,28 +114,61 @@ function GameApp() {
   const isAITurn = gameState
     ? gameState.players[gameState.current_player_index].is_ai : false;
 
-  const isBlocked = isAITurn || isLoading;
+  // isBlocked = tour IA en cours OU requête humaine en vol OU chargement
+  const isBlocked = isAIThinking || isLoading;
 
-  const hint = isBlocked
+  const hint = isAIThinking
     ? "⏳ L'IA réfléchit..."
-    : placements.length > 0
-      ? `${placements.length} tuile(s) — score estimé : ${previewScore} pts`
-      : 'Glissez une lettre sur le plateau';
+    : isLoading
+      ? '⏳ Traitement...'
+      : placements.length > 0
+        ? `${placements.length} tuile(s) — score estimé : ${previewScore} pts`
+        : 'Glissez une lettre sur le plateau';
 
   // ── Tour IA ───────────────────────────────────────────────────
+  // isAIThinking est un state React (pas une ref) pour bloquer l'UI immédiatement.
+  // Dépendances minimales [isAITurn, gameId] : seuls ces deux éléments
+  // déterminent si l'IA doit jouer — évite les re-triggers sur chaque render.
+  const aiTimerRef = useRef(null);
+
   useEffect(() => {
-    if (!gameState || gameState.status !== 'ACTIVE' || !gameId || !isAITurn) return;
-    const timer = setTimeout(async () => {
-      if (actionInFlight.current) return;
+    // Nettoyer le timer précédent si présent
+    if (aiTimerRef.current) {
+      clearTimeout(aiTimerRef.current);
+      aiTimerRef.current = null;
+    }
+
+    if (!isAITurn || !gameId || !gameState || gameState.status !== 'ACTIVE') {
+      return;
+    }
+
+    // Marquer immédiatement comme "IA en train de réfléchir"
+    // pour bloquer les boutons avant même que le timer parte
+    setIsAIThinking(true);
+
+    aiTimerRef.current = setTimeout(async () => {
       try {
         const updated = await gameService.aiPlayTurn(gameId);
         setGameState(updated);
       } catch (e) {
-        console.error('Erreur IA:', e?.response?.data?.detail);
+        console.error('Erreur IA:', e?.response?.data?.detail || e.message);
+      } finally {
+        aiTimerRef.current = null;
+        setIsAIThinking(false);
       }
-    }, 1800);
-    return () => clearTimeout(timer);
-  }, [gameState, gameId, isAITurn]);
+    }, 1200);
+
+    // Pas de cleanup qui met isAIThinking=false : si le composant re-render
+    // (ex: changement mineur d'état) on ne veut pas annuler un appel déjà lancé.
+    // Le cleanup nettoie seulement le timer non encore parti.
+    return () => {
+      if (aiTimerRef.current) {
+        clearTimeout(aiTimerRef.current);
+        aiTimerRef.current = null;
+        setIsAIThinking(false); // annulé avant d'être parti → relâcher le verrou
+      }
+    };
+  }, [isAITurn, gameId]); // dépendances minimales et stables
 
   // ── Sauvegarde fin de partie ──────────────────────────────────
   useEffect(() => {
@@ -165,6 +201,8 @@ function GameApp() {
     setGameSaved(false);
     setGameStartTime(Date.now());
     actionInFlight.current = false;
+    setIsAIThinking(false);
+    if (aiTimerRef.current) { clearTimeout(aiTimerRef.current); aiTimerRef.current = null; }
     try {
       const state = await gameService.startGame(
         [playerName.trim() || user?.display_name || 'Joueur', 'HAL 9000'],
@@ -355,7 +393,8 @@ function GameApp() {
           )}
           <button style={s.startBtn} onClick={() => {
             setGameState(null); setGameId(null); setPlacements([]);
-            setGameSaved(false); actionInFlight.current = false;
+            setGameSaved(false); setIsAIThinking(false); actionInFlight.current = false;
+            if (aiTimerRef.current) { clearTimeout(aiTimerRef.current); aiTimerRef.current = null; }
           }}>
             Rejouer
           </button>
@@ -478,11 +517,11 @@ function GameApp() {
             </div>
           )}
 
-          {isLoading && (
+          {(isLoading || isAIThinking) && (
             <div style={s.loadingBar}>
               <div style={s.spinner} />
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: '#8A7E65' }}>
-                {isAITurn ? "L'IA réfléchit..." : 'Traitement...'}
+                {isAIThinking ? "L'IA réfléchit..." : 'Traitement...'}
               </span>
             </div>
           )}
