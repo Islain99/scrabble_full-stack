@@ -67,7 +67,7 @@ function Router() {
 // ── Game App ──────────────────────────────────────────────────────
 
 function GameApp() {
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, token, isAuthenticated, getFreshToken } = useAuth();
 
   const [gameState, setGameState]           = useState(null);
   const [gameId, setGameId]                 = useState(null);
@@ -112,26 +112,44 @@ function GameApp() {
 
   // ── Sauvegarde auto quand la partie se termine ────────────────
   useEffect(() => {
-    if (!gameState || gameState.status !== 'FINISHED' || !isAuthenticated || !token || gameSaved) return;
+    if (!gameState || gameState.status !== 'FINISHED' || !isAuthenticated || gameSaved) return;
 
     const humanPlayer = gameState.players.find(p => !p.is_ai);
     const aiPlayer    = gameState.players.find(p => p.is_ai);
     if (!humanPlayer || !aiPlayer) return;
 
     const duration = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null;
+    const won = gameState.winner_name === humanPlayer.name;
 
-    saveGame(token, {
-      game_id:         gameId,
-      user_score:      humanPlayer.score,
-      ai_name:         aiPlayer.name,
-      ai_score:        aiPlayer.score,
-      ai_difficulty:   'medium',
-      won:             gameState.winner_name === humanPlayer.name,
-      duration_seconds: duration,
-      turns_count:     gameState.passes_count,
-    }).then(() => setGameSaved(true))
-      .catch(err => console.warn('Sauvegarde partie échouée:', err));
-  }, [gameState?.status, isAuthenticated, token, gameSaved]);
+    const doSave = async () => {
+      try {
+        // Rafraîchir le token avant l'appel (évite les erreurs 401)
+        const freshToken = await getFreshToken();
+        if (!freshToken) return;
+
+        await saveGame(freshToken, {
+          game_id:          gameId,
+          user_score:       humanPlayer.score,
+          ai_name:          aiPlayer.name,
+          ai_score:         aiPlayer.score,
+          ai_difficulty:    'medium',
+          won,
+          duration_seconds: duration,
+          turns_count:      gameState.passes_count,
+        });
+        setGameSaved(true);
+      } catch (err) {
+        // 409 = partie déjà enregistrée (doublon) → on l'ignore
+        if (err?.response?.status === 409) {
+          setGameSaved(true);
+          return;
+        }
+        console.warn('Sauvegarde partie échouée:', err?.response?.data?.detail || err.message);
+      }
+    };
+
+    doSave();
+  }, [gameState?.status, gameState?.winner_name, isAuthenticated, gameSaved]);
 
   const activePlayerId = gameState
     ? gameState.players[gameState.current_player_index].id
@@ -238,37 +256,21 @@ function GameApp() {
     setShowAbandonModal(false);
 
     const humanPlayer = gameState.players.find(p => !p.is_ai);
-    const aiPlayer    = gameState.players.find(p => p.is_ai);
 
     try {
       // 1. Informer le backend — marque FINISHED, libère la mémoire serveur
       const finalState = await gameService.abandonGame(gameId, humanPlayer?.id ?? 0);
 
-      // 2. Sauvegarder dans l'historique PostgreSQL si connecté
-      if (isAuthenticated && token && humanPlayer && aiPlayer) {
-        const duration = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null;
-        try {
-          await saveGame(token, {
-            game_id:          gameId + '_abandoned',
-            user_score:       humanPlayer.score,
-            ai_name:          aiPlayer.name,
-            ai_score:         aiPlayer.score,
-            ai_difficulty:    'medium',
-            won:              false,
-            duration_seconds: duration,
-            turns_count:      gameState.passes_count,
-          });
-        } catch { /* sauvegarde silencieuse */ }
-      }
-
-      // 3. Mettre à jour l'UI avec le state final (écran de défaite)
-      setGameState(finalState);
+      // 2. Mettre à jour l'UI — le useEffect de sauvegarde auto se déclenche
+      //    automatiquement quand il détecte status === 'FINISHED'
       setWordPlacements([]);
       setSelectedTilesToSwap([]);
+      setGameSaved(false); // garantit que la sauvegarde auto se lance
+      setGameState(finalState); // déclenche le useEffect
 
     } catch (err) {
-      // Le backend est indisponible — reset local quand même
       console.warn('Abandon backend error:', err?.response?.data?.detail || err.message);
+      // Backend indisponible — reset local
       setGameState(null);
       setGameId(null);
       setWordPlacements([]);
