@@ -1,6 +1,7 @@
 // src/App.jsx — Routing hash-based + AuthProvider + sauvegarde auto des parties
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
@@ -33,9 +34,11 @@ function useHashRoute() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
@@ -320,24 +323,24 @@ function GameApp() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '3rem', maxWidth: '480px' }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', letterSpacing: '0.3em', color: '#8A7E65', textTransform: 'uppercase', marginBottom: '12px' }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', letterSpacing: '0.3em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>
             Édition de Luxe — 1972
           </div>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(3.5rem, 10vw, 6rem)', fontWeight: 900, color: '#1E1A12', lineHeight: 0.9, letterSpacing: '-0.04em', margin: '0 0 8px' }}>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(3.5rem, 10vw, 6rem)', fontWeight: 900, color: 'var(--text-primary)', lineHeight: 0.9, letterSpacing: '-0.04em', margin: '0 0 8px' }}>
             SCRABBLE
           </h1>
-          <div style={{ height: '4px', background: 'linear-gradient(90deg, transparent, #C8803A, #C8A830, #C8803A, transparent)', margin: '16px auto', maxWidth: '300px' }} />
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', color: '#5E6B3A', fontSize: '1rem', margin: 0 }}>
+          <div style={{ height: '4px', background: 'linear-gradient(90deg, transparent, var(--tobacco), var(--gold), var(--tobacco), transparent)', margin: '16px auto', maxWidth: '300px' }} />
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', color: 'var(--olive)', fontSize: '1rem', margin: 0 }}>
             Le jeu classique des mots croisés
           </p>
           {isAuthenticated && user && (
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#C8803A', letterSpacing: '0.1em', marginTop: '12px' }}>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--tobacco)', letterSpacing: '0.1em', marginTop: '12px' }}>
               Bienvenue, {user.display_name} · {user.games_played} partie{user.games_played !== 1 ? 's' : ''} jouée{user.games_played !== 1 ? 's' : ''}
             </p>
           )}
         </div>
 
-        <div style={{ border: '3px solid #1E1A12', padding: '2rem 3rem', textAlign: 'center', boxShadow: '6px 6px 0 #C8803A', background: '#F5EDD6', maxWidth: '360px', width: '100%' }}>
+        <div style={{ border: '3px solid var(--border-primary)', padding: '2rem 3rem', textAlign: 'center', boxShadow: '6px 6px 0 var(--shadow-card)', background: 'var(--bg-page)', maxWidth: '360px', width: '100%' }}>
           <RetroButton onClick={handleStartGame} variant="primary" fullWidth>
             Démarrer la partie
           </RetroButton>
@@ -350,14 +353,14 @@ function GameApp() {
   if (gameState.status === 'FINISHED') {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-        <div style={{ border: '3px solid #1E1A12', padding: '2.5rem', background: '#F5EDD6', boxShadow: '8px 8px 0 #C8803A', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '12px' }}>Partie Terminée</div>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.5rem', fontWeight: 900, color: '#1E1A12', margin: '0 0 4px' }}>
+        <div style={{ border: '3px solid var(--border-primary)', padding: '2.5rem', background: 'var(--bg-page)', boxShadow: '8px 8px 0 var(--shadow-card)', maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '12px' }}>Partie Terminée</div>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.5rem', fontWeight: 900, color: 'var(--text-primary)', margin: '0 0 4px' }}>
             {gameState.winner_name}
           </h1>
-          <p style={{ fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', color: '#5E6B3A', margin: '0 0 24px' }}>remporte la victoire</p>
+          <p style={{ fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', color: 'var(--olive)', margin: '0 0 24px' }}>remporte la victoire</p>
           {gameSaved && (
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#5E6B3A', letterSpacing: '0.08em', marginBottom: '16px' }}>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--olive)', letterSpacing: '0.08em', marginBottom: '16px' }}>
               ✓ Partie enregistrée dans votre profil
             </p>
           )}
@@ -380,15 +383,15 @@ function GameApp() {
     <div style={{ minHeight: '100vh', padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '3px solid #1E1A12', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '3px solid var(--border-primary)', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px' }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900, color: '#1E1A12', letterSpacing: '-0.04em', margin: 0 }}>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.04em', margin: 0 }}>
             SCRABBLE
           </h1>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#8A7E65', letterSpacing: '0.15em', textTransform: 'uppercase' }}>Édition 1972</span>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>Édition 1972</span>
         </div>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: '#8A7E65', letterSpacing: '0.08em' }}>
-          Tour de → <span style={{ color: '#C8803A', fontWeight: 600 }}>{gameState.players[gameState.current_player_index]?.name}</span>
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+          Tour de → <span style={{ color: 'var(--tobacco)', fontWeight: 600 }}>{gameState.players[gameState.current_player_index]?.name}</span>
         </div>
       </header>
 
@@ -408,7 +411,7 @@ function GameApp() {
           />
           <Legend />
           <div style={{ marginTop: '4px' }}>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#8A7E65', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px' }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px' }}>
               {isSwapMode
                 ? `${selectedTilesToSwap.length} tuile(s) sélectionnée(s) pour l'échange`
                 : 'Glissez vos lettres sur le plateau'}
@@ -454,8 +457,8 @@ function GameApp() {
           </div>
 
           {/* Échange */}
-          <div style={{ borderTop: '1px solid rgba(200,168,48,0.3)', paddingTop: '14px' }}>
-            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#8A7E65', letterSpacing: '0.06em', lineHeight: 1.6, margin: '0 0 10px' }}>
+          <div style={{ borderTop: '1px solid var(--border-gold)', paddingTop: '14px' }}>
+            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.06em', lineHeight: 1.6, margin: '0 0 10px' }}>
               Pour échanger : sélectionnez les tuiles dans le rack, puis cliquez ci-dessous.
             </p>
             <RetroButton
@@ -494,7 +497,7 @@ function GameApp() {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: '#F5EDD6',
+              background: 'var(--bg-page)',
               border: '3px solid #8B2020',
               borderRadius: '3px',
               padding: '2rem 2.4rem',
@@ -510,7 +513,7 @@ function GameApp() {
             <h2 style={{
               fontFamily: "'Playfair Display', Georgia, serif",
               fontSize: '1.6rem', fontWeight: 900,
-              color: '#8B2020', margin: '0 0 8px',
+              color: 'var(--brick)', margin: '0 0 8px',
               letterSpacing: '-0.02em',
             }}>
               Abandonner ?
@@ -518,7 +521,7 @@ function GameApp() {
 
             <p style={{
               fontFamily: "'Libre Baskerville', serif",
-              fontSize: '0.95rem', color: '#5E4A3A',
+              fontSize: '0.95rem', color: 'var(--text-secondary)',
               fontStyle: 'italic', margin: '0 0 6px',
             }}>
               La partie sera comptée comme une défaite.
@@ -526,7 +529,7 @@ function GameApp() {
 
             {/* Scores actuels */}
             <div style={{
-              background: '#EDE0C0',
+              background: 'var(--bg-card-alt)',
               border: '1.5px solid rgba(139,32,32,0.2)',
               borderRadius: '2px',
               padding: '10px 14px',
@@ -536,19 +539,19 @@ function GameApp() {
             }}>
               {gameState.players.map(p => (
                 <div key={p.id} style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>
                     {p.name}
                   </div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, color: '#1E1A12' }}>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {p.score}
                   </div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: '#8A7E65' }}>pts</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)' }}>pts</div>
                 </div>
               ))}
             </div>
 
             {isAuthenticated && (
-              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8A7E65', letterSpacing: '0.05em', margin: '0 0 20px' }}>
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.05em', margin: '0 0 20px' }}>
                 La partie sera enregistrée dans votre historique.
               </p>
             )}
@@ -578,18 +581,18 @@ function GameApp() {
 
 const RetroButton = ({ onClick, disabled, children, variant = 'default', fullWidth = false }) => {
   const variants = {
-    default: { bg: 'transparent', color: '#1E1A12', border: '#1E1A12', hover: '#1E1A12', hoverText: '#F5EDD6' },
-    primary: { bg: '#5E6B3A', color: '#F5EDD6', border: '#3D4A20', hover: '#4A5528', hoverText: '#F5EDD6' },
-    danger:  { bg: 'transparent', color: '#8B2020', border: '#8B2020', hover: '#8B2020', hoverText: '#F5EDD6' },
-    tobacco: { bg: 'transparent', color: '#8A5010', border: '#C8803A', hover: '#C8803A', hoverText: '#F5EDD6' },
+    default: { bg: 'transparent',       color: 'var(--text-primary)', border: 'var(--border-primary)', hover: 'var(--text-primary)',  hoverText: 'var(--bg-page)' },
+    primary: { bg: 'var(--olive)',       color: 'var(--text-invert)',  border: 'var(--olive-dk)',        hover: 'var(--olive-dk)',      hoverText: 'var(--text-invert)' },
+    danger:  { bg: 'transparent',       color: 'var(--brick)',        border: 'var(--brick)',           hover: 'var(--brick)',         hoverText: 'var(--bg-page)' },
+    tobacco: { bg: 'transparent',       color: 'var(--tobacco-dk)',   border: 'var(--tobacco)',         hover: 'var(--tobacco)',       hoverText: 'var(--text-invert)' },
   };
   const v = variants[variant] || variants.default;
   return (
     <button onClick={onClick} disabled={disabled} style={{
       width: fullWidth ? '100%' : 'auto',
       background: v.bg,
-      color: disabled ? '#B0A080' : v.color,
-      border: `2px solid ${disabled ? '#C8C0A8' : v.border}`,
+      color: disabled ? 'var(--text-muted)' : v.color,
+      border: `2px solid ${disabled ? 'var(--border-muted)' : v.border}`,
       fontFamily: "'DM Mono', monospace",
       fontSize: '0.82rem',
       fontWeight: 500,
@@ -610,30 +613,35 @@ const RetroButton = ({ onClick, disabled, children, variant = 'default', fullWid
 
 const Divider = ({ label }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0 10px' }}>
-    <div style={{ flex: 1, height: '1px', background: '#C8A830', opacity: 0.4 }} />
-    {label && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: '#8A7E65', letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>}
-    <div style={{ flex: 1, height: '1px', background: '#C8A830', opacity: 0.4 }} />
+    <div style={{ flex: 1, height: '1px', background: 'var(--gold)', opacity: 0.4 }} />
+    {label && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</span>}
+    <div style={{ flex: 1, height: '1px', background: 'var(--gold)', opacity: 0.4 }} />
   </div>
 );
 
 const ScorePreview = ({ score, count }) => (
-  <div style={{ background: '#1E1A12', border: '2px solid #C8A830', borderRadius: '2px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '3px 3px 0 #8A6820' }}>
+  <div style={{ background: 'var(--bg-invert)', border: '2px solid var(--gold)', borderRadius: '2px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '3px 3px 0 var(--border-gold-dk)', transition: 'background 0.25s' }}>
     <div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: '#8A7E65', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>Score provisoire</div>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: '#6B5E45' }}>{count} tuile{count !== 1 ? 's' : ''} posée{count !== 1 ? 's' : ''}</div>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.72rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>Score provisoire</div>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-invert-muted)' }}>{count} tuile{count !== 1 ? 's' : ''} posée{count !== 1 ? 's' : ''}</div>
     </div>
-    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.6rem', fontWeight: 700, color: '#C8A830', lineHeight: 1 }}>{score}</div>
+    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.6rem', fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{score}</div>
   </div>
 );
 
 const Legend = () => {
-  const items = [{ color: '#8B2020', label: 'Mot ×3' }, { color: '#C8803A', label: 'Mot ×2' }, { color: '#1A4A8A', label: 'Lettre ×3' }, { color: '#3A7EB8', label: 'Lettre ×2' }];
+  const items = [
+    { bg: 'var(--bonus-tm)', label: 'Mot ×3' },
+    { bg: 'var(--bonus-dm)', label: 'Mot ×2' },
+    { bg: 'var(--bonus-tl)', label: 'Lettre ×3' },
+    { bg: 'var(--bonus-dl)', label: 'Lettre ×2' },
+  ];
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '10px' }}>
       {items.map(item => (
         <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '14px', height: '14px', background: item.color, borderRadius: '2px', flexShrink: 0 }} />
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: '#8A7E65', letterSpacing: '0.05em' }}>{item.label}</span>
+          <div style={{ width: '14px', height: '14px', background: item.bg, borderRadius: '2px', flexShrink: 0 }} />
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{item.label}</span>
         </div>
       ))}
     </div>

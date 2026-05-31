@@ -1,95 +1,232 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 
-:root {
-  --cream:    #F5EDD6;
-  --cream-dk: #E8D9B5;
-  --tobacco:  #C8803A;
-  --tobacco-dk: #A05E20;
-  --brick:    #B34A2A;
-  --olive:    #5E6B3A;
-  --olive-lt: #8A9B56;
-  --ink:      #1E1A12;
-  --ink-lt:   #3D3626;
-  --muted:    #8A7E65;
-  --board-green: #2D5A27;
-  --board-green-lt: #3D7535;
-  --tile-bg:  #F0D890;
-  --tile-border: #C8A830;
-  --tile-shadow: #8A6820;
+/* ═══════════════════════════════════════════════════════════════
+   THÈME LIGHT (défaut — vintage crème & tabac)
+   ═══════════════════════════════════════════════════════════════ */
+:root,
+[data-theme="light"] {
+  /* Surfaces */
+  --bg-page:        #F5EDD6;
+  --bg-page-alt:    #EDE0C0;
+  --bg-card:        #F5EDD6;
+  --bg-card-alt:    #EDE0C0;
+  --bg-input:       #EDE0C0;
+  --bg-invert:      #1E1A12;
+  --bg-invert-alt:  #3D3626;
 
-  font-family: 'Libre Baskerville', Georgia, serif;
-  line-height: 1.6;
-  font-weight: 400;
-  color: var(--ink);
-  background-color: var(--cream);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
+  /* Textes */
+  --text-primary:   #1E1A12;
+  --text-secondary: #3D3626;
+  --text-muted:     #8A7E65;
+  --text-invert:    #F5EDD6;
+  --text-invert-muted: #C8A830;
+
+  /* Bordures */
+  --border-primary: #1E1A12;
+  --border-muted:   #C8C0A8;
+  --border-gold:    #C8A830;
+  --border-gold-dk: #8A6820;
+
+  /* Accents */
+  --tobacco:        #C8803A;
+  --tobacco-dk:     #A05E20;
+  --olive:          #5E6B3A;
+  --olive-dk:       #3D4A20;
+  --brick:          #8B2020;
+  --blue:           #1A4A8A;
+  --blue-lt:        #3A7EB8;
+  --gold:           #C8A830;
+  --gold-dk:        #8A6820;
+  --muted:          #8A7E65;
+
+  /* Tuiles */
+  --tile-bg:        #F0D890;
+  --tile-border:    #C8A830;
+  --tile-shadow:    #8A6820;
+  --tile-text:      #2A1800;
+  --tile-score:     #6B4010;
+  --tile-temp-bg:   #D4E8A8;
+  --tile-temp-border: #7AAA30;
+  --tile-temp-shadow: #4A7A10;
+  --tile-temp-text: #2A4A10;
+  --tile-sel-bg:    #F5C87A;
+  --tile-sel-border: #C8803A;
+  --tile-sel-shadow: #8A5010;
+  --tile-joker-bg:  #E8E0CC;
+  --tile-joker-border: #B0A080;
+
+  /* Rack */
+  --rack-bg:        linear-gradient(180deg, #8B5E2A 0%, #6B4010 60%, #5A3008 100%);
+  --rack-border:    #8A6820;
+  --rack-shadow:    #2A1800;
+  --rack-label-bg:  #C8A830;
+  --rack-label-text: #2A1800;
+
+  /* Plateau */
+  --board-bg:       linear-gradient(135deg, #1A3A18 0%, #2D5A27 40%, #1E4A1C 100%);
+  --board-border:   #8A6820;
+  --board-shadow:   #0A1A09;
+  --board-grid-bg:  #1A3A18;
+  --board-cell-empty: rgba(45,90,39,0.6);
+  --board-cell-hover: rgba(200,168,48,0.4);
+  --board-rivet:    #C8A830;
+
+  /* Boutons bonus */
+  --bonus-tm:       #8B2020;
+  --bonus-tm-text:  #F5D0C0;
+  --bonus-dm:       #C8803A;
+  --bonus-dm-text:  #FFF0D8;
+  --bonus-tl:       #1A4A8A;
+  --bonus-tl-text:  #C8DCFF;
+  --bonus-dl:       #3A7EB8;
+  --bonus-dl-text:  #DCEEFF;
+  --bonus-start:    #8B4A20;
+  --bonus-start-text: #FFE8C0;
+
+  /* Ombres décalées (rétro) */
+  --shadow-card:    #C8803A;
+  --shadow-btn:     currentColor;
+
+  /* Backgrounds de page */
+  --bg-grid-line:   rgba(200,128,58,0.08);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   THÈME DARK (encre de nuit, or terni)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:        #1A1510;
+  --bg-page-alt:    #231E18;
+  --bg-card:        #231E18;
+  --bg-card-alt:    #2D2620;
+  --bg-input:       #2D2620;
+  --bg-invert:      #F0D890;
+  --bg-invert-alt:  #C8A830;
+
+  /* Textes */
+  --text-primary:   #E8D9B5;
+  --text-secondary: #C8B890;
+  --text-muted:     #7A6E58;
+  --text-invert:    #1A1510;
+  --text-invert-muted: #8A6820;
+
+  /* Bordures */
+  --border-primary: #C8A830;
+  --border-muted:   #3D3626;
+  --border-gold:    #8A6820;
+  --border-gold-dk: #5A4010;
+
+  /* Accents — légèrement désaturés pour le dark */
+  --tobacco:        #D4924A;
+  --tobacco-dk:     #B07030;
+  --olive:          #6E7B48;
+  --olive-dk:       #4A5830;
+  --brick:          #C04040;
+  --blue:           #2A6AAA;
+  --blue-lt:        #4A8EC8;
+  --gold:           #C8A830;
+  --gold-dk:        #7A6820;
+  --muted:          #7A6E58;
+
+  /* Tuiles — plus sombres en dark mode */
+  --tile-bg:        #3D3010;
+  --tile-border:    #8A6820;
+  --tile-shadow:    #1A1000;
+  --tile-text:      #E8D090;
+  --tile-score:     #A08030;
+  --tile-temp-bg:   #203818;
+  --tile-temp-border: #507820;
+  --tile-temp-shadow: #203010;
+  --tile-temp-text: #A0D860;
+  --tile-sel-bg:    #5A3A10;
+  --tile-sel-border: #C8803A;
+  --tile-sel-shadow: #3A1800;
+  --tile-joker-bg:  #302820;
+  --tile-joker-border: #706050;
+
+  /* Rack */
+  --rack-bg:        linear-gradient(180deg, #3D2810 0%, #2A1808 60%, #1E1005 100%);
+  --rack-border:    #5A4010;
+  --rack-shadow:    #0A0800;
+  --rack-label-bg:  #5A4010;
+  --rack-label-text: #E8D090;
+
+  /* Plateau — reste vert mais plus sombre */
+  --board-bg:       linear-gradient(135deg, #0F2010 0%, #1A3018 40%, #102015 100%);
+  --board-border:   #3A4810;
+  --board-shadow:   #050A05;
+  --board-grid-bg:  #0F2010;
+  --board-cell-empty: rgba(20,40,15,0.8);
+  --board-cell-hover: rgba(140,100,20,0.4);
+  --board-rivet:    #8A6820;
+
+  /* Bonus — plus sombres */
+  --bonus-tm:       #6A1010;
+  --bonus-tm-text:  #F0B0A0;
+  --bonus-dm:       #8A5020;
+  --bonus-dm-text:  #F0D0A0;
+  --bonus-tl:       #0A2A5A;
+  --bonus-tl-text:  #90B8F0;
+  --bonus-dl:       #1A4E78;
+  --bonus-dl-text:  #90C8F0;
+  --bonus-start:    #5A2810;
+  --bonus-start-text: #F0C890;
+
+  /* Ombres */
+  --shadow-card:    #000000;
+
+  /* Grille de fond */
+  --bg-grid-line:   rgba(200,168,48,0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE
+   ═══════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: var(--cream);
+  font-family: 'Libre Baskerville', Georgia, serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--text-primary);
+  background-color: var(--bg-page);
   background-image:
     repeating-linear-gradient(
       0deg,
       transparent,
       transparent 39px,
-      rgba(200,128,58,0.08) 39px,
-      rgba(200,128,58,0.08) 40px
+      var(--bg-grid-line) 39px,
+      var(--bg-grid-line) 40px
     ),
     repeating-linear-gradient(
       90deg,
       transparent,
       transparent 39px,
-      rgba(200,128,58,0.08) 39px,
-      rgba(200,128,58,0.08) 40px
+      var(--bg-grid-line) 39px,
+      var(--bg-grid-line) 40px
     );
+  transition: background-color 0.25s ease, color 0.25s ease;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3 {
   font-family: 'Playfair Display', Georgia, serif;
   letter-spacing: -0.02em;
-  color: var(--ink);
-}
-
-button {
-  font-family: 'DM Mono', monospace;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border-radius: 2px;
-  border: 2px solid var(--ink);
-  padding: 0.6em 1.2em;
-  background-color: transparent;
-  color: var(--ink);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-button:hover {
-  background-color: var(--ink);
-  color: var(--cream);
-}
-
-button:disabled {
-  border-color: var(--muted);
-  color: var(--muted);
-  background: transparent;
-  cursor: not-allowed;
-}
-
-button:disabled:hover {
-  background: transparent;
-  color: var(--muted);
+  color: var(--text-primary);
 }
 
 a {
@@ -97,6 +234,45 @@ a {
   text-decoration: underline;
 }
 
+/* Inputs globaux */
+input, textarea, select {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+  transition: background-color 0.25s, color 0.25s, border-color 0.25s;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Transitions douces sur tous les éléments clés */
+.theme-transition,
+.theme-transition * {
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease !important;
+}
+
+/* ── Animations ───────────────────────────────────────────────── */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200,168,48,0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(200,168,48,0); }
+}
+
+/* ── Scrollbar custom (webkit) ────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-page-alt); }
+::-webkit-scrollbar-thumb { background: var(--border-gold-dk); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
