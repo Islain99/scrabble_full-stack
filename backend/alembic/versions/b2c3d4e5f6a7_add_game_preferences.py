@@ -21,9 +21,8 @@ def upgrade() -> None:
         'users',
         sa.Column(
             'game_preferences',
-            postgresql.JSON(astext_type=sa.Text()),
+            sa.JSON(),
             nullable=True,
-            comment='Préférences de jeu personnalisées (difficulty, turnDuration, etc.)'
         )
     )
 
