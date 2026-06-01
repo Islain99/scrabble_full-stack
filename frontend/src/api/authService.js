@@ -2,6 +2,7 @@
 // Appels vers les nouvelles routes /api/v2 du backend FastAPI.
 // Firebase Auth (signIn/signUp/signOut) est géré dans AuthContext.
 import axios from 'axios';
+import { auth } from '../firebase';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
   || 'https://scrabblefull-stack-production.up.railway.app';
@@ -10,11 +11,17 @@ const API = `${BASE_URL}/api/v2`;
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-/**
- * Crée un header Authorization Bearer à partir du token Firebase.
- * Le token est rafraîchi automatiquement par Firebase si expiré.
- */
 const authHeader = (token) => ({ Authorization: `Bearer ${token}` });
+
+/**
+ * Récupère un token Firebase frais depuis l'utilisateur courant.
+ * Utilisé pour les appels qui ne passent pas par axiosInstance.
+ */
+const getFreshToken = async () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Utilisateur non connecté');
+  return user.getIdToken(false);
+};
 
 
 // ── Auth ──────────────────────────────────────────────────────────
@@ -83,23 +90,25 @@ export const getPublicProfile = async (userId) => {
 
 // ── Historique & parties ─────────────────────────────────────────
 
-export const getHistory = async (firebaseToken, limit = 20, offset = 0) => {
+export const getHistory = async (limit = 20, offset = 0) => {
+  const token = await getFreshToken();
   const { data } = await axios.get(
     `${API}/users/me/history`,
-    { headers: authHeader(firebaseToken), params: { limit, offset } }
+    { headers: authHeader(token), params: { limit, offset } }
   );
-  return data; // GameHistoryOut[]
+  return data;
 };
 
 /**
  * Sauvegarde une partie terminée.
  * Appelé automatiquement par App.jsx quand status === 'FINISHED'.
  */
-export const saveGame = async (firebaseToken, gameData) => {
+export const saveGame = async (gameData) => {
+  const token = await getFreshToken();
   const { data } = await axios.post(
     `${API}/users/me/games`,
     gameData,
-    { headers: authHeader(firebaseToken) }
+    { headers: authHeader(token) }
   );
   return data;
 };
@@ -107,12 +116,18 @@ export const saveGame = async (firebaseToken, gameData) => {
 
 // ── Classement ────────────────────────────────────────────────────
 
-export const getLeaderboard = async (firebaseToken = null, {
+export const getLeaderboard = async ({
   period = 'all',
   sortBy = 'best_score',
   limit = 50,
 } = {}) => {
-  const headers = firebaseToken ? authHeader(firebaseToken) : {};
+  let headers = {};
+  try {
+    const token = await getFreshToken();
+    headers = authHeader(token);
+  } catch {
+    // Non connecté — le classement est public
+  }
   const { data } = await axios.get(`${API}/leaderboard`, {
     headers,
     params: { period, sort_by: sortBy, limit },
@@ -125,31 +140,27 @@ export const getLeaderboard = async (firebaseToken = null, {
 
 /**
  * Récupère les préférences de jeu depuis le serveur.
- * Retourne un objet PreferencesResponse complet avec les valeurs par défaut.
+ * Utilise le token Firebase courant directement.
  */
 export const getPreferences = async () => {
-  try {
-    // Tente via axiosInstance (projet réel avec intercepteur)
-    const { default: api } = await import('./axiosInstance');
-    const { data } = await api.get('/users/me/preferences');
-    return data;
-  } catch {
-    // Fallback : appel direct avec authHeader (ancienne version)
-    throw new Error('getPreferences: axiosInstance non disponible');
-  }
+  const token = await getFreshToken();
+  const { data } = await axios.get(
+    `${API}/users/me/preferences`,
+    { headers: authHeader(token) }
+  );
+  return data;
 };
 
 /**
  * Sauvegarde les préférences de jeu sur le serveur (PUT partiel).
  * patch = { difficulty, turnDuration, showScorePreview, ... }
- * Seuls les champs présents dans patch sont modifiés côté serveur.
  */
 export const savePreferences = async (patch) => {
-  try {
-    const { default: api } = await import('./axiosInstance');
-    const { data } = await api.put('/users/me/preferences', patch);
-    return data;
-  } catch {
-    throw new Error('savePreferences: axiosInstance non disponible');
-  }
+  const token = await getFreshToken();
+  const { data } = await axios.put(
+    `${API}/users/me/preferences`,
+    patch,
+    { headers: authHeader(token) }
+  );
+  return data;
 };
