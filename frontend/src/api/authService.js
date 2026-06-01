@@ -1,75 +1,155 @@
 // src/api/authService.js
-import api from './axiosInstance';
+// Appels vers les nouvelles routes /api/v2 du backend FastAPI.
+// Firebase Auth (signIn/signUp/signOut) est géré dans AuthContext.
+import axios from 'axios';
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL
+  || 'https://scrabblefull-stack-production.up.railway.app';
+
+const API = `${BASE_URL}/api/v2`;
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+/**
+ * Crée un header Authorization Bearer à partir du token Firebase.
+ * Le token est rafraîchi automatiquement par Firebase si expiré.
+ */
+const authHeader = (token) => ({ Authorization: `Bearer ${token}` });
+
 
 // ── Auth ──────────────────────────────────────────────────────────
 
-export const registerUser = async (displayName) => {
-  const { data } = await api.post('/auth/register', { display_name: displayName });
-  return data;
-};
-
-export const loginUser = async () => {
-  const { data } = await api.post('/auth/login', {});
-  return data;
-};
-
-export const getMe = async () => {
-  const { data } = await api.get('/auth/me');
-  return data;
-};
-
-// ── Profil ────────────────────────────────────────────────────────
-
-export const getProfile = async () => {
-  const { data } = await api.get('/users/me');
-  return data;
+/**
+ * Enregistre un nouvel utilisateur dans PostgreSQL après Firebase signup.
+ * Appelé une seule fois après createUserWithEmailAndPassword.
+ */
+export const registerUser = async (firebaseToken, displayName) => {
+  const { data } = await axios.post(`${API}/auth/register`, {
+    firebase_token: firebaseToken,
+    display_name: displayName,
+  });
+  return data; // { user: UserOut, is_new_user: bool }
 };
 
 /**
- * Met à jour le profil complet du joueur.
- * Envoie uniquement les champs définis (les autres sont ignorés par le backend).
+ * Login : enregistre la session dans PostgreSQL et retourne le profil.
+ * Appelé après signInWithEmailAndPassword ou signInWithPopup.
  */
-export const updateProfile = async ({
-  displayName,
-  firstName,    // ← NOUVEAU
-  lastName,     // ← NOUVEAU
-  age,          // ← NOUVEAU
-  country,      // ← NOUVEAU
-  bio,
-  avatarUrl,
-}) => {
-  const { data } = await api.patch('/users/me', {
-    display_name: displayName,
-    first_name:   firstName,   // snake_case pour le backend FastAPI
-    last_name:    lastName,
-    age:          age,
-    country:      country,
-    bio:          bio,
-    avatar_url:   avatarUrl,
-  });
+export const loginUser = async (firebaseToken) => {
+  const { data } = await axios.post(
+    `${API}/auth/login`,
+    {},
+    { headers: authHeader(firebaseToken) }
+  );
+  return data; // { user: UserOut, is_new_user: bool }
+};
+
+/**
+ * Retourne le profil rapide de l'utilisateur connecté.
+ */
+export const getMe = async (firebaseToken) => {
+  const { data } = await axios.get(
+    `${API}/auth/me`,
+    { headers: authHeader(firebaseToken) }
+  );
+  return data; // UserOut
+};
+
+
+// ── Profil ────────────────────────────────────────────────────────
+
+export const getProfile = async (firebaseToken) => {
+  const { data } = await axios.get(
+    `${API}/users/me`,
+    { headers: authHeader(firebaseToken) }
+  );
+  return data;
+};
+
+export const updateProfile = async (firebaseToken, { displayName, bio, avatarUrl }) => {
+  const { data } = await axios.patch(
+    `${API}/users/me`,
+    { display_name: displayName, bio, avatar_url: avatarUrl },
+    { headers: authHeader(firebaseToken) }
+  );
   return data;
 };
 
 export const getPublicProfile = async (userId) => {
-  const { data } = await api.get(`/users/${userId}/profile`);
+  const { data } = await axios.get(`${API}/users/${userId}/profile`);
   return data;
 };
 
-// ── Historique & parties ──────────────────────────────────────────
 
-export const getHistory = async (limit = 20, offset = 0) => {
-  const { data } = await api.get('/users/me/history', { params: { limit, offset } });
+// ── Historique & parties ─────────────────────────────────────────
+
+export const getHistory = async (firebaseToken, limit = 20, offset = 0) => {
+  const { data } = await axios.get(
+    `${API}/users/me/history`,
+    { headers: authHeader(firebaseToken), params: { limit, offset } }
+  );
+  return data; // GameHistoryOut[]
+};
+
+/**
+ * Sauvegarde une partie terminée.
+ * Appelé automatiquement par App.jsx quand status === 'FINISHED'.
+ */
+export const saveGame = async (firebaseToken, gameData) => {
+  const { data } = await axios.post(
+    `${API}/users/me/games`,
+    gameData,
+    { headers: authHeader(firebaseToken) }
+  );
   return data;
 };
 
-export const saveGame = async (gameData) => {
-  const { data } = await api.post('/users/me/games', gameData);
-  return data;
-};
 
 // ── Classement ────────────────────────────────────────────────────
 
-export const getLeaderboard = async ({ period = 'all', sortBy = 'best_score', limit = 50 } = {}) => {
-  const { data } = await api.get('/leaderboard', { params: { period, sort_by: sortBy, limit } });
-  return data;
+export const getLeaderboard = async (firebaseToken = null, {
+  period = 'all',
+  sortBy = 'best_score',
+  limit = 50,
+} = {}) => {
+  const headers = firebaseToken ? authHeader(firebaseToken) : {};
+  const { data } = await axios.get(`${API}/leaderboard`, {
+    headers,
+    params: { period, sort_by: sortBy, limit },
+  });
+  return data; // LeaderboardResponse
+};
+
+
+// ── Préférences de jeu ────────────────────────────────────────────
+
+/**
+ * Récupère les préférences de jeu depuis le serveur.
+ * Retourne un objet PreferencesResponse complet avec les valeurs par défaut.
+ */
+export const getPreferences = async () => {
+  try {
+    // Tente via axiosInstance (projet réel avec intercepteur)
+    const { default: api } = await import('./axiosInstance');
+    const { data } = await api.get('/users/me/preferences');
+    return data;
+  } catch {
+    // Fallback : appel direct avec authHeader (ancienne version)
+    throw new Error('getPreferences: axiosInstance non disponible');
+  }
+};
+
+/**
+ * Sauvegarde les préférences de jeu sur le serveur (PUT partiel).
+ * patch = { difficulty, turnDuration, showScorePreview, ... }
+ * Seuls les champs présents dans patch sont modifiés côté serveur.
+ */
+export const savePreferences = async (patch) => {
+  try {
+    const { default: api } = await import('./axiosInstance');
+    const { data } = await api.put('/users/me/preferences', patch);
+    return data;
+  } catch {
+    throw new Error('savePreferences: axiosInstance non disponible');
+  }
 };

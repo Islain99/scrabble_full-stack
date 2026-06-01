@@ -134,7 +134,7 @@ const ChipGroup = ({ options, value, onChange }) => (
 // ── Page principale ───────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { settings, update, reset, TURN_OPTIONS, DIFFICULTY_META } = useSettings();
+  const { settings, update, reset, TURN_OPTIONS, DIFFICULTY_META, syncing, lastSynced, currentUid } = useSettings();
   const { preference, setTheme, THEMES } = useTheme();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -147,6 +147,14 @@ export default function SettingsPage() {
     { value: 'dark',   emoji: '🌙',  label: 'Sombre' },
     { value: 'system', emoji: '⚙️',  label: 'Système' },
   ];
+
+  const syncLabel = syncing
+    ? '⟳ Synchronisation…'
+    : lastSynced
+    ? `✓ Sauvegardé ${lastSynced.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+    : currentUid
+    ? 'Non synchronisé'
+    : 'Mode invité — connectez-vous pour synchroniser';
 
   return (
     <div style={{
@@ -177,6 +185,29 @@ export default function SettingsPage() {
           }}>
             Les préférences sont sauvegardées automatiquement
           </p>
+          {/* Statut de synchronisation */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginTop: '8px',
+            padding: '4px 10px',
+            background: syncing ? 'var(--bg-card-alt)' : lastSynced ? 'rgba(94,107,58,0.12)' : 'var(--bg-card-alt)',
+            border: `1px solid ${syncing ? 'var(--border-muted)' : lastSynced ? 'var(--olive)' : 'var(--border-muted)'}`,
+            borderRadius: '2px',
+          }}>
+            {syncing && (
+              <div style={{ width: '10px', height: '10px', border: '2px solid var(--gold)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+            )}
+            <span style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: '0.62rem',
+              color: syncing ? 'var(--text-muted)' : lastSynced ? 'var(--olive)' : 'var(--text-muted)',
+              letterSpacing: '0.06em',
+            }}>
+              {syncLabel}
+            </span>
+          </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

@@ -1,14 +1,6 @@
 # app/db/models.py
-#
-# ⚡ Nouveaux champs vs version précédente :
-#   - first_name, last_name   : prénom et nom
-#   - age                     : âge (entier, optionnel)
-#   - country                 : pays / localisation
-#   - profile_complete        : flag — vrai quand tous les champs obligatoires sont remplis
-#     Utilisé pour conditionner l'accès au jeu (ProtectedRoute + backend).
-
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, Float, Text, Index, SmallInteger
+from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, JSON, Float, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
@@ -17,32 +9,39 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Valeurs par défaut des préférences — miroir de SettingsContext.jsx
+DEFAULT_PREFERENCES: dict = {
+    "difficulty":         "medium",
+    "turnDuration":       0,
+    "showScorePreview":   True,
+    "showRemainingTiles": True,
+    "showBonusLabels":    True,
+    "autoSortRack":       False,
+    "confirmValidation":  False,
+    "boardSize":          "normal",
+    "animationsEnabled":  True,
+}
+
+
 class User(Base):
     __tablename__ = "users"
 
-    # ── Identité Firebase ──────────────────────────────────────────
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     auth_provider: Mapped[str] = mapped_column(String(32), default="email")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     last_login_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    # ── Profil public ──────────────────────────────────────────────
-    display_name: Mapped[str] = mapped_column(String(64), nullable=False)
-    first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    age: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Préférences de jeu — stockées en JSON, fusionnées avec DEFAULT_PREFERENCES
+    game_preferences: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
 
-    # Flag : profil considéré complet quand first_name, last_name, age, country sont renseignés
-    profile_complete: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    # ── Stats dénormalisées ───────────────────────────────────────
+    # Stats dénormalisées (évite les agrégations coûteuses sur le classement)
     games_played: Mapped[int] = mapped_column(Integer, default=0)
     games_won: Mapped[int] = mapped_column(Integer, default=0)
     total_score: Mapped[int] = mapped_column(Integer, default=0)
@@ -55,18 +54,24 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
 
-    # ── Helpers ───────────────────────────────────────────────────
+    def get_preferences(self) -> dict:
+        """Retourne les préférences fusionnées avec les valeurs par défaut."""
+        if not self.game_preferences:
+            return DEFAULT_PREFERENCES.copy()
+        return {**DEFAULT_PREFERENCES, **self.game_preferences}
 
-    def check_profile_complete(self) -> bool:
-        """Recalcule et met à jour profile_complete."""
-        complete = all([
-            self.first_name,
-            self.last_name,
-            self.age is not None,
-            self.country,
-        ])
-        self.profile_complete = complete
-        return complete
+    def set_preferences(self, patch: dict) -> dict:
+        """
+        Fusionne patch avec les préférences existantes.
+        Ne garde que les clés connues pour éviter la pollution.
+        Retourne les préférences complètes mises à jour.
+        """
+        current = self.get_preferences()
+        for key, value in patch.items():
+            if key in DEFAULT_PREFERENCES:
+                current[key] = value
+        self.game_preferences = current
+        return current
 
     def update_stats_after_game(
         self, score: int, won: bool,
