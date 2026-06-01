@@ -24,21 +24,9 @@ async def lifespan(app: FastAPI):
         init_db()
         if engine is not None:
             async with engine.begin() as conn:
-                from app.db import models  # noqa — enregistre les modèles
-
-                # create_all crée les tables manquantes mais ne modifie pas
-                # les tables existantes (pas d'ALTER TABLE automatique).
+                from app.db import models  # noqa
                 await conn.run_sync(Base.metadata.create_all)
-
-                # Ajouter manuellement les colonnes absentes (idempotent).
-                # Plus fiable que les migrations en environnement Railway.
-                await conn.execute(
-                    __import__('sqlalchemy').text("""
-                        ALTER TABLE users
-                        ADD COLUMN IF NOT EXISTS game_preferences JSONB
-                    """)
-                )
-            print("✅ Tables DB créées/vérifiées (game_preferences OK).")
+            print("✅ Tables DB créées/vérifiées.")
     except Exception as e:
         print(f"⚠️  DB non initialisée : {e}")
 

@@ -12,7 +12,7 @@ const SORTS    = [
 ];
 
 export default function LeaderboardPage() {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('all');
@@ -24,8 +24,7 @@ export default function LeaderboardPage() {
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [period, sortBy, token]);
-
+  }, [period, sortBy]);
   return (
     <div style={styles.page}>
       <div style={styles.container}>
