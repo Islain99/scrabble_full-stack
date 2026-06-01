@@ -1,7 +1,11 @@
 // src/App.jsx — Routing hash-based + AuthProvider + sauvegarde auto des parties
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
+import TurnTimer from './components/TurnTimer';
+import GameHeader from './components/GameHeader';
+import SettingsPage from './pages/SettingsPage';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
@@ -35,9 +39,11 @@ function useHashRoute() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <Router />
-      </AuthProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <Router />
+        </AuthProvider>
+      </SettingsProvider>
     </ThemeProvider>
   );
 }
@@ -49,13 +55,13 @@ function Router() {
     // Pages publiques — accessibles sans compte
     if (hash === '#/login')    return <LoginPage />;
     if (hash === '#/register') return <RegisterPage />;
+    if (hash === '#/settings') return <SettingsPage />;
+    if (hash === '#/leaderboard') return <LeaderboardPage />;
 
-    // Tout le reste nécessite une authentification
+    // Jeu + profil nécessitent une authentification
     return (
       <ProtectedRoute>
-        {hash === '#/leaderboard' ? <LeaderboardPage /> :
-         hash === '#/profile'     ? <ProfilePage />     :
-         <GameApp />}
+        {hash === '#/profile' ? <ProfilePage /> : <GameApp />}
       </ProtectedRoute>
     );
   };
@@ -72,6 +78,7 @@ function Router() {
 
 function GameApp() {
   const { user, isAuthenticated } = useAuth();
+  const { settings, DIFFICULTY_META } = useSettings();
 
   const [gameState, setGameState]           = useState(null);
   const [gameId, setGameId]                 = useState(null);
@@ -80,6 +87,8 @@ function GameApp() {
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [gameStartTime, setGameStartTime]   = useState(null);
   const [gameSaved, setGameSaved]           = useState(false);
+  const [timerActive, setTimerActive]       = useState(false);
+  const timerResetRef = useRef(null);
 
   const calculatePreviewScore = (placements) => {
     if (placements.length === 0) return 0;
@@ -162,6 +171,10 @@ function GameApp() {
     ? gameState.players[gameState.current_player_index].id
     : 0;
 
+  const isAITurn = gameState
+    ? gameState.players[gameState.current_player_index]?.is_ai ?? false
+    : false;
+
   // ── Handlers DnD ─────────────────────────────────────────────
   const handleDropTile = (rackIndex, r, c) => {
     const fullRack = gameState?.players.find(p => p.id === activePlayerId)?.rack || [];
@@ -187,7 +200,7 @@ function GameApp() {
     try {
       // Utilise le vrai nom de l'utilisateur si connecté
       const playerName = isAuthenticated && user?.display_name ? user.display_name : 'Joueur';
-      const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)']);
+      const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)'], settings.difficulty);
       setGameState(initialGame);
       setGameId(initialGame.game_id);
       setCurrentPlayerId(initialGame.players[0].id);
@@ -195,6 +208,7 @@ function GameApp() {
       setSelectedTilesToSwap([]);
       setGameStartTime(Date.now());
       setGameSaved(false);
+      setTimerActive(true);
     } catch (e) {
       console.error('Erreur démarrage:', e);
       alert('Erreur lors du démarrage. Vérifiez votre connexion au backend.');
@@ -211,6 +225,7 @@ function GameApp() {
       setWordPlacements([]);
       if (result.status !== 'FINISHED') {
         setCurrentPlayerId(result.players[result.current_player_index].id);
+        timerResetRef.current?.(); // reset timer pour le prochain tour
       }
     } catch (error) {
       alert(`Erreur : ${error.response?.data?.detail || 'Mot invalide ou placement illégal.'}`);
@@ -249,6 +264,20 @@ function GameApp() {
       alert(`Échec de l'échange : ${error.response?.data?.detail || 'Erreur API'}`);
     }
   };
+
+  // ── Expiration du timer → passer le tour automatiquement ────────
+  const handleTimerExpire = useCallback(async () => {
+    if (!gameId || isAITurn) return;
+    setWordPlacements([]);
+    setSelectedTilesToSwap([]);
+    try {
+      const updated = await gameService.passTurn(gameId, activePlayerId);
+      setGameState(updated);
+      timerResetRef.current?.();
+    } catch (e) {
+      console.error('Auto-pass échoué:', e);
+    }
+  }, [gameId, activePlayerId, isAITurn]);
 
   const toggleTileForSwap = (letter) => {
     setSelectedTilesToSwap(prev =>
@@ -316,13 +345,22 @@ function GameApp() {
   const isSwapMode = selectedTilesToSwap.length > 0;
   const currentRack = gameState?.players.find(p => p.id === activePlayerId)?.rack || [];
   const tilesInUse = wordPlacements.map(p => p.originalTile);
-  const rackTilesForDisplay = currentRack.filter(tile => !tilesInUse.includes(tile));
+  const rackTilesRaw = currentRack.filter(tile => !tilesInUse.includes(tile));
+  const rackTilesForDisplay = settings.autoSortRack
+    ? [...rackTilesRaw].sort((a, b) => a.letter.localeCompare(b.letter))
+    : rackTilesRaw;
 
   // ── Start Screen ─────────────────────────────────────────────
+  const currentDiffMeta = DIFFICULTY_META[settings.difficulty] || DIFFICULTY_META.medium;
+  const turnLabel = settings.turnDuration === 0
+    ? 'Illimité'
+    : `${Math.floor(settings.turnDuration / 60)}:${String(settings.turnDuration % 60).padStart(2,'0')} min`;
+
   if (!gameState || gameState.status === 'SETUP') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '3rem', maxWidth: '480px' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', background: 'var(--bg-page)' }}>
+
+        <div style={{ textAlign: 'center', marginBottom: '2.5rem', maxWidth: '480px' }}>
           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', letterSpacing: '0.3em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '12px' }}>
             Édition de Luxe — 1972
           </div>
@@ -340,10 +378,36 @@ function GameApp() {
           )}
         </div>
 
-        <div style={{ border: '3px solid var(--border-primary)', padding: '2rem 3rem', textAlign: 'center', boxShadow: '6px 6px 0 var(--shadow-card)', background: 'var(--bg-page)', maxWidth: '360px', width: '100%' }}>
-          <RetroButton onClick={handleStartGame} variant="primary" fullWidth>
-            Démarrer la partie
-          </RetroButton>
+        <div style={{ border: '3px solid var(--border-primary)', boxShadow: '6px 6px 0 var(--shadow-card)', background: 'var(--bg-card)', maxWidth: '440px', width: '100%', overflow: 'hidden', borderRadius: '2px' }}>
+          {/* Récap des paramètres actifs */}
+          <div style={{ background: 'var(--bg-invert)', padding: '12px 20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.1rem' }}>{currentDiffMeta.emoji}</span>
+              <div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Difficulté</div>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-invert)' }}>{currentDiffMeta.label}</div>
+              </div>
+            </div>
+            <div style={{ width: '1px', height: '32px', background: 'rgba(200,168,48,0.2)', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Durée de tour</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-invert)' }}>{turnLabel}</div>
+            </div>
+            <a href="#/settings" style={{ marginLeft: 'auto', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--gold)', textDecoration: 'none', letterSpacing: '0.08em', whiteSpace: 'nowrap', borderBottom: '1px solid var(--gold)' }}>
+              Modifier →
+            </a>
+          </div>
+
+          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {!isAuthenticated && (
+              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.08em', lineHeight: 1.6, margin: 0 }}>
+                <a href="#/login" style={{ color: 'var(--tobacco)', textDecoration: 'underline' }}>Connectez-vous</a> pour sauvegarder vos parties et apparaître au classement.
+              </p>
+            )}
+            <RetroButton onClick={handleStartGame} variant="primary" fullWidth>
+              ▶ Démarrer la partie
+            </RetroButton>
+          </div>
         </div>
       </div>
     );
@@ -380,20 +444,17 @@ function GameApp() {
 
   // ── Game Screen ──────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
 
-      {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '3px solid var(--border-primary)', paddingBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px' }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.04em', margin: 0 }}>
-            SCRABBLE
-          </h1>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>Édition 1972</span>
-        </div>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-          Tour de → <span style={{ color: 'var(--tobacco)', fontWeight: 600 }}>{gameState.players[gameState.current_player_index]?.name}</span>
-        </div>
-      </header>
+      {/* GameHeader sticky */}
+      <GameHeader
+        gameState={gameState}
+        timerActive={timerActive && !isAITurn}
+        timerResetRef={timerResetRef}
+        onTimerExpire={handleTimerExpire}
+      />
+
+      <div style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
 
       {/* Layout principal : plateau + sidebar côte à côte */}
       <div style={{
@@ -429,12 +490,19 @@ function GameApp() {
 
           <ScorePanel players={gameState.players} currentPlayerId={currentPlayerId} />
 
-          <ScorePreview score={previewScore} count={wordPlacements.length} />
+          {settings.showScorePreview && (
+            <ScorePreview score={previewScore} count={wordPlacements.length} />
+          )}
 
           {/* Boutons d'action */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <RetroButton
-              onClick={handleValidateWord}
+              onClick={async () => {
+                if (settings.confirmValidation && wordPlacements.length > 0) {
+                  if (!window.confirm(`Valider ce mot (${wordPlacements.length} tuile${wordPlacements.length > 1 ? 's' : ''}) ?`)) return;
+                }
+                await handleValidateWord();
+              }}
               disabled={wordPlacements.length === 0 || isSwapMode}
               variant="primary" fullWidth
             >
@@ -482,6 +550,8 @@ function GameApp() {
 
         </aside>
       </div>
+
+      </div>{/* /container */}
 
       {/* ── Modal confirmation abandon ─────────────────────── */}
       {showAbandonModal && (

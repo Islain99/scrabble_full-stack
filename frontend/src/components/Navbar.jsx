@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { label: 'Jouer',      hash: '#/'           },
   { label: 'Classement', hash: '#/leaderboard' },
   { label: 'Profil',     hash: '#/profile',  authOnly: true },
+  { label: 'Paramètres', hash: '#/settings'  },
 ];
 
 // Icônes thème
