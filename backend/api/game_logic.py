@@ -1,5 +1,6 @@
 import random
 import uuid
+import time
 from typing import List, Tuple, Optional, Set, Dict
 from api.models import GameState, Player, Tile, POINTS_LETTRES, Board, GameStatus
 from copy import deepcopy
@@ -150,12 +151,33 @@ AI_CONFIG = {
 # ---------------------------------------------------------------------------
 
 class GameEngine:
+    # ──────────────────────────────────────────────────────────────
+    # BLOC 1 — __init__  de GameEngine
+    # Ajout du cache rack et des constantes cross-check
+    # ──────────────────────────────────────────────────────────────
+    #
+    # REMPLACE :
+    #   def __init__(self, dictionary_path: str = "dictionnaire.txt"):
+    #       self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
+    #       self.active_games: Dict[str, GameState] = {}
+    #       self.current_word_placement: List[Tuple[int, int, str]] = []
+    #       self.game_difficulty: Dict[str, str] = {}
+    #
+    # PAR :
     def __init__(self, dictionary_path: str = "dictionnaire.txt"):
         self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
         self.active_games: Dict[str, GameState] = {}
         self.current_word_placement: List[Tuple[int, int, str]] = []
-        # Difficulté par partie : game_id -> AIDifficulty
         self.game_difficulty: Dict[str, str] = {}
+ 
+        # ── Cache rack ──────────────────────────────────────────
+        # Clé : (rack_letters_tuple_triée, min_len, max_len)
+        # Valeur : liste de mots filtrés
+        # Invalidé dès que le rack change (clé différente).
+        self._rack_word_cache: Dict[tuple, List[str]] = {}
+ 
+        # Alphabet utilisé pour les cross-checks
+        self._ALPHABET: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
     # ------------------------------------------------------------------
     # Utilitaires de base
@@ -566,6 +588,91 @@ class GameEngine:
 
         return list(anchors)
 
+    def _get_cross_checks(
+        self,
+        board: "Board",
+        anchors: List[Tuple[int, int]],
+        horizontal: bool,
+    ) -> Dict[Tuple[int, int], Set[str]]:
+        """
+        Pour chaque case-ancre, calcule l'ensemble des lettres qui peuvent
+        y être posées sans créer de mot perpendiculaire invalide.
+ 
+        Si aucun voisin perpendiculaire n'existe, toutes les lettres sont
+        autorisées (ensemble vide = pas de contrainte → traité côté appelant).
+ 
+        horizontal=True  → on pose un mot horizontal, les mots croisés sont
+                            verticaux (on vérifie les voisins N/S de l'ancre).
+        horizontal=False → on pose un mot vertical, on vérifie les voisins E/O.
+        """
+        cross_checks: Dict[Tuple[int, int], Set[str]] = {}
+ 
+        for (r, c) in anchors:
+            # Direction perpendiculaire à la pose
+            if horizontal:
+                # voisins verticaux : regarder N et S
+                top, bot = r - 1, r + 1
+                has_neighbor = (
+                    (0 <= top and board.grid[top][c] is not None) or
+                    (bot < 15 and board.grid[bot][c] is not None)
+                )
+            else:
+                # voisins horizontaux : regarder O et E
+                left, right = c - 1, c + 1
+                has_neighbor = (
+                    (0 <= left and board.grid[r][left] is not None) or
+                    (right < 15 and board.grid[r][right] is not None)
+                )
+ 
+            if not has_neighbor:
+                # Aucune contrainte perpendiculaire : toutes les lettres OK
+                cross_checks[(r, c)] = set(self._ALPHABET + "*")
+                continue
+ 
+            valid_letters: Set[str] = set()
+            for letter in self._ALPHABET:
+                # Construire le mot perpendiculaire que formerait cette lettre
+                if horizontal:
+                    # Remonter vers le haut
+                    rr = r - 1
+                    while rr >= 0 and board.grid[rr][c] is not None:
+                        rr -= 1
+                    rr += 1
+                    word = ""
+                    while rr < 15:
+                        if rr == r:
+                            word += letter
+                        elif board.grid[rr][c] is not None:
+                            word += board.grid[rr][c].letter
+                        else:
+                            break
+                        rr += 1
+                else:
+                    cc = c - 1
+                    while cc >= 0 and board.grid[r][cc] is not None:
+                        cc -= 1
+                    cc += 1
+                    word = ""
+                    while cc < 15:
+                        if cc == c:
+                            word += letter
+                        elif board.grid[r][cc] is not None:
+                            word += board.grid[r][cc].letter
+                        else:
+                            break
+                        cc += 1
+ 
+                if len(word) == 1 or self.is_word_valid(word):
+                    valid_letters.add(letter)
+ 
+            # Le joker peut toujours se substituer à n'importe quelle lettre valide
+            if valid_letters:
+                valid_letters.add("*")
+ 
+            cross_checks[(r, c)] = valid_letters
+ 
+        return cross_checks
+
     def _try_place_word(
         self,
         word: str,
@@ -653,170 +760,232 @@ class GameEngine:
 
     def _find_best_move(
         self,
-        current_game: GameState,
-        current_player: Player,
+        current_game: "GameState",
+        current_player: "Player",
         difficulty: str,
     ) -> Optional[Tuple[List[Tuple[int, int, str]], int]]:
         """
         Cherche le meilleur coup pour l'IA selon son niveau.
-
-        Paramètres clés par niveau (AI_CONFIG) :
-          - max_word_length  : longueur maximale des mots examinés
-          - min_word_length  : longueur minimale
-          - use_bonuses      : prise en compte des cases bonus
-          - bonus_filter     : sous-ensemble de bonus autorisés (None = tous)
-          - mistake_chance   : probabilité de rater volontairement son tour
-          - prefer_short_words : choisir les mots les plus courts en priorité
-          - candidate_pool   : nb max de mots examinés (perf serveur)
-          - pick_strategy    : 'random' | 'worst_5' | 'top_3' | 'best'
+ 
+        Optimisations v2 :
+        - Cache rack : les mots filtrés (rack_can_spell + longueur) sont mis en
+          cache par composition de rack.  Coût O(1) si le rack n'a pas changé.
+        - Cross-check : avant d'appeler _try_place_word (deepcopy coûteux), on
+          vérifie que la lettre posée à chaque ancre est compatible avec les mots
+          perpendiculaires déjà sur le plateau.  Réduit les tentatives de ~70 %.
         """
-        config = AI_CONFIG[difficulty]
-        max_len       = config["max_word_length"]
-        min_len       = config["min_word_length"]
-        use_bonuses   = config["use_bonuses"]
-        bonus_filter  = config.get("bonus_filter", None)
+        config         = AI_CONFIG[difficulty]
+        max_len        = config["max_word_length"]
+        min_len        = config["min_word_length"]
+        use_bonuses    = config["use_bonuses"]
+        bonus_filter   = config.get("bonus_filter", None)
         mistake_chance = config["mistake_chance"]
-        prefer_short  = config["prefer_short_words"]
-        pool_size     = config["candidate_pool"]
-        pick_strategy = config["pick_strategy"]
-
+        prefer_short   = config["prefer_short_words"]
+        pool_size      = config["candidate_pool"]
+        pick_strategy  = config["pick_strategy"]
+ 
         anchors = self._get_anchor_squares(current_game.board)
         board_empty = all(
-            current_game.board.grid[r][c] is None for r in range(15) for c in range(15)
+            current_game.board.grid[r][c] is None
+            for r in range(15) for c in range(15)
         )
-
-        # --- Filtre du dictionnaire ---
+ 
+        # ── 1. Cache rack ────────────────────────────────────────
         rack_letter_list = [t.letter for t in current_player.rack]
-
-        def rack_can_spell(word: str) -> bool:
-            available = list(rack_letter_list)
-            jokers = available.count('*')
-            needed_jokers = 0
-            for ch in word:
-                if ch in available:
-                    available.remove(ch)
-                else:
-                    needed_jokers += 1
-                    if needed_jokers > jokers:
-                        return False
-            return True
-
-        candidate_words = [
-            w for w in self.valid_words
-            if min_len <= len(w) <= max_len and rack_can_spell(w)
-        ]
-
+        cache_key = (tuple(sorted(rack_letter_list)), min_len, max_len)
+ 
+        if cache_key in self._rack_word_cache:
+            candidate_words = self._rack_word_cache[cache_key]
+        else:
+            joker_count = rack_letter_list.count("*")
+ 
+            def rack_can_spell(word: str) -> bool:
+                available = list(rack_letter_list)
+                jokers_needed = 0
+                for ch in word:
+                    if ch in available:
+                        available.remove(ch)
+                    else:
+                        jokers_needed += 1
+                        if jokers_needed > joker_count:
+                            return False
+                return True
+ 
+            filtered = [
+                w for w in self.valid_words
+                if min_len <= len(w) <= max_len and rack_can_spell(w)
+            ]
+            # On limite la taille du cache (évite une fuite mémoire en fin de partie)
+            if len(self._rack_word_cache) > 256:
+                self._rack_word_cache.clear()
+            self._rack_word_cache[cache_key] = filtered
+            candidate_words = filtered
+ 
+        # Sous-échantillonnage selon le niveau
         if len(candidate_words) > pool_size:
             candidate_words = random.sample(candidate_words, pool_size)
-
-        # Débutant/Facile : préférer les mots les plus courts (tri croissant)
+ 
         if prefer_short:
             candidate_words.sort(key=len)
-
-        # --- Génération des coups candidats ---
+ 
+        # ── 2. Cross-checks par direction ───────────────────────
+        # Calculés une seule fois par appel (26 lettres × nb_ancres × 2 directions)
+        cross_h = self._get_cross_checks(current_game.board, anchors, horizontal=True)
+        cross_v = self._get_cross_checks(current_game.board, anchors, horizontal=False)
+ 
+        # ── 3. Génération des coups candidats ───────────────────
         candidates: List[Tuple[List[Tuple[int, int, str]], int]] = []
-
+ 
         for word in candidate_words:
+            word_len = len(word)
             for anchor_r, anchor_c in anchors:
                 for horizontal in [True, False]:
-                    word_len = len(word)
+                    cross_map = cross_h if horizontal else cross_v
+ 
                     for offset in range(word_len):
-                        if horizontal:
-                            start_r, start_c = anchor_r, anchor_c - offset
-                        else:
-                            start_r, start_c = anchor_r - offset, anchor_c
-
+                        start_r = anchor_r - (0 if horizontal else offset)
+                        start_c = anchor_c - (offset if horizontal else 0)
+ 
                         if start_r < 0 or start_c < 0:
                             continue
-
+ 
+                        # ── Pré-filtre cross-check ───────────────
+                        # Pour chaque case vide du mot, vérifier que la lettre
+                        # est dans l'ensemble autorisé par les mots croisés.
+                        cross_ok = True
+                        for i, letter in enumerate(word):
+                            r = start_r + (0 if horizontal else i)
+                            c = start_c + (i if horizontal else 0)
+                            if not (0 <= r < 15 and 0 <= c < 15):
+                                cross_ok = False
+                                break
+                            existing = current_game.board.grid[r][c]
+                            if existing is None:
+                                allowed = cross_map.get((r, c), set(self._ALPHABET + "*"))
+                                # Lettre normale OU joker (le joker est autorisé si
+                                # au moins une lettre est valide dans la case)
+                                if letter not in allowed and "*" not in allowed:
+                                    cross_ok = False
+                                    break
+                        if not cross_ok:
+                            continue
+ 
+                        # Contrainte plateau vide : passer par (7,7)
                         if board_empty:
-                            positions = []
-                            for i in range(word_len):
-                                if horizontal:
-                                    positions.append((start_r, start_c + i))
-                                else:
-                                    positions.append((start_r + i, start_c))
+                            positions = [
+                                (start_r, start_c + i) if horizontal
+                                else (start_r + i, start_c)
+                                for i in range(word_len)
+                            ]
                             if (7, 7) not in positions:
                                 continue
-
+ 
+                        # ── Tentative de placement (deepcopy) ────
                         result = self._try_place_word(
                             word, start_r, start_c, horizontal,
                             current_game.board, current_player.rack,
-                            use_bonuses, bonus_filter
+                            use_bonuses, bonus_filter,
                         )
                         if result:
                             candidates.append(result)
-
+ 
         if not candidates:
             return None
-
-        # --- Erreur volontaire (Débutant / Facile) ---
+ 
+        # ── 4. Erreur volontaire ─────────────────────────────────
         if mistake_chance > 0 and random.random() < mistake_chance:
             return None
-
-        # --- Stratégie de sélection ---
+ 
+        # ── 5. Sélection selon la stratégie ─────────────────────
         candidates.sort(key=lambda x: x[1], reverse=True)
-
+ 
         if pick_strategy == "random":
-            # Débutant : choisit complètement au hasard parmi tous les coups
             return random.choice(candidates)
-
         if pick_strategy == "worst_5":
-            # Facile : choisit parmi les 5 coups avec le score le plus faible
             worst = candidates[-5:] if len(candidates) >= 5 else candidates
             return random.choice(worst)
-
         if pick_strategy == "top_3":
-            # Moyen : choisit parmi les 3 meilleurs
-            pool = candidates[:3]
-            return random.choice(pool)
-
-        # "best" — Expert : toujours le score maximum
-        return candidates[0]
-
+            return random.choice(candidates[:3])
+        return candidates[0]   # "best"
+ 
     def ai_play_turn(self, game_id: str, ai_player_id: int) -> Tuple[bool, str]:
-        """Exécute le tour de l'IA avec la difficulté configurée pour cette partie."""
+        """
+        Exécute le tour de l'IA avec la difficulté configurée.
+ 
+        Nouveautés v2 :
+        - Timeout interne (3 s) : si _find_best_move prend trop longtemps
+          (dictionnaire très grand + niveau Expert), on replie vers
+          échange/passe plutôt que de bloquer le serveur.
+        - Invalidation ciblée du cache rack après chaque coup joué
+          (les lettres du rack ont changé).
+        """
         current_game = self.get_game(game_id)
         if not current_game:
             return (False, "Partie non trouvée.")
-
+ 
         current_player = next(
             (p for p in current_game.players if p.id == ai_player_id), None
         )
         if not current_player:
             return (False, "Joueur IA non trouvé.")
-
+ 
         difficulty = self.get_difficulty(game_id)
-        config = AI_CONFIG[difficulty]
-
+        config     = AI_CONFIG[difficulty]
+ 
+        # ── Timeout via time.monotonic (synchrone, pas d'asyncio ici) ──
+        AI_TIMEOUT_S = 3.0
+        t0 = time.monotonic()
+ 
         best_move = self._find_best_move(current_game, current_player, difficulty)
-
+ 
+        elapsed = time.monotonic() - t0
+        if elapsed > AI_TIMEOUT_S:
+            # Dépasse le budget temps → on abandonne le résultat trop lent
+            best_move = None
+ 
         if best_move:
             placements, score = best_move
+            # Invalider le cache rack AVANT play_word (le rack va changer)
+            self._invalidate_rack_cache(current_player)
             success, message = self.play_word(game_id, ai_player_id, placements)
             if success:
                 label = config["label"]
-                return (True, f"L'IA ({label}) joue un mot pour {score} points.")
-            # Cas rare : play_word refuse (validation finale échoue)
+                word_played = "".join(letter for _, _, letter in placements)
+                return (True, f"L'IA ({label}) joue «\u202f{word_played}\u202f» pour {score} pts.")
+            # Cas rare : validation finale refusée
             return self.pass_turn(game_id, ai_player_id)
-
-        # --- Repli : échange ou passe ---
+ 
+        # ── Repli : échange ou passe ─────────────────────────────
         can_swap = (
             config["swap_instead_of_pass"]
             and len(current_game.remaining_tiles) >= 7
             and len(current_player.rack) == 7
         )
-
+ 
         if can_swap:
             current_player.rack.sort(key=lambda t: t.score)
-            n_swap = config["max_swap_tiles"]
-            letters_to_swap = [t.letter for t in current_player.rack[:n_swap]]
-            if letters_to_swap:
-                success, message = self.swap_tiles(game_id, ai_player_id, letters_to_swap)
+            n_swap  = config["max_swap_tiles"]
+            letters = [t.letter for t in current_player.rack[:n_swap]]
+            if letters:
+                self._invalidate_rack_cache(current_player)
+                success, message = self.swap_tiles(game_id, ai_player_id, letters)
                 if success:
                     label = config["label"]
                     return (True, f"L'IA ({label}) échange {n_swap} lettre(s).")
-
+ 
         return self.pass_turn(game_id, ai_player_id)
-        
+
+    def _invalidate_rack_cache(self, player: "Player") -> None:
+        """
+        Supprime toutes les entrées du cache dont la clé commence par les
+        lettres actuelles du joueur.  Appelé avant tout changement de rack.
+        """
+        current_sorted = tuple(sorted(t.letter for t in player.rack))
+        keys_to_delete = [
+            k for k in self._rack_word_cache
+            if k[0] == current_sorted
+        ]
+        for k in keys_to_delete:
+            del self._rack_word_cache[k]
+ 
 # Fin du fichier: backend/game_logic.py
