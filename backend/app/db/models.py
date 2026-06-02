@@ -1,6 +1,6 @@
 # app/db/models.py
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, JSON, Float, Text, Index
+from sqlalchemy import String, SmallInteger, Integer, DateTime, Boolean, ForeignKey, JSON, Float, Text, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.database import Base
 
@@ -49,6 +49,13 @@ class User(Base):
     best_word_score: Mapped[int] = mapped_column(Integer, default=0)
     best_word: Mapped[str | None] = mapped_column(String(32), nullable=True)
     average_score: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Profile public
+    first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    age: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    profile_complete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     game_histories: Mapped[list["GameHistory"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
