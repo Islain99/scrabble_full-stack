@@ -146,6 +146,52 @@ AI_CONFIG = {
     },
 }
 
+# Valeur heuristique de chaque lettre conservée en main.
+# Positif = bonne lettre à garder, négatif = lettre encombrante.
+LEAVE_VALUES: dict = {
+    # Lettres très flexibles / fréquentes
+    "S": 3.5,   # Permet de pluraliser ou suffixer facilement
+    "E": 2.0,   # Lettre la plus fréquente, très combinable
+    "R": 1.8,
+    "N": 1.5,
+    "I": 1.4,
+    "A": 1.3,
+    "T": 1.2,
+    "L": 1.1,
+    "O": 1.0,
+    "U": 0.8,
+    # Lettres communes mais moins polyvalentes
+    "M": 0.5,
+    "D": 0.4,
+    "C": 0.3,
+    "P": 0.2,
+    "F": 0.1,
+    "B": 0.0,
+    "G": 0.0,
+    "H": -0.2,
+    # Lettres difficiles à placer
+    "V": -0.3,
+    "J": -0.8,
+    "Q": -1.5,
+    "K": -1.0,
+    "W": -1.2,
+    "X": -0.5,   # X vaut 10 pts mais est difficile à caser
+    "Y": -0.4,
+    "Z": -0.6,
+    # Joker : extrêmement précieux à conserver
+    "*": 8.0,
+}
+ 
+# Poids de la valeur du leave selon le niveau de difficulté.
+# 0.0 = l'IA ignore complètement le leave (niveaux bas)
+# 1.0 = l'IA pondère autant le score immédiat que le leave
+LEAVE_WEIGHT_BY_DIFFICULTY: dict = {
+    "beginner": 0.0,
+    "easy":     0.0,
+    "medium":   0.2,   # Légère prise en compte
+    "hard":     0.4,   # Poids significatif : l'Expert défend sa main
+}
+
 # ---------------------------------------------------------------------------
 # Moteur de jeu
 # ---------------------------------------------------------------------------
@@ -522,7 +568,6 @@ class GameEngine:
     # ------------------------------------------------------------------
     # Fin de partie
     # ------------------------------------------------------------------
-
     def _finalize_scores(self, current_game: GameState) -> Player:
         if current_game.status != GameStatus.FINISHED:
             raise Exception("Jeu non terminé.")
@@ -564,7 +609,6 @@ class GameEngine:
     # ------------------------------------------------------------------
     # Moteur IA multi-niveaux
     # ------------------------------------------------------------------
-
     def _get_anchor_squares(self, board: Board) -> List[Tuple[int, int]]:
         """
         Retourne les cases vides adjacentes à une case occupée
@@ -834,7 +878,12 @@ class GameEngine:
         cross_v = self._get_cross_checks(current_game.board, anchors, horizontal=False)
  
         # ── 3. Génération des coups candidats ───────────────────
-        candidates: List[Tuple[List[Tuple[int, int, str]], int]] = []
+        leave_weight = LEAVE_WEIGHT_BY_DIFFICULTY.get(difficulty, 0.0)
+        has_joker    = any(t.letter == "*" for t in current_player.rack)
+ 
+        # ── 3. Génération des coups candidats ───────────────────
+        # Chaque candidat : (placements, score_réel, score_combiné)
+        candidates: List[Tuple[List[Tuple[int, int, str]], int, float]] = []
  
         for word in candidate_words:
             word_len = len(word)
@@ -849,9 +898,7 @@ class GameEngine:
                         if start_r < 0 or start_c < 0:
                             continue
  
-                        # ── Pré-filtre cross-check ───────────────
-                        # Pour chaque case vide du mot, vérifier que la lettre
-                        # est dans l'ensemble autorisé par les mots croisés.
+                        # Pré-filtre cross-check (inchangé depuis patch v1)
                         cross_ok = True
                         for i, letter in enumerate(word):
                             r = start_r + (0 if horizontal else i)
@@ -862,15 +909,12 @@ class GameEngine:
                             existing = current_game.board.grid[r][c]
                             if existing is None:
                                 allowed = cross_map.get((r, c), set(self._ALPHABET + "*"))
-                                # Lettre normale OU joker (le joker est autorisé si
-                                # au moins une lettre est valide dans la case)
                                 if letter not in allowed and "*" not in allowed:
                                     cross_ok = False
                                     break
                         if not cross_ok:
                             continue
  
-                        # Contrainte plateau vide : passer par (7,7)
                         if board_empty:
                             positions = [
                                 (start_r, start_c + i) if horizontal
@@ -880,14 +924,42 @@ class GameEngine:
                             if (7, 7) not in positions:
                                 continue
  
-                        # ── Tentative de placement (deepcopy) ────
+                        # ── Tentative standard ──────────────────
                         result = self._try_place_word(
                             word, start_r, start_c, horizontal,
                             current_game.board, current_player.rack,
                             use_bonuses, bonus_filter,
                         )
+ 
                         if result:
-                            candidates.append(result)
+                            placements, score = result
+                            # Évaluation du leave
+                            if leave_weight > 0:
+                                used     = [l for _, _, l in placements]
+                                leave_v  = self._evaluate_leave(current_player.rack, used)
+                                combined = score + leave_weight * leave_v
+                            else:
+                                combined = float(score)
+                            candidates.append((placements, score, combined))
+ 
+                        # ── Tentative joker intelligent ──────────
+                        # Seulement si le rack contient un joker ET que le
+                        # mot n'a pas déjà été résolu ci-dessus.
+                        elif has_joker:
+                            joker_result = self._best_joker_word(
+                                word, start_r, start_c, horizontal,
+                                current_game.board, current_player.rack,
+                                use_bonuses, bonus_filter,
+                            )
+                            if joker_result:
+                                placements, score, _ = joker_result
+                                if leave_weight > 0:
+                                    used     = [l for _, _, l in placements]
+                                    leave_v  = self._evaluate_leave(current_player.rack, used)
+                                    combined = score + leave_weight * leave_v
+                                else:
+                                    combined = float(score)
+                                candidates.append((placements, score, combined))
  
         if not candidates:
             return None
@@ -897,16 +969,21 @@ class GameEngine:
             return None
  
         # ── 5. Sélection selon la stratégie ─────────────────────
-        candidates.sort(key=lambda x: x[1], reverse=True)
+        # Trier par score combiné (leave inclus) décroissant
+        candidates.sort(key=lambda x: x[2], reverse=True)
+ 
+        def pick(entry):
+            """Retourne (placements, score_réel) — format attendu par l'appelant."""
+            return (entry[0], entry[1])
  
         if pick_strategy == "random":
-            return random.choice(candidates)
+            return pick(random.choice(candidates))
         if pick_strategy == "worst_5":
             worst = candidates[-5:] if len(candidates) >= 5 else candidates
-            return random.choice(worst)
+            return pick(random.choice(worst))
         if pick_strategy == "top_3":
-            return random.choice(candidates[:3])
-        return candidates[0]   # "best"
+            return pick(random.choice(candidates[:3]))
+        return pick(candidates[0])   # "best"
  
     def ai_play_turn(self, game_id: str, ai_player_id: int) -> Tuple[bool, str]:
         """
@@ -987,5 +1064,148 @@ class GameEngine:
         ]
         for k in keys_to_delete:
             del self._rack_word_cache[k]
+
+    # ------------------------------------------------------------------
+    # Évaluation du leave
+    # ------------------------------------------------------------------
+    def _evaluate_leave(self, rack: List["Tile"], used_letters: List[str]) -> float:
+        """
+        Calcule la valeur heuristique des lettres qui resteront en main
+        après avoir joué `used_letters`.
  
+        Principe :
+        - On retire du rack (copie) les lettres utilisées.
+        - On somme LEAVE_VALUES pour chaque lettre restante.
+        - On pénalise les racks déséquilibrés (trop de consonnes dures
+          ou trop de voyelles sans consonnes utiles).
+ 
+        Retourne un float (peut être négatif si le leave est mauvais).
+        """
+        remaining = list(rack)  # copie
+ 
+        for letter in used_letters:
+            tile = next((t for t in remaining if t.letter == letter), None)
+            if tile is None:
+                # Lettre jouée via joker
+                tile = next((t for t in remaining if t.letter == "*"), None)
+            if tile:
+                remaining.remove(tile)
+ 
+        if not remaining:
+            # Scrabble ! Bonus déjà géré par _calculate_score (+50 pts).
+            # On renvoie une valeur positive pour ne pas pénaliser ce cas.
+            return 5.0
+ 
+        # Somme brute des valeurs individuelles
+        base_value = sum(LEAVE_VALUES.get(t.letter, 0.0) for t in remaining)
+ 
+        # Pénalité de déséquilibre voyelles/consonnes
+        vowels    = sum(1 for t in remaining if t.letter in "AEIOUY")
+        consonants = len(remaining) - vowels
+        imbalance  = abs(vowels - consonants)
+        balance_penalty = imbalance * 0.3   # 0.3 pt par lettre en excès
+ 
+        # Pénalité doublon (deux Q, deux W… très gênant)
+        from collections import Counter
+        counts = Counter(t.letter for t in remaining)
+        duplicate_penalty = sum(
+            0.5 * (n - 1)
+            for letter, n in counts.items()
+            if n > 1 and letter not in "AEIOURS"  # doublons de lettres rares
+        )
+ 
+        return base_value - balance_penalty - duplicate_penalty
+ 
+    # ------------------------------------------------------------------
+    # Joker intelligent
+    # ------------------------------------------------------------------
+    def _best_joker_word(
+        self,
+        word_template: str,
+        anchor_r: int,
+        anchor_c: int,
+        horizontal: bool,
+        board: "Board",
+        rack: List["Tile"],
+        use_bonuses: bool,
+        bonus_filter: Optional[List[str]],
+    ) -> Optional[Tuple[List[Tuple[int, int, str]], int, str]]:
+        """
+        Lorsqu'un mot nécessite un joker ('*' dans le rack), teste toutes
+        les assignations de lettre possibles et retourne la meilleure.
+ 
+        Stratégie de sélection :
+        - Pour chaque lettre candidate A-Z, on tente _try_place_word sur
+          le mot avec cette lettre substituée au joker.
+        - On évalue chaque résultat avec score + leave_value pondérée.
+        - On retourne le placement, son score réel, et la lettre assignée.
+ 
+        Retourne (placements, score, lettre_assignée) ou None.
+        """
+        if "*" not in [t.letter for t in rack]:
+            return None  # Pas de joker dans le rack
+ 
+        best_result = None
+        best_combined = -999.0
+ 
+        # Identifier la position du joker dans le mot template
+        # (le mot template utilise des lettres normales ; on cherche
+        #  quelle lettre n'est pas dans le rack sans joker)
+        rack_no_joker = [t for t in rack if t.letter != "*"]
+        rack_letters  = [t.letter for t in rack_no_joker]
+ 
+        # Lettres du mot qu'on ne peut PAS couvrir sans joker
+        available = list(rack_letters)
+        joker_positions = []  # indices dans word_template nécessitant le joker
+        for i, ch in enumerate(word_template):
+            if ch in available:
+                available.remove(ch)
+            else:
+                joker_positions.append(i)
+ 
+        if not joker_positions:
+            return None  # Pas besoin de joker pour ce mot
+ 
+        # On ne gère qu'un seul joker à la fois (cas le plus fréquent).
+        # Si deux jokers sont nécessaires, on les laisse à _try_place_word.
+        if len(joker_positions) > 1:
+            return None
+ 
+        joker_idx = joker_positions[0]
+ 
+        for candidate_letter in self._ALPHABET:
+            # Construire le mot avec le joker assigné à candidate_letter
+            word_with_joker = (
+                word_template[:joker_idx]
+                + candidate_letter
+                + word_template[joker_idx + 1:]
+            )
+ 
+            # Le mot doit exister dans le dictionnaire avec cette lettre
+            if not self.is_word_valid(word_with_joker):
+                continue
+ 
+            result = self._try_place_word(
+                word_with_joker,
+                anchor_r, anchor_c, horizontal,
+                board, rack,
+                use_bonuses, bonus_filter,
+            )
+            if result is None:
+                continue
+ 
+            placements, score = result
+ 
+            # Calculer la valeur du leave pour ce coup
+            used = [letter for _, _, letter in placements]
+            leave_val   = self._evaluate_leave(rack, used)
+            leave_weight = 0.3   # Poids fixe pour le joker (toujours Expert-like)
+            combined    = score + leave_weight * leave_val
+ 
+            if combined > best_combined:
+                best_combined = combined
+                best_result   = (placements, score, candidate_letter)
+ 
+        return best_result
+
 # Fin du fichier: backend/game_logic.py
