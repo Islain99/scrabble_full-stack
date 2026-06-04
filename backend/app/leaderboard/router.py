@@ -1,15 +1,52 @@
 # app/leaderboard/router.py
+
+import time
+import logging
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from pydantic import BaseModel
-from datetime import datetime, timedelta, timezone
 
 from app.db.database import get_db
 from app.db.models import User, GameHistory
 from app.auth.dependencies import get_current_user_optional
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/leaderboard", tags=["Classement"])
+
+
+# ── Cache TTL en mémoire ───────────────────────────────────────────
+# Clé : (period, sort_by, limit)  →  (timestamp_expiry, LeaderboardResponse)
+# TTL : 60 s pour "week"/"month", 120 s pour "all" (change moins souvent).
+# Sans dépendance externe — parfait pour Railway single-worker.
+
+_cache: dict[tuple, tuple[float, "LeaderboardResponse"]] = {}
+
+_TTL: dict[str, int] = {
+    "all":   120,
+    "month":  60,
+    "week":   60,
+}
+
+
+def _cache_get(key: tuple) -> "LeaderboardResponse | None":
+    entry = _cache.get(key)
+    if entry is None:
+        return None
+    expiry, data = entry
+    if time.monotonic() > expiry:
+        del _cache[key]
+        return None
+    return data
+
+
+def _cache_set(key: tuple, data: "LeaderboardResponse", ttl: int) -> None:
+    # Limite la taille du cache (évite les fuites mémoire)
+    if len(_cache) > 256:
+        _cache.clear()
+    _cache[key] = (time.monotonic() + ttl, data)
 
 
 # ── Schemas ────────────────────────────────────────────────────────
@@ -34,9 +71,10 @@ class LeaderboardResponse(BaseModel):
     period: str
     sort_by: str
     current_user_rank: int | None = None
+    cached: bool = False  # indique si la réponse vient du cache (utile en debug)
 
 
-# ── Routes ─────────────────────────────────────────────────────────
+# ── Route ──────────────────────────────────────────────────────────
 
 @router.get("", response_model=LeaderboardResponse)
 async def get_leaderboard(
@@ -48,9 +86,25 @@ async def get_leaderboard(
 ):
     """
     Classement global des joueurs.
-    - period : all | month | week
+    - period  : all | month | week
     - sort_by : best_score | average_score | games_won | games_played
+    - Réponse mise en cache (60–120 s) pour réduire les appels DB.
+    - Le rang de l'utilisateur connecté est calculé à chaque requête (non caché).
     """
+    cache_key = (period, sort_by, limit)
+    cached_response = _cache_get(cache_key)
+
+    if cached_response is not None:
+        # Recalculer le rang de l'utilisateur sur la réponse cachée (données personnelles)
+        current_user_rank = next(
+            (e.rank for e in cached_response.entries if current_user and e.user_id == current_user.id),
+            None,
+        )
+        return cached_response.model_copy(
+            update={"current_user_rank": current_user_rank, "cached": True}
+        )
+
+    # ── Requête DB ────────────────────────────────────────────────
     sort_col = {
         "best_score":    User.best_score,
         "average_score": User.average_score,
@@ -65,11 +119,6 @@ async def get_leaderboard(
         .limit(limit)
     )
 
-    # FIX: Utiliser scalar_subquery() au lieu de subquery() pour que
-    # User.id.in_(...) génère du SQL valide.
-    # AVANT (cassé) : active_ids = select(...).distinct().subquery()
-    #                 base_query.where(User.id.in_(select(active_ids)))
-    # APRÈS (correct) : scalar_subquery() produit directement une sous-requête scalaire.
     if period in ("month", "week"):
         cutoff = datetime.now(timezone.utc) - timedelta(days=30 if period == "month" else 7)
         active_ids = (
@@ -83,7 +132,6 @@ async def get_leaderboard(
     result = await db.execute(base_query)
     users = result.scalars().all()
 
-    # Total
     count_query = select(func.count(User.id)).where(
         User.is_active == True,
         User.games_played > 0,
@@ -107,16 +155,22 @@ async def get_leaderboard(
         for rank, u in enumerate(users, start=1)
     ]
 
-    # Rang de l'utilisateur connecté
     current_user_rank = next(
         (e.rank for e in entries if current_user and e.user_id == current_user.id),
         None,
     )
 
-    return LeaderboardResponse(
+    response = LeaderboardResponse(
         entries=entries,
         total_players=total,
         period=period,
         sort_by=sort_by,
         current_user_rank=current_user_rank,
+        cached=False,
     )
+
+    ttl = _TTL.get(period, 60)
+    _cache_set(cache_key, response, ttl)
+    logger.debug("Leaderboard mis en cache : key=%s ttl=%ds entries=%d", cache_key, ttl, len(entries))
+
+    return response

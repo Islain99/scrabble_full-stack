@@ -1,7 +1,10 @@
 # app/auth/router.py
 
+import time
+import logging
+from collections import defaultdict
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,9 +15,57 @@ from app.db.database import get_db
 from app.db.models import User
 from app.auth.dependencies import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentification"])
 bearer_scheme = HTTPBearer(auto_error=True)
 
+
+# ── Rate limiter en mémoire ────────────────────────────────────────
+# Fenêtre glissante par IP. Sans dépendance externe.
+# Convient pour Railway single-worker.
+# Pour multi-workers → remplacer par Redis + slowapi.
+
+class _SlidingWindowLimiter:
+    def __init__(self, max_calls: int, window_seconds: int):
+        self.max_calls = max_calls
+        self.window_seconds = window_seconds
+        self._timestamps: dict[str, list[float]] = defaultdict(list)
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.monotonic()
+        cutoff = now - self.window_seconds
+        # Purge des appels hors fenêtre
+        self._timestamps[key] = [t for t in self._timestamps[key] if t > cutoff]
+        if len(self._timestamps[key]) >= self.max_calls:
+            return False
+        self._timestamps[key].append(now)
+        return True
+
+
+# 10 appels / minute par IP sur /register et /login
+_auth_limiter = _SlidingWindowLimiter(max_calls=10, window_seconds=60)
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extrait l'IP réelle en tenant compte des proxies Railway/Vercel."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate_limit(request: Request) -> None:
+    ip = _get_client_ip(request)
+    if not _auth_limiter.is_allowed(ip):
+        logger.warning("Rate limit atteint ip=%s", ip)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Trop de tentatives. Réessayez dans une minute.",
+            headers={"Retry-After": "60"},
+        )
+
+
+# ── Schemas ────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
     display_name: str
@@ -92,12 +143,17 @@ class LoginResponse(BaseModel):
     is_new_user: bool
 
 
+# ── Routes ─────────────────────────────────────────────────────────
+
 @router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
 async def register(
+    request: Request,
     payload: RegisterRequest,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
+    _check_rate_limit(request)
+
     try:
         decoded = verify_firebase_token(credentials.credentials)
     except Exception:
@@ -130,14 +186,18 @@ async def register(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    logger.info("Nouvel utilisateur : uid=%s provider=%s", firebase_uid, provider)
     return LoginResponse(user=UserOut.from_user(user), is_new_user=True)
 
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
+    _check_rate_limit(request)
+
     try:
         decoded = verify_firebase_token(credentials.credentials)
     except Exception:
@@ -158,7 +218,10 @@ async def login(
 
     result = await db.execute(select(User).where(User.email == email))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Un compte avec cet email existe déjà (autre méthode).")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Un compte avec cet email existe déjà (autre méthode).",
+        )
 
     display_name = decoded.get("name") or email.split("@")[0]
     user = User(
@@ -172,9 +235,16 @@ async def login(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    logger.info("Connexion auto-création : uid=%s provider=%s", firebase_uid, provider)
     return LoginResponse(user=UserOut.from_user(user), is_new_user=True)
 
 
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
     return UserOut.from_user(current_user)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(current_user: User = Depends(get_current_user)):
+    """Logout côté serveur — la révocation Firebase est gérée côté client."""
+    logger.info("Logout : user_id=%s", current_user.id)
