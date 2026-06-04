@@ -87,8 +87,10 @@ function GameApp() {
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [gameStartTime, setGameStartTime]   = useState(null);
   const [gameSaved, setGameSaved]           = useState(false);
+  const [aiMessage, setAiMessage] = useState(null);
   const [timerActive, setTimerActive]       = useState(false);
   const timerResetRef = useRef(null);
+  
 
   const calculatePreviewScore = (placements) => {
     if (placements.length === 0) return 0;
@@ -113,11 +115,11 @@ function GameApp() {
     const currentPlayer = gameState.players[gameState.current_player_index];
     if (!currentPlayer?.is_ai) return;
     const delay = setTimeout(async () => {
-      try {
-        const updated = await gameService.aiPlayTurn(gameId);
-        setGameState(updated);
-      } catch (e) {
-        console.error('Erreur IA:', e?.response?.data?.detail);
+      const { gameState: updated, message } = await gameService.aiPlayTurn(gameId);
+      setGameState(updated);
+      if (message) {
+        setAiMessage(message);
+        setTimeout(() => setAiMessage(null), 4000);
       }
     }, 1500);
     return () => clearTimeout(delay);
@@ -453,6 +455,52 @@ function GameApp() {
         timerResetRef={timerResetRef}
         onTimerExpire={handleTimerExpire}
       />
+
+      {aiMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position:  'fixed',
+            bottom:    '24px',
+            left:      '50%',
+            transform: 'translateX(-50%)',
+            zIndex:    200,
+            background: 'var(--bg-card)',
+            border:    '2px solid var(--gold)',
+            borderRadius: '8px',
+            padding:   '10px 20px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+            fontFamily: "'DM Mono', monospace",
+            fontSize:  '0.9rem',
+            color:     'var(--text-primary)',
+            display:   'flex',
+            alignItems: 'center',
+            gap:       '10px',
+            maxWidth:  '90vw',
+            animation: 'fadeInUp 0.25s ease',
+          }}
+        >
+          <span style={{ fontSize: '1.1rem' }}>🤖</span>
+          <span>{aiMessage}</span>
+          <button
+            onClick={() => setAiMessage(null)}
+            aria-label="Fermer"
+            style={{
+              marginLeft: '8px',
+              background: 'none',
+              border:     'none',
+              cursor:     'pointer',
+              color:      'var(--text-muted)',
+              fontSize:   '1rem',
+              lineHeight: 1,
+              padding:    '0 2px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
 

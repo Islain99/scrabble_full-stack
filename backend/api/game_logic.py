@@ -34,14 +34,14 @@ SAC_LETTRES: List[str] = (
 )
 
 # ---------------------------------------------------------------------------
-# Niveaux IA — 4 niveaux
+# Niveaux IA — 5 niveaux
 # ---------------------------------------------------------------------------
-
 class AIDifficulty:
-    BEGINNER = "beginner"   # Débutant : très faible, erreurs fréquentes
-    EASY     = "easy"       # Facile   : mots courts, ignore bonus
-    MEDIUM   = "medium"     # Moyen    : équilibré, prend certains bonus
-    HARD     = "hard"       # Expert   : cherche le meilleur coup, tous les bonus
+    BEGINNER    = "beginner"   # Débutant : très faible, erreurs fréquentes
+    EASY        = "easy"       # Facile   : mots courts, ignore bonus
+    MEDIUM      = "medium"     # Moyen    : équilibré, prend certains bonus
+    HARD_MINUS  = "hard_minus"   # Difficile : presque expert, mais ignore les bonus de mot (DM/TM)
+    HARD        = "hard"       # Expert   : cherche le meilleur coup, tous les bonus
 
 AI_CONFIG = {
     # ------------------------------------------------------------------
@@ -120,6 +120,32 @@ AI_CONFIG = {
         "badge_class": "bg-yellow-100 text-yellow-800",
     },
     # ------------------------------------------------------------------
+    # DIFFICILE
+    # Joue des mots jusqu'à 10 lettres.
+    # Exploite tous les bonus (comme l'Expert).
+    # Très peu d'erreurs (5 %).
+    # Choisit parmi les 2 meilleurs coups (légère part d'aléa).
+    # ------------------------------------------------------------------
+    AIDifficulty.HARD_MINUS: {
+        "max_word_length": 10,
+        "min_word_length": 2,
+        "use_bonuses":     True,
+        "bonus_filter":    None,
+        "mistake_chance":  0.05,
+        "prefer_short_words": False,
+        "swap_instead_of_pass": False,
+        "max_swap_tiles":  1,
+        "candidate_pool":  2500,
+        "pick_strategy":   "top_2",
+        "think_delay_ms":  2000,
+        "label":           "Difficile",
+        "emoji":           "🟠",
+        "description":     "Joue des mots longs, exploite tous les bonus, très peu d'erreurs.",
+        "color_class":     "from-orange-500 to-amber-600",
+        "border_class":    "border-orange-400",
+        "badge_class":     "bg-orange-100 text-orange-800",
+    },
+    # ------------------------------------------------------------------
     # EXPERT
     # Joue des mots de toute longueur.
     # Exploite tous les bonus.
@@ -186,10 +212,11 @@ LEAVE_VALUES: dict = {
 # 0.0 = l'IA ignore complètement le leave (niveaux bas)
 # 1.0 = l'IA pondère autant le score immédiat que le leave
 LEAVE_WEIGHT_BY_DIFFICULTY: dict = {
-    "beginner": 0.0,
-    "easy":     0.0,
-    "medium":   0.2,   # Légère prise en compte
-    "hard":     0.4,   # Poids significatif : l'Expert défend sa main
+    "beginner":   0.0,
+    "easy":       0.0,
+    "medium":     0.2,
+    "hard_minus": 0.3,
+    "hard":       0.4,
 }
 
 # ---------------------------------------------------------------------------
@@ -197,19 +224,7 @@ LEAVE_WEIGHT_BY_DIFFICULTY: dict = {
 # ---------------------------------------------------------------------------
 
 class GameEngine:
-    # ──────────────────────────────────────────────────────────────
-    # BLOC 1 — __init__  de GameEngine
-    # Ajout du cache rack et des constantes cross-check
-    # ──────────────────────────────────────────────────────────────
-    #
-    # REMPLACE :
-    #   def __init__(self, dictionary_path: str = "dictionnaire.txt"):
-    #       self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
-    #       self.active_games: Dict[str, GameState] = {}
-    #       self.current_word_placement: List[Tuple[int, int, str]] = []
-    #       self.game_difficulty: Dict[str, str] = {}
-    #
-    # PAR :
+   
     def __init__(self, dictionary_path: str = "dictionnaire.txt"):
         self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
         self.active_games: Dict[str, GameState] = {}
@@ -983,6 +998,8 @@ class GameEngine:
             return pick(random.choice(worst))
         if pick_strategy == "top_3":
             return pick(random.choice(candidates[:3]))
+        if pick_strategy == "top_2":
+            return pick(random.choice(candidates[:2]))
         return pick(candidates[0])   # "best"
  
     def ai_play_turn(self, game_id: str, ai_player_id: int) -> Tuple[bool, str]:

@@ -43,10 +43,11 @@ export const TURN_OPTIONS = [
 ];
 
 export const DIFFICULTY_META = {
-  beginner: { label: 'Débutant', emoji: '🐣', desc: "Mots très courts, beaucoup d'erreurs",  color: 'var(--text-muted)' },
-  easy:     { label: 'Facile',   emoji: '🟢', desc: 'Mots courts, ignore les cases bonus',     color: 'var(--olive)'     },
-  medium:   { label: 'Moyen',    emoji: '🟡', desc: 'Équilibré, utilise quelques bonus',        color: 'var(--gold)'      },
-  hard:     { label: 'Expert',   emoji: '🔴', desc: 'Maximise chaque score, tous les bonus',    color: 'var(--brick)'     },
+    beginner:   { label: 'Débutant',  emoji: '🐣', desc: "Mots très courts, beaucoup d'erreurs",     color: 'var(--text-muted)' },
+    easy:       { label: 'Facile',    emoji: '🟢', desc: 'Mots courts, ignore les cases bonus',       color: 'var(--olive)'     },
+    medium:     { label: 'Moyen',     emoji: '🟡', desc: 'Équilibré, utilise quelques bonus',          color: 'var(--gold)'      },
+    hard_minus: { label: 'Difficile', emoji: '🟠', desc: "Mots longs, tous les bonus, peu d'erreurs", color: 'var(--orange)'    },
+    hard:       { label: 'Expert',    emoji: '🔴', desc: 'Maximise chaque score, tous les bonus',      color: 'var(--brick)'     },
 };
 
 // ── Clé localStorage par utilisateur ─────────────────────────────

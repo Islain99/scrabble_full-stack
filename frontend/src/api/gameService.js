@@ -52,7 +52,10 @@ export const shuffleRack = async (gameId, playerId) => {
 
 export const aiPlayTurn = async (gameId) => {
     const response = await axios.post(`${API_URL}/ai/play/${gameId}`);
-    return response.data.game_state;
+    return {
+        gameState: response.data.game_state,
+        message:   response.data.message ?? null,
+    };
 };
 
 export const getDifficulties = async () => {
