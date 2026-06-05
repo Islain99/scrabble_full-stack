@@ -1,7 +1,12 @@
 # app/db/database.py
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -15,22 +20,22 @@ def _fix_db_url(url: str) -> str:
     SQLAlchemy async a besoin de 'postgresql+asyncpg://'.
     """
     if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-    elif url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
 
-def init_db():
+def init_db() -> None:
     """Initialise le moteur DB. Appelé au démarrage si DATABASE_URL est défini."""
     global engine, AsyncSessionLocal
 
     if not settings.db_enabled:
-        print("⚠️  DATABASE_URL non défini — fonctionnalités DB désactivées.")
+        logger.warning("DATABASE_URL non défini — fonctionnalités DB désactivées.")
         return
 
     db_url = _fix_db_url(settings.DATABASE_URL)
-    print(f"🔌 Connexion DB : {db_url[:40]}...")
+    logger.info("Connexion DB : %s…", db_url[:40])
 
     engine = create_async_engine(
         db_url,
@@ -47,7 +52,7 @@ def init_db():
         autoflush=False,
         autocommit=False,
     )
-    print("✅ Base de données connectée.")
+    logger.info("Base de données connectée.")
 
 
 class Base(DeclarativeBase):
@@ -63,7 +68,7 @@ async def get_db():
         from fastapi import HTTPException
         raise HTTPException(
             status_code=503,
-            detail="Base de données non disponible. Vérifiez DATABASE_URL dans Railway."
+            detail="Base de données non disponible. Vérifiez DATABASE_URL dans Railway.",
         )
     async with AsyncSessionLocal() as session:
         try:

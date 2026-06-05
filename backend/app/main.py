@@ -1,8 +1,7 @@
 # app/main.py
 #
 # Point de vérité unique pour l'application FastAPI.
-# api/index.py importe `app` depuis ici — ne plus y définir de lifespan,
-# de middlewares ou de routers.
+# api/index.py importe `app` depuis ici.
 #
 import asyncio
 import logging
@@ -12,6 +11,12 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+# Le logging doit être configuré AVANT tout autre import applicatif
+# pour que les modules qui créent leur logger au chargement héritent
+# de la bonne configuration.
+from app.core.logging_config import setup_logging
+setup_logging()
 
 from app.core.config import get_settings
 from app.core.firebase import init_firebase
@@ -23,9 +28,6 @@ from app.leaderboard.router import router as leaderboard_router
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# ── Chargement du dictionnaire (partagé avec les routes /game) ────
-# Le chemin est résolu depuis api/dictionnaire.txt, quel que soit
-# le répertoire de travail au lancement.
 _API_DIR = Path(__file__).resolve().parent.parent / "api"
 DICTIONARY_PATH = _API_DIR / "dictionnaire.txt"
 
@@ -33,34 +35,24 @@ DICTIONARY_PATH = _API_DIR / "dictionnaire.txt"
 def _load_game_engine():
     """Charge le GameEngine dans un thread pour ne pas bloquer la boucle async."""
     from api.game_logic import GameEngine
-    engine_obj = GameEngine(dictionary_path=str(DICTIONARY_PATH))
+    ge = GameEngine(dictionary_path=str(DICTIONARY_PATH))
     logger.info(
         "Dictionnaire chargé : %s (%s)",
         DICTIONARY_PATH,
         "trouvé" if DICTIONARY_PATH.exists() else "INTROUVABLE",
     )
-    return engine_obj
+    return ge
 
 
 # ── Lifespan ───────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    """
-    Séquence de démarrage / arrêt de l'application.
+    logger.info("Démarrage de l'application (env=%s)", settings.APP_ENV)
 
-    Démarrage :
-      1. Firebase Admin SDK
-      2. Connexion à la base de données (SQLAlchemy async)
-      3. Chargement du dictionnaire (thread séparé)
-
-    Arrêt :
-      • Fermeture du pool de connexions DB
-    """
     # 1. Firebase
     try:
         init_firebase()
-        logger.info("Firebase Admin SDK initialisé.")
     except Exception as exc:
         logger.warning("Firebase non initialisé : %s", exc)
 
@@ -68,11 +60,9 @@ async def lifespan(application: FastAPI):
     try:
         init_db()
         if engine is not None:
-            # En dev uniquement : crée les tables manquantes sans migration.
-            # En prod, Alembic (lancé par le Procfile) gère le schéma.
             if not settings.is_production:
                 async with engine.begin() as conn:
-                    from app.db import models  # noqa — enregistre les modèles
+                    from app.db import models  # noqa
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -87,6 +77,7 @@ async def lifespan(application: FastAPI):
         logger.warning("Dictionnaire non chargé : %s", exc)
         application.state.game_engine = None
 
+    logger.info("Application prête.")
     yield
 
     # ── Arrêt ──────────────────────────────────────────────────────
@@ -105,7 +96,6 @@ app = FastAPI(
     description="Backend Scrabble — Firebase Auth + PostgreSQL + Moteur de jeu",
     version="2.1.0",
     lifespan=lifespan,
-    # Swagger désactivé en production
     docs_url="/docs" if not settings.is_production else None,
     redoc_url="/redoc" if not settings.is_production else None,
 )
@@ -136,10 +126,7 @@ app.include_router(leaderboard_router, prefix="/api/v2")
 
 @app.get("/health", tags=["Système"])
 async def health():
-    """
-    Health check enrichi.
-    Vérifie la connectivité DB et l'état du dictionnaire.
-    """
+    """Health check enrichi — vérifie DB et dictionnaire."""
     from sqlalchemy import text
     from app.db.database import AsyncSessionLocal
 

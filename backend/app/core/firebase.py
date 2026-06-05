@@ -1,9 +1,14 @@
 # app/core/firebase.py
 import json
+import logging
 import os
+
 import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
+
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 _initialized = False
 
@@ -31,25 +36,25 @@ def init_firebase() -> bool:
             cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_PATH)
 
         else:
-            print(
-                "⚠️  Firebase non configuré — les routes /auth/* seront inactives.\n"
-                "   → Définissez FIREBASE_SERVICE_ACCOUNT_JSON dans Railway\n"
-                "   → ou FIREBASE_SERVICE_ACCOUNT_PATH en local"
+            logger.warning(
+                "Firebase non configuré — les routes /auth/* seront inactives. "
+                "Définissez FIREBASE_SERVICE_ACCOUNT_JSON dans Railway "
+                "ou FIREBASE_SERVICE_ACCOUNT_PATH en local."
             )
             return False
 
         firebase_admin.initialize_app(cred)
         _initialized = True
-        print("✅ Firebase Admin SDK initialisé.")
+        logger.info("Firebase Admin SDK initialisé.")
         return True
 
-    except Exception as e:
-        print(f"❌ Erreur Firebase : {e}")
+    except Exception as exc:
+        logger.error("Erreur Firebase : %s", exc)
         return False
 
 
 def verify_firebase_token(id_token: str) -> dict:
-    """Vérifie un token Firebase ID. Lève InvalidIdTokenError si invalide."""
+    """Vérifie un token Firebase ID. Lève une exception si invalide."""
     if not _initialized:
         raise RuntimeError("Firebase non initialisé.")
     return firebase_auth.verify_id_token(id_token)
