@@ -124,7 +124,7 @@ export const translations = {
     game_tiles_plural:    'tuiles',
     game_placed_singular: 'posée',
     game_placed_plural:   'posées',
-    game_swap_selected:   'sélectionnée(s) pour l'échange',
+    game_swap_selected:   'sélectionnée(s) pour l\'échange',
     game_drag_hint:       'Glissez vos lettres sur le plateau',
     game_swap_hint:       'Sélectionnez les lettres à échanger dans le rack',
     game_swap_cancel:     "Annuler l'échange",
