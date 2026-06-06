@@ -4,56 +4,29 @@
 // Tous s'appuient sur les variables CSS de index.css.
 //
 // Exports :
-//   RetroButton  — bouton rétro (déjà créé, ré-exporté ici)
-//   Card         — conteneur carte avec ombre décalée
+//   RetroButton  — bouton rétro avec variantes et effet hover
+//   Card         — conteneur carte avec ombre décalée (+ Card.Header, Card.Body)
 //   PageHeader   — en-tête de page standardisé
 //   MonoLabel    — étiquette DM Mono tout-caps
-//   Spinner      — indicateur de chargement
-//   Badge        — pastille colorée
+//   Spinner      — indicateur de chargement circulaire
+//   Badge        — pastille colorée (gold | olive | brick | muted | blue)
 //   Divider      — séparateur horizontal
-//   Input        — champ de saisie stylisé
+//   Input        — champ de saisie avec label et gestion d'erreur
+
+import React from 'react';
 
 export { default as RetroButton } from './RetroButton';
-
-// ─────────────────────────────────────────────────────────────────
-import React from 'react';
 
 // ── Card ──────────────────────────────────────────────────────────
 /**
  * Conteneur rétro à ombre décalée.
  *
- * @param {{ size?: 'sm'|'md'|'lg', gold?: boolean, style?: object, children }} props
- *   size  'sm' = bordure 2px + ombre 4px (défaut)
- *         'lg' = bordure 3px + ombre 8px
- *   gold  true = bordure et ombre dorées
+ * Props :
+ *   size  'sm' (défaut) = bordure 2px + ombre 4px
+ *         'lg'          = bordure 3px + ombre 8px
+ *   gold  true          = bordure et ombre dorées
  */
-export function Card({ children, size = 'sm', gold = false, style = {}, ...props }) {
-  const borderWidth = size === 'lg' ? '3px' : '2px';
-  const shadowOffset = size === 'lg' ? '8px' : '4px';
-  const borderColor = gold ? 'var(--gold)' : 'var(--border-primary)';
-  const shadowColor = gold ? 'var(--gold)' : 'var(--shadow-card)';
-
-  return (
-    <div
-      style={{
-        background:    'var(--bg-card)',
-        border:        `${borderWidth} solid ${borderColor}`,
-        borderRadius:  size === 'lg' ? '3px' : '2px',
-        boxShadow:     `${shadowOffset} ${shadowOffset} 0 ${shadowColor}`,
-        ...style,
-      }}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-// ── Card.Header ───────────────────────────────────────────────────
-/**
- * En-tête interne d'une Card — fond encre, texte crème.
- */
-Card.Header = function CardHeader({ children, style = {}, ...props }) {
+function CardHeader({ children, style = {}, ...props }) {
   return (
     <div
       style={{
@@ -70,23 +43,50 @@ Card.Header = function CardHeader({ children, style = {}, ...props }) {
       {children}
     </div>
   );
-};
+}
 
-// ── Card.Body ─────────────────────────────────────────────────────
-Card.Body = function CardBody({ children, style = {}, ...props }) {
+function CardBody({ children, style = {}, ...props }) {
   return (
     <div style={{ padding: '16px 20px', ...style }} {...props}>
       {children}
     </div>
   );
-};
+}
+
+export function Card({ children, size = 'sm', gold = false, style = {}, ...props }) {
+  const borderWidth  = size === 'lg' ? '3px' : '2px';
+  const shadowOffset = size === 'lg' ? '8px' : '4px';
+  const borderColor  = gold ? 'var(--gold)'       : 'var(--border-primary)';
+  const shadowColor  = gold ? 'var(--gold)'       : 'var(--shadow-card)';
+
+  return (
+    <div
+      style={{
+        background:   'var(--bg-card)',
+        border:       `${borderWidth} solid ${borderColor}`,
+        borderRadius: size === 'lg' ? '3px' : '2px',
+        boxShadow:    `${shadowOffset} ${shadowOffset} 0 ${shadowColor}`,
+        ...style,
+      }}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Sous-composants attachés après la déclaration de Card
+Card.Header = CardHeader;
+Card.Body   = CardBody;
 
 // ── PageHeader ────────────────────────────────────────────────────
 /**
  * En-tête de page standardisé : titre Playfair + sous-titre Mono + séparateur.
  *
- * @param {{ title: string, subtitle?: string, children?: ReactNode }} props
- *   children  contenu additionnel sous le sous-titre (ex: badge de sync)
+ * Props :
+ *   title     string   — titre principal (obligatoire)
+ *   subtitle  string   — sous-titre DM Mono (optionnel)
+ *   children           — contenu additionnel sous le sous-titre (ex : badge de sync)
  */
 export function PageHeader({ title, subtitle, children, style = {} }) {
   return (
@@ -132,9 +132,17 @@ export function PageHeader({ title, subtitle, children, style = {} }) {
 /**
  * Étiquette DM Mono tout-caps — le pattern typographique le plus répété.
  *
- * @param {{ size?: 'xs'|'sm'|'md', color?: string, style?: object }} props
+ * Props :
+ *   size   'xs' (défaut) | 'sm' | 'md'
+ *   color  couleur CSS (défaut : var(--text-muted))
  */
-export function MonoLabel({ children, size = 'xs', color = 'var(--text-muted)', style = {}, ...props }) {
+export function MonoLabel({
+  children,
+  size  = 'xs',
+  color = 'var(--text-muted)',
+  style = {},
+  ...props
+}) {
   const sizes = { xs: '0.62rem', sm: '0.72rem', md: '0.82rem' };
   return (
     <span
@@ -156,20 +164,23 @@ export function MonoLabel({ children, size = 'xs', color = 'var(--text-muted)', 
 // ── Spinner ───────────────────────────────────────────────────────
 /**
  * Indicateur de chargement circulaire.
+ * Requiert l'animation @keyframes spin définie dans index.css.
  *
- * @param {{ size?: number, color?: string }} props
+ * Props :
+ *   size   px (défaut : 10)
+ *   color  couleur CSS (défaut : var(--gold))
  */
 export function Spinner({ size = 10, color = 'var(--gold)', style = {} }) {
   return (
     <div
       style={{
-        width:           `${size}px`,
-        height:          `${size}px`,
-        border:          `2px solid ${color}`,
-        borderTopColor:  'transparent',
-        borderRadius:    '50%',
-        animation:       'spin 0.8s linear infinite',
-        flexShrink:      0,
+        width:          `${size}px`,
+        height:         `${size}px`,
+        border:         `2px solid ${color}`,
+        borderTopColor: 'transparent',
+        borderRadius:   '50%',
+        animation:      'spin 0.8s linear infinite',
+        flexShrink:     0,
         ...style,
       }}
     />
@@ -180,14 +191,15 @@ export function Spinner({ size = 10, color = 'var(--gold)', style = {} }) {
 /**
  * Pastille colorée inline.
  *
- * @param {{ variant?: 'gold'|'olive'|'brick'|'muted'|'blue' }} props
+ * Props :
+ *   variant  'gold' | 'olive' | 'brick' | 'muted' (défaut) | 'blue'
  */
 const BADGE_COLORS = {
-  gold:   { color: 'var(--gold)',       border: 'var(--gold)'        },
-  olive:  { color: 'var(--olive)',      border: 'var(--olive)'       },
-  brick:  { color: 'var(--brick)',      border: 'var(--brick)'       },
-  muted:  { color: 'var(--text-muted)', border: 'var(--border-muted)'},
-  blue:   { color: 'var(--blue-lt)',    border: 'var(--blue)'        },
+  gold:  { color: 'var(--gold)',        border: 'var(--gold)'         },
+  olive: { color: 'var(--olive)',       border: 'var(--olive)'        },
+  brick: { color: 'var(--brick)',       border: 'var(--brick)'        },
+  muted: { color: 'var(--text-muted)', border: 'var(--border-muted)' },
+  blue:  { color: 'var(--blue-lt)',    border: 'var(--blue)'         },
 };
 
 export function Badge({ children, variant = 'muted', style = {}, ...props }) {
@@ -216,7 +228,9 @@ export function Badge({ children, variant = 'muted', style = {}, ...props }) {
 // ── Divider ───────────────────────────────────────────────────────
 /**
  * Séparateur horizontal.
- * @param {{ heavy?: boolean }} props  heavy = bordure 3px encre (défaut : 1px muted)
+ *
+ * Props :
+ *   heavy  true = bordure 3px encre | false (défaut) = 1px muted
  */
 export function Divider({ heavy = false, style = {} }) {
   return (
@@ -236,11 +250,25 @@ export function Divider({ heavy = false, style = {} }) {
 // ── Input ─────────────────────────────────────────────────────────
 /**
  * Champ de saisie stylisé cohérent avec le design system.
+ * Accepte tous les props HTML natifs d'un <input>.
  *
- * @param {{ label?: string, error?: string }} props + tous les props HTML input
+ * Props supplémentaires :
+ *   label  string  — affiché au-dessus du champ
+ *   error  string  — message d'erreur affiché en bas + bordure brick
  */
 export function Input({ label, error, id, style = {}, ...props }) {
   const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-');
+
+  const handleFocus = (e) => {
+    e.currentTarget.style.borderColor = 'var(--gold)';
+    e.currentTarget.style.boxShadow   = '0 0 0 3px rgba(200,168,48,0.15)';
+  };
+
+  const handleBlur = (e) => {
+    e.currentTarget.style.borderColor = error ? 'var(--brick)' : 'var(--border-primary)';
+    e.currentTarget.style.boxShadow   = 'none';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
       {label && (
@@ -259,6 +287,8 @@ export function Input({ label, error, id, style = {}, ...props }) {
       )}
       <input
         id={inputId}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         style={{
           width:         '100%',
           background:    'var(--bg-input)',
@@ -273,23 +303,15 @@ export function Input({ label, error, id, style = {}, ...props }) {
           transition:    'border-color 0.15s, box-shadow 0.15s',
           ...style,
         }}
-        onFocus={e => {
-          e.currentTarget.style.borderColor = 'var(--gold)';
-          e.currentTarget.style.boxShadow   = '0 0 0 3px rgba(200,168,48,0.15)';
-        }}
-        onBlur={e => {
-          e.currentTarget.style.borderColor = error ? 'var(--brick)' : 'var(--border-primary)';
-          e.currentTarget.style.boxShadow   = 'none';
-        }}
         {...props}
       />
       {error && (
         <span
           style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize:   '0.62rem',
-            color:      'var(--brick)',
+            fontFamily:    "'DM Mono', monospace",
+            fontSize:      '0.62rem',
             letterSpacing: '0.06em',
+            color:         'var(--brick)',
           }}
         >
           {error}
