@@ -12,6 +12,7 @@ import Board      from '../components/Board';
 import TileRack   from '../components/TileRack';
 import ScorePanel from '../components/ScorePanel';
 import RetroButton from '../components/ui/RetroButton';
+import { useToast } from '../hooks/useToast';
 
 // ── Sous-composants locaux ────────────────────────────────────────
 
