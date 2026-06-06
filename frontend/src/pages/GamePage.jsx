@@ -200,130 +200,130 @@ export default function GamePage() {
         </div>
       )}
 
-      <div style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>
+        <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start' }}>
 
-          {/* Colonne gauche : plateau + rack */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <Board
-              gameState={game.gameState}
-              placements={game.placements}
-              onDropTile={game.handleDropTile}
-              onMoveTile={game.handleMoveTile}
-              onReturnTile={game.handleReturnTile}
-            />
-            <Legend />
-            <div style={{ marginTop: '4px' }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px' }}>
-                {game.isSwapMode
-                  ? `${game.selectedTilesToSwap.length} tuile(s) sélectionnée(s) pour l'échange`
-                  : 'Glissez vos lettres sur le plateau'}
-              </div>
-              <TileRack
-                tiles={game.rackTilesForDisplay}
-                playerId={game.activePlayerId}
-                onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
-                selectedTiles={game.selectedTilesToSwap}
-              />
-            </div>
-          </div>
-
-          {/* Sidebar droite */}
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px' }}>
-
-            <ScorePanel players={game.gameState.players} currentPlayerId={game.activePlayerId} />
-
-            {settings.showScorePreview && (
-              <ScorePreview score={game.previewScore} count={game.placements.length} />
-            )}
-
-            {/* Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <RetroButton
-                variant="primary"
-                fullWidth
-                disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
-                onClick={async () => {
-                  if (settings.confirmValidation && game.placements.length > 0) {
-                    const n = game.placements.length;
-                    if (!window.confirm(`Valider ce mot (${n} tuile${n > 1 ? 's' : ''}) ?`)) return;
-                  }
-                  await game.handleValidateWord();
-                }}
-              >
-                ✓ Valider le mot ({game.placements.length})
-              </RetroButton>
-
-              <RetroButton
-                variant="default"
-                fullWidth
-                disabled={game.placements.length > 0 || game.isAITurn || game.isSwapMode}
-                onClick={game.handlePassTurn}
-              >
-                → Passer le tour
-              </RetroButton>
-
-              <RetroButton
-                variant="default"
-                fullWidth
-                disabled={game.placements.length > 0 || game.isAITurn}
-                onClick={game.handleShuffleRack}
-              >
-                ⇅ Mélanger le rack
-              </RetroButton>
-
-              {/* Mode échange */}
-              <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '10px' }}>
-                {game.isSwapMode ? (
-                  <>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '8px' }}>
-                      Sélectionnez les lettres à échanger dans le rack
+            {/* Colonne gauche : plateau + rack */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <Board
+                        gameState={game.gameState}
+                        placements={game.placements}
+                        onDropTile={game.handleDropTile}
+                        onMoveTile={game.handleMoveTile}
+                        onReturnTile={game.handleReturnTile}
+                    />
+                    <Legend />
+                    <div style={{ marginTop: '4px' }}>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px' }}>
+                            {game.isSwapMode
+                            ? `${game.selectedTilesToSwap.length} tuile(s) sélectionnée(s) pour l'échange`
+                            : 'Glissez vos lettres sur le plateau'}
+                        </div>
+                        <TileRack
+                            tiles={game.rackTilesForDisplay}
+                            playerId={game.activePlayerId}
+                            onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
+                            selectedTiles={game.selectedTilesToSwap}
+                        />
                     </div>
-                    <RetroButton
-                      variant="danger"
-                      fullWidth
-                      disabled={game.selectedTilesToSwap.length === 0 || game.placements.length > 0}
-                      onClick={game.handleSwapTiles}
-                    >
-                      Échanger ({game.selectedTilesToSwap.length})
-                    </RetroButton>
-                    <div style={{ marginTop: '8px' }}>
-                      <RetroButton
-                        variant="default"
-                        fullWidth
-                        onClick={() => game.clearSwapMode()}
-                      >
-                        Annuler l'échange
-                      </RetroButton>
-                    </div>
-                  </>
-                ) : (
-                  <RetroButton
-                    variant="tobacco"
-                    fullWidth
-                    disabled={game.isAITurn || game.placements.length > 0}
-                    onClick={() => game.initSwapMode()}
-                  >
-                    ⇄ Mode échange
-                  </RetroButton>
+                </div>
+
+            {/* Sidebar droite */}
+            <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+
+                <ScorePanel players={game.gameState.players} currentPlayerId={game.activePlayerId} />
+
+                {settings.showScorePreview && (
+                <ScorePreview score={game.previewScore} count={game.placements.length} />
                 )}
-              </div>
 
-              {/* Abandonner */}
-              <div style={{ borderTop: '1px solid rgba(139,32,32,0.2)', paddingTop: '14px', marginTop: '4px' }}>
+                {/* Actions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <RetroButton
-                  variant="danger"
-                  fullWidth
-                  onClick={() => game.setShowAbandonModal(true)}
+                    variant="primary"
+                    fullWidth
+                    disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
+                    onClick={async () => {
+                    if (settings.confirmValidation && game.placements.length > 0) {
+                        const n = game.placements.length;
+                        if (!window.confirm(`Valider ce mot (${n} tuile${n > 1 ? 's' : ''}) ?`)) return;
+                    }
+                    await game.handleValidateWord();
+                    }}
                 >
-                  ✕ Abandonner la partie
+                    ✓ Valider le mot ({game.placements.length})
                 </RetroButton>
-              </div>
-            </div>
 
-          </aside>
+                <RetroButton
+                    variant="default"
+                    fullWidth
+                    disabled={game.placements.length > 0 || game.isAITurn || game.isSwapMode}
+                    onClick={game.handlePassTurn}
+                >
+                    → Passer le tour
+                </RetroButton>
+
+                <RetroButton
+                    variant="default"
+                    fullWidth
+                    disabled={game.placements.length > 0 || game.isAITurn}
+                    onClick={game.handleShuffleRack}
+                >
+                    ⇅ Mélanger le rack
+                </RetroButton>
+
+                {/* Mode échange */}
+                <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '10px' }}>
+                    {game.isSwapMode ? (
+                    <>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '8px' }}>
+                        Sélectionnez les lettres à échanger dans le rack
+                        </div>
+                        <RetroButton
+                        variant="danger"
+                        fullWidth
+                        disabled={game.selectedTilesToSwap.length === 0 || game.placements.length > 0}
+                        onClick={game.handleSwapTiles}
+                        >
+                        Échanger ({game.selectedTilesToSwap.length})
+                        </RetroButton>
+                        <div style={{ marginTop: '8px' }}>
+                        <RetroButton
+                            variant="default"
+                            fullWidth
+                            onClick={() => game.clearSwapMode()}
+                        >
+                            Annuler l'échange
+                        </RetroButton>
+                        </div>
+                    </>
+                    ) : (
+                    <RetroButton
+                        variant="tobacco"
+                        fullWidth
+                        disabled={game.isAITurn || game.placements.length > 0}
+                        onClick={() => game.initSwapMode()}
+                    >
+                        ⇄ Mode échange
+                    </RetroButton>
+                    )}
+                </div>
+
+                {/* Abandonner */}
+                <div style={{ borderTop: '1px solid rgba(139,32,32,0.2)', paddingTop: '14px', marginTop: '4px' }}>
+                    <RetroButton
+                    variant="danger"
+                    fullWidth
+                    onClick={() => game.setShowAbandonModal(true)}
+                    >
+                    ✕ Abandonner la partie
+                    </RetroButton>
+                </div>
+                </div>
+
+            </aside>
+            </div>
         </div>
-      </div>
 
       {/* Modal abandon */}
       {game.showAbandonModal && (

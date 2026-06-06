@@ -64,7 +64,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
 
   return (
     <div
-      style={{ width: '100%', aspectRatio: '1/1', background: 'var(--board-bg)', borderRadius: '6px', padding: '14px', boxShadow: '6px 6px 0 var(--board-shadow)', border: '3px solid var(--board-border)', position: 'relative', userSelect: 'none', boxSizing: 'border-box' }}
+      style={{ width: '100%', maxWidth: 'min(100%, calc(100vh - 160px))', aspectRatio: '1/1', background: 'var(--board-bg)', borderRadius: '6px', padding: 'clamp(6px, 1.5%, 14px)', boxShadow: '6px 6px 0 var(--board-shadow)', border: '3px solid var(--board-border)', position: 'relative', userSelect: 'none', boxSizing: 'border-box', margin: '0 auto' }}
       onDragEnd={handleBoardDragEnd}
     >
       {[{ top:'5px',left:'5px'},{top:'5px',right:'5px'},{bottom:'5px',left:'5px'},{bottom:'5px',right:'5px'}].map((pos,i) => (
