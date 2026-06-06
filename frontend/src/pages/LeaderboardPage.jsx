@@ -1,22 +1,52 @@
 // src/pages/LeaderboardPage.jsx
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth }        from '../context/AuthContext';
 import { getLeaderboard } from '../api/authService';
+import { Card, PageHeader, MonoLabel, Spinner, Badge } from '../components/ui';
 
-const PERIODS  = [{ v: 'all', l: 'Tout temps' }, { v: 'month', l: 'Ce mois' }, { v: 'week', l: 'Cette semaine' }];
-const SORTS    = [
-  { v: 'best_score',    l: 'Meilleur score' },
-  { v: 'average_score', l: 'Score moyen' },
-  { v: 'games_won',     l: 'Victoires' },
-  { v: 'games_played',  l: 'Parties jouées' },
+const PERIODS = [
+  { v: 'all',   l: 'Tout temps'     },
+  { v: 'month', l: 'Ce mois'        },
+  { v: 'week',  l: 'Cette semaine'  },
 ];
+const SORTS = [
+  { v: 'best_score',    l: 'Meilleur score'  },
+  { v: 'average_score', l: 'Score moyen'     },
+  { v: 'games_won',     l: 'Victoires'       },
+  { v: 'games_played',  l: 'Parties jouées'  },
+];
+
+// ── Sous-composants ───────────────────────────────────────────────
+
+const FilterGroup = ({ label, options, value, onChange }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+    <MonoLabel size="xs" style={{ fontSize: '0.58rem' }}>{label}</MonoLabel>
+    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+      {options.map(o => (
+        <button key={o.v} onClick={() => onChange(o.v)} className="s-chip" data-active={value === o.v}>
+          {o.l}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const Stat = ({ value, highlight = false, isMe }) => (
+  <div style={{ width: '80px', textAlign: 'right', flexShrink: 0 }}>
+    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: highlight ? '0.9rem' : '0.78rem', fontWeight: highlight ? 500 : 400, color: isMe ? 'var(--gold)' : highlight ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+      {value}
+    </span>
+  </div>
+);
+
+// ── Page ──────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
-  const [data, setData]     = useState(null);
+  const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('all');
-  const [sortBy, setSortBy] = useState('best_score');
+  const [period, setPeriod]   = useState('all');
+  const [sortBy, setSortBy]   = useState('best_score');
 
   useEffect(() => {
     setLoading(true);
@@ -25,237 +55,108 @@ export default function LeaderboardPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [period, sortBy]);
-  return (
-    <div style={styles.page}>
-      <div style={styles.container}>
 
-        {/* Header */}
-        <div style={styles.header}>
-          <h1 style={styles.title}>Classement</h1>
-          {data && (
-            <p style={styles.subtitle}>{data.total_players} joueurs inscrits</p>
-          )}
-        </div>
+  return (
+    <div className="s-page">
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+
+        <PageHeader
+          title="Classement"
+          subtitle={data ? `${data.total_players} joueurs inscrits` : ' '}
+        />
 
         {/* Filtres */}
-        <div style={styles.filters}>
-          <FilterGroup label="Période" options={PERIODS} value={period} onChange={setPeriod} />
-          <FilterGroup label="Trier par" options={SORTS} value={sortBy} onChange={setSortBy} />
+        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '20px' }}>
+          <FilterGroup label="Période"  options={PERIODS} value={period} onChange={setPeriod} />
+          <FilterGroup label="Trier par" options={SORTS}  value={sortBy} onChange={setSortBy} />
         </div>
 
         {/* Rang de l'utilisateur connecté */}
         {data?.current_user_rank && (
-          <div style={styles.myRankBanner}>
-            <span style={styles.myRankLabel}>Votre rang</span>
-            <span style={styles.myRankValue}>#{data.current_user_rank}</span>
-          </div>
+          <Card style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-invert)', padding: '12px 20px', marginBottom: '20px' }}>
+            <MonoLabel color="var(--text-invert-muted)">Votre rang</MonoLabel>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 700, color: 'var(--gold)' }}>
+              #{data.current_user_rank}
+            </span>
+          </Card>
         )}
 
         {/* Tableau */}
         {loading ? (
-          <div style={styles.loadingBox}>
-            <div style={styles.spinner} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+            <Spinner size={36} />
           </div>
         ) : (
-          <div style={styles.table}>
-            {/* Colonnes header */}
-            <div style={styles.tableHead}>
-              <span style={{ width: '3rem', textAlign: 'center' }}>#</span>
-              <span style={{ flex: 1 }}>Joueur</span>
-              <span style={styles.col}>Parties</span>
-              <span style={styles.col}>Victoires</span>
-              <span style={styles.col}>V%</span>
-              <span style={styles.col}>Meilleur</span>
-              <span style={styles.col}>Moyen</span>
+          <Card style={{ overflow: 'hidden' }}>
+            {/* En-tête colonnes */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-invert)', padding: '10px 14px' }}>
+              <MonoLabel color="var(--gold)" style={{ width: '3rem', textAlign: 'center', fontSize: '0.58rem' }}>#</MonoLabel>
+              <MonoLabel color="var(--gold)" style={{ flex: 1, fontSize: '0.58rem' }}>Joueur</MonoLabel>
+              {['Parties', 'Victoires', 'V%', 'Meilleur', 'Moyen'].map(h => (
+                <MonoLabel key={h} color="var(--gold)" style={{ width: '80px', textAlign: 'right', fontSize: '0.58rem' }}>{h}</MonoLabel>
+              ))}
             </div>
 
             {data?.entries?.length === 0 && (
-              <p style={{ ...styles.muted, padding: '2rem', textAlign: 'center' }}>
-                Aucun joueur pour cette période.
-              </p>
+              <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <MonoLabel>Aucun joueur pour cette période.</MonoLabel>
+              </div>
             )}
 
             {data?.entries?.map((entry) => {
               const isMe = user && entry.user_id === user.id;
               return (
-                <div key={entry.user_id} style={{
-                  ...styles.tableRow,
-                  ...(isMe ? styles.tableRowMe : {}),
-                  ...(entry.rank <= 3 ? styles.tableRowTop : {}),
-                }}>
+                <div
+                  key={entry.user_id}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 14px', borderBottom: '1px solid rgba(200,168,48,0.15)', background: isMe ? 'var(--bg-invert)' : 'transparent', transition: 'background 0.1s' }}
+                  onMouseEnter={e => { if (!isMe) e.currentTarget.style.background = 'var(--bg-page-alt)'; }}
+                  onMouseLeave={e => { if (!isMe) e.currentTarget.style.background = 'transparent'; }}
+                >
                   {/* Rang */}
                   <div style={{ width: '3rem', textAlign: 'center' }}>
-                    {entry.rank <= 3 ? (
-                      <span style={styles.medal(entry.rank)}>
-                        {['🥇', '🥈', '🥉'][entry.rank - 1]}
-                      </span>
-                    ) : (
-                      <span style={styles.rankNum}>{entry.rank}</span>
-                    )}
+                    {entry.rank <= 3
+                      ? <span style={{ fontSize: '1.2rem' }}>{['🥇','🥈','🥉'][entry.rank - 1]}</span>
+                      : <MonoLabel color="var(--text-muted)" style={{ fontSize: '0.75rem' }}>{entry.rank}</MonoLabel>
+                    }
                   </div>
 
                   {/* Joueur */}
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <div style={styles.miniAvatar}>
-                      {entry.avatar_url ? (
-                        <img src={entry.avatar_url} alt="" style={styles.miniAvatarImg} />
-                      ) : (
-                        <span style={styles.miniAvatarInitial}>
-                          {entry.display_name[0].toUpperCase()}
-                        </span>
-                      )}
+                    {/* Mini avatar */}
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid var(--gold)', background: 'var(--bg-page-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                      {entry.avatar_url
+                        ? <img src={entry.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.9rem', fontWeight: 700, color: isMe ? 'var(--gold)' : 'var(--text-primary)' }}>{entry.display_name[0].toUpperCase()}</span>
+                      }
                     </div>
+                    {/* Nom + meilleur mot */}
                     <div style={{ minWidth: 0 }}>
-                      <div style={styles.playerName(isMe)}>
-                        {entry.display_name}{isMe && <span style={styles.meBadge}>Vous</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.95rem', fontWeight: 700, color: isMe ? 'var(--gold)' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {entry.display_name}
+                        </span>
+                        {isMe && <Badge variant="gold">Vous</Badge>}
                       </div>
                       {entry.best_word && (
-                        <div style={styles.bestWord}>🏆 {entry.best_word} ({entry.best_word_score}pts)</div>
+                        <MonoLabel style={{ fontSize: '0.58rem' }}>
+                          🏆 {entry.best_word} ({entry.best_word_score} pts)
+                        </MonoLabel>
                       )}
                     </div>
                   </div>
 
                   {/* Stats */}
-                  <Stat value={entry.games_played} isMe={isMe} />
-                  <Stat value={entry.games_won} isMe={isMe} />
-                  <Stat value={`${entry.win_rate}%`} isMe={isMe} />
-                  <Stat value={entry.best_score} highlight isMe={isMe} />
+                  <Stat value={entry.games_played}             isMe={isMe} />
+                  <Stat value={entry.games_won}                isMe={isMe} />
+                  <Stat value={`${entry.win_rate}%`}           isMe={isMe} />
+                  <Stat value={entry.best_score}    highlight  isMe={isMe} />
                   <Stat value={Math.round(entry.average_score)} isMe={isMe} />
                 </div>
               );
             })}
-          </div>
+          </Card>
         )}
       </div>
     </div>
   );
 }
-
-const Stat = ({ value, highlight = false, isMe }) => (
-  <div style={styles.col}>
-    <span style={{
-      fontFamily: "'DM Mono', monospace",
-      fontSize: highlight ? '0.9rem' : '0.78rem',
-      fontWeight: highlight ? 500 : 400,
-      color: isMe ? '#C8A830' : (highlight ? '#1E1A12' : '#8A7E65'),
-    }}>
-      {value}
-    </span>
-  </div>
-);
-
-const FilterGroup = ({ label, options, value, onChange }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-    <span style={styles.filterLabel}>{label}</span>
-    <div style={styles.filterBtns}>
-      {options.map(o => (
-        <button key={o.v} onClick={() => onChange(o.v)} style={{
-          ...styles.filterBtn,
-          ...(value === o.v ? styles.filterBtnActive : {}),
-        }}>
-          {o.l}
-        </button>
-      ))}
-    </div>
-  </div>
-);
-
-const styles = {
-  page: { minHeight: '100vh', background: '#F5EDD6', padding: '2rem 1rem' },
-  container: { maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' },
-  header: { borderBottom: '3px solid #1E1A12', paddingBottom: '12px' },
-  title: {
-    fontFamily: "'Playfair Display', serif", fontSize: '2.2rem', fontWeight: 900,
-    color: '#1E1A12', margin: 0, letterSpacing: '-0.04em',
-  },
-  subtitle: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.62rem',
-    color: '#8A7E65', letterSpacing: '0.1em', margin: '4px 0 0',
-  },
-  filters: { display: 'flex', gap: '24px', flexWrap: 'wrap' },
-  filterLabel: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.58rem',
-    color: '#8A7E65', letterSpacing: '0.12em', textTransform: 'uppercase',
-  },
-  filterBtns: { display: 'flex', gap: '4px', flexWrap: 'wrap' },
-  filterBtn: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', fontWeight: 500,
-    letterSpacing: '0.08em', textTransform: 'uppercase',
-    background: 'transparent', border: '1.5px solid #C8C0A8', borderRadius: '2px',
-    padding: '5px 10px', color: '#8A7E65', cursor: 'pointer',
-  },
-  filterBtnActive: {
-    background: '#1E1A12', borderColor: '#1E1A12', color: '#C8A830',
-    boxShadow: '2px 2px 0 #8A6820',
-  },
-  myRankBanner: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: '#1E1A12', border: '2px solid #C8A830', borderRadius: '2px',
-    padding: '12px 20px', boxShadow: '4px 4px 0 #8A6820',
-  },
-  myRankLabel: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.65rem',
-    color: '#8A7E65', letterSpacing: '0.12em', textTransform: 'uppercase',
-  },
-  myRankValue: {
-    fontFamily: "'Playfair Display', serif", fontSize: '1.8rem',
-    fontWeight: 700, color: '#C8A830',
-  },
-  loadingBox: { display: 'flex', justifyContent: 'center', padding: '3rem' },
-  spinner: {
-    width: '36px', height: '36px',
-    border: '3px solid #C8A830', borderTopColor: '#1E1A12',
-    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-  },
-  table: {
-    background: '#F5EDD6', border: '2px solid #1E1A12',
-    borderRadius: '2px', overflow: 'hidden', boxShadow: '5px 5px 0 #C8803A',
-  },
-  tableHead: {
-    display: 'flex', alignItems: 'center', gap: '8px',
-    background: '#1E1A12', padding: '10px 14px',
-    fontFamily: "'DM Mono', monospace", fontSize: '0.58rem',
-    color: '#C8A830', letterSpacing: '0.12em', textTransform: 'uppercase',
-  },
-  tableRow: {
-    display: 'flex', alignItems: 'center', gap: '8px',
-    padding: '12px 14px', borderBottom: '1px solid rgba(200,168,48,0.2)',
-    background: '#F5EDD6', transition: 'background 0.1s',
-  },
-  tableRowMe: { background: '#1E1A12' },
-  tableRowTop: { background: '#F5EDD6' },
-  col: { width: '80px', textAlign: 'right', flexShrink: 0 },
-  medal: (rank) => ({ fontSize: '1.2rem' }),
-  rankNum: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.75rem',
-    color: '#8A7E65', fontWeight: 500,
-  },
-  miniAvatar: {
-    width: '32px', height: '32px', borderRadius: '50%',
-    border: '2px solid #C8A830', background: '#EDE0C0',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, overflow: 'hidden',
-  },
-  miniAvatarImg: { width: '100%', height: '100%', objectFit: 'cover' },
-  miniAvatarInitial: {
-    fontFamily: "'Playfair Display', serif", fontSize: '0.9rem', fontWeight: 700, color: '#1E1A12',
-  },
-  playerName: (isMe) => ({
-    fontFamily: "'Playfair Display', serif", fontSize: '0.95rem', fontWeight: 700,
-    color: isMe ? '#C8A830' : '#1E1A12',
-    display: 'flex', alignItems: 'center', gap: '8px',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  }),
-  meBadge: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.5rem', fontWeight: 500,
-    letterSpacing: '0.1em', color: '#C8803A',
-    background: 'rgba(200,128,58,0.15)', border: '1px solid #C8803A',
-    borderRadius: '2px', padding: '1px 5px',
-  },
-  bestWord: {
-    fontFamily: "'DM Mono', monospace", fontSize: '0.56rem', color: '#8A9B56',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  muted: { fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: '#8A7E65' },
-};

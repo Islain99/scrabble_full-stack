@@ -1,0 +1,244 @@
+/* src/styles/utils.css
+ *
+ * Classes utilitaires sémantiques qui encapsulent les inline styles répétitifs.
+ * Toutes s'appuient sur les variables CSS définies dans index.css.
+ * Importer dans index.css avec :  @import './styles/utils.css';
+ *
+ * Principes :
+ *  - Préfixe "s-" (scrabble) pour éviter les conflits avec Tailwind
+ *  - Jamais de valeurs hardcodées : toujours var(--...)
+ *  - Les classes Tailwind core restent utilisables en parallèle
+ */
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPOGRAPHIE
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-font-mono   { font-family: 'DM Mono', monospace; }
+.s-font-serif  { font-family: 'Playfair Display', Georgia, serif; }
+.s-font-body   { font-family: 'Libre Baskerville', Georgia, serif; }
+
+/* Tailles fréquentes */
+.s-text-xxs  { font-size: 0.58rem; }
+.s-text-xs   { font-size: 0.62rem; }
+.s-text-sm   { font-size: 0.72rem; }
+.s-text-base { font-size: 0.82rem; }
+.s-text-md   { font-size: 0.95rem; }
+.s-text-lg   { font-size: 1.1rem;  }
+.s-text-xl   { font-size: 1.5rem;  }
+.s-text-2xl  { font-size: 2rem;    }
+.s-text-3xl  { font-size: 2.2rem;  }
+.s-text-4xl  { font-size: 3rem;    }
+
+/* Espacements de lettres */
+.s-tracking-wide  { letter-spacing: 0.08em; }
+.s-tracking-wider { letter-spacing: 0.12em; }
+.s-tracking-caps  { letter-spacing: 0.15em; text-transform: uppercase; }
+.s-tracking-tight { letter-spacing: -0.02em; }
+.s-tracking-tighter { letter-spacing: -0.04em; }
+
+/* Labels étiquettes DM Mono tout-caps — le pattern le plus répété */
+.s-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Variantes de couleur texte */
+.s-text-primary   { color: var(--text-primary);   }
+.s-text-secondary { color: var(--text-secondary);  }
+.s-text-muted     { color: var(--text-muted);      }
+.s-text-invert    { color: var(--text-invert);     }
+.s-text-gold      { color: var(--gold);            }
+.s-text-tobacco   { color: var(--tobacco);         }
+.s-text-olive     { color: var(--olive);           }
+.s-text-brick     { color: var(--brick);           }
+
+/* ═══════════════════════════════════════════════════════════════
+   SURFACES & CARTES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Carte standard rétro — bordure encre + ombre décalée */
+.s-card {
+  background:    var(--bg-card);
+  border:        2px solid var(--border-primary);
+  border-radius: 2px;
+  box-shadow:    4px 4px 0 var(--shadow-card);
+}
+
+.s-card-lg {
+  background:    var(--bg-card);
+  border:        3px solid var(--border-primary);
+  border-radius: 3px;
+  box-shadow:    8px 8px 0 var(--shadow-card);
+}
+
+/* Carte dorée — pour mises en avant */
+.s-card-gold {
+  background:    var(--bg-card);
+  border:        2px solid var(--gold);
+  border-radius: 2px;
+  box-shadow:    3px 3px 0 var(--gold);
+}
+
+/* En-tête de carte sombre (pattern Section dans SettingsPage) */
+.s-card-header {
+  background: var(--bg-invert);
+  color:      var(--text-invert);
+  padding:    10px 18px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MISE EN PAGE
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-page {
+  min-height: 100vh;
+  background: var(--bg-page);
+  padding:    2rem 1rem;
+}
+
+.s-container {
+  max-width: 800px;
+  margin:    0 auto;
+  padding:   0 1rem;
+}
+
+.s-container-lg {
+  max-width:  1600px;
+  margin:     0 auto;
+  padding:    1.5rem 2rem;
+  box-sizing: border-box;
+}
+
+/* En-tête de page standard (h1 + sous-titre + séparateur) */
+.s-page-header {
+  border-bottom: 3px solid var(--border-primary);
+  padding-bottom: 14px;
+  margin-bottom:  2rem;
+}
+
+.s-page-title {
+  font-family:    'Playfair Display', serif;
+  font-size:      2.2rem;
+  font-weight:    900;
+  letter-spacing: -0.04em;
+  color:          var(--text-primary);
+  margin:         0;
+}
+
+.s-page-subtitle {
+  font-family:    'DM Mono', monospace;
+  font-size:      0.7rem;
+  letter-spacing: 0.1em;
+  color:          var(--text-muted);
+  margin:         4px 0 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BOUTONS DE FILTRE / CHIP (pattern LeaderboardPage, SettingsPage)
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-chip {
+  font-family:    'DM Mono', monospace;
+  font-size:      0.62rem;
+  font-weight:    500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background:     transparent;
+  border:         1.5px solid var(--border-muted);
+  border-radius:  2px;
+  padding:        5px 10px;
+  cursor:         pointer;
+  color:          var(--text-muted);
+  transition:     background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.s-chip:hover,
+.s-chip[data-active="true"] {
+  background:    var(--text-primary);
+  color:         var(--bg-page);
+  border-color:  var(--text-primary);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INPUTS
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-input {
+  width:          100%;
+  background:     var(--bg-input);
+  color:          var(--text-primary);
+  border:         2px solid var(--border-primary);
+  border-radius:  2px;
+  padding:        10px 14px;
+  font-family:    'Libre Baskerville', serif;
+  font-size:      0.95rem;
+  outline:        none;
+  transition:     border-color 0.15s, box-shadow 0.15s;
+  box-sizing:     border-box;
+}
+
+.s-input:focus {
+  border-color: var(--gold);
+  box-shadow:   0 0 0 3px rgba(200, 168, 48, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SPINNER / LOADER
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-spinner {
+  width:        10px;
+  height:       10px;
+  border:       2px solid var(--gold);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation:    spin 0.8s linear infinite;
+  flex-shrink:  0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BADGES & PASTILLES
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-badge {
+  font-family:    'DM Mono', monospace;
+  font-size:      0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border:         1px solid currentColor;
+  border-radius:  2px;
+  padding:        1px 5px;
+  display:        inline-block;
+}
+
+.s-badge-gold   { color: var(--gold);    border-color: var(--gold);    }
+.s-badge-olive  { color: var(--olive);   border-color: var(--olive);   }
+.s-badge-brick  { color: var(--brick);   border-color: var(--brick);   }
+.s-badge-muted  { color: var(--text-muted); border-color: var(--border-muted); }
+
+/* ═══════════════════════════════════════════════════════════════
+   SÉPARATEURS
+   ═══════════════════════════════════════════════════════════════ */
+
+.s-divider {
+  border: none;
+  border-top: 1px solid var(--border-muted);
+  margin: 0;
+}
+
+.s-divider-heavy {
+  border: none;
+  border-top: 3px solid var(--border-primary);
+  margin: 0;
+}
+
+.s-gold-bar {
+  height:           4px;
+  background:       var(--tobacco);
+  border-radius:    2px;
+  width:            180px;
+}
