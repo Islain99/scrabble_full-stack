@@ -1,14 +1,12 @@
 // src/pages/ProfilePage.jsx
-// Refactorisé : styles inline hardcodés → composants ui/ + classes s-
-// La logique (upload, save, fetch history) est identique à l'original.
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth }    from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { getHistory } from '../api/authService';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Card, PageHeader, MonoLabel, RetroButton, Spinner, Badge, Divider, Input } from '../components/ui';
+import { Card, PageHeader, MonoLabel, RetroButton, Spinner, Badge } from '../components/ui';
 
-// ── Pays ──────────────────────────────────────────────────────────
+// ── Pays (liste statique, pas besoin de traduction) ───────────────
 const COUNTRIES = [
   'Afghanistan','Afrique du Sud','Albanie','Algérie','Allemagne','Angola','Arabie Saoudite',
   'Argentine','Australie','Autriche','Azerbaïdjan','Bahrain','Bangladesh','Belgique','Bénin',
@@ -28,9 +26,23 @@ const COUNTRIES = [
   'Tunisie','Turquie','Ukraine','Uruguay','Venezuela','Vietnam','Yémen','Zambie','Zimbabwe',
 ].sort();
 
+// ── Styles partagés ───────────────────────────────────────────────
+const inputStyle = {
+  width:        '100%',
+  fontFamily:   "'DM Mono', monospace",
+  fontSize:     '0.82rem',
+  color:        'var(--text-primary)',
+  background:   'var(--bg-input)',
+  border:       '2px solid var(--border-primary)',
+  borderRadius: '2px',
+  padding:      '8px 12px',
+  outline:      'none',
+  boxSizing:    'border-box',
+  transition:   'border-color 0.15s',
+};
+
 // ── Sous-composants ───────────────────────────────────────────────
 
-/** Champ lecture seule dans la grille du profil */
 function Field({ label, value, wide }) {
   return (
     <div style={{ gridColumn: wide ? '1 / -1' : 'span 1' }}>
@@ -39,10 +51,10 @@ function Field({ label, value, wide }) {
       </MonoLabel>
       <p style={{
         fontFamily: "'Playfair Display', serif",
-        fontSize: '1rem',
+        fontSize:   '1rem',
         fontWeight: 600,
-        color: 'var(--text-primary)',
-        margin: 0,
+        color:      'var(--text-primary)',
+        margin:     0,
       }}>
         {value}
       </p>
@@ -50,18 +62,17 @@ function Field({ label, value, wide }) {
   );
 }
 
-/** Wrapper de champ de formulaire avec label */
 function FormField({ label, children, wide }) {
   return (
     <div style={{ gridColumn: wide ? '1 / -1' : 'span 1' }}>
       <label style={{
-        display: 'block',
-        fontFamily: "'DM Mono', monospace",
-        fontSize: '0.6rem',
+        display:       'block',
+        fontFamily:    "'DM Mono', monospace",
+        fontSize:      '0.6rem',
         letterSpacing: '0.12em',
         textTransform: 'uppercase',
-        color: 'var(--text-muted)',
-        marginBottom: '6px',
+        color:         'var(--text-muted)',
+        marginBottom:  '6px',
       }}>
         {label}
       </label>
@@ -70,17 +81,23 @@ function FormField({ label, children, wide }) {
   );
 }
 
-/** Carte statistique */
 function StatCard({ label, value, icon }) {
   return (
-    <Card style={{ padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+    <Card style={{
+      padding:        '20px 16px',
+      textAlign:      'center',
+      display:        'flex',
+      flexDirection:  'column',
+      alignItems:     'center',
+      gap:            '6px',
+    }}>
       <span style={{ fontSize: '1.8rem', lineHeight: 1 }}>{icon}</span>
       <span style={{
-        fontFamily: "'Playfair Display', serif",
-        fontSize: '1.8rem',
-        fontWeight: 900,
-        color: 'var(--gold)',
-        lineHeight: 1,
+        fontFamily:    "'Playfair Display', serif",
+        fontSize:      '1.8rem',
+        fontWeight:    900,
+        color:         'var(--gold)',
+        lineHeight:    1,
         letterSpacing: '-0.02em',
       }}>
         {value}
@@ -90,34 +107,20 @@ function StatCard({ label, value, icon }) {
   );
 }
 
-// Style partagé pour les inputs natifs du formulaire
-const inputStyle = {
-  width: '100%',
-  fontFamily: "'DM Mono', monospace",
-  fontSize: '0.82rem',
-  color: 'var(--text-primary)',
-  background: 'var(--bg-input)',
-  border: '2px solid var(--border-primary)',
-  borderRadius: '2px',
-  padding: '8px 12px',
-  outline: 'none',
-  boxSizing: 'border-box',
-  transition: 'border-color 0.15s',
-};
-
 // ── Page principale ───────────────────────────────────────────────
 
 export default function ProfilePage() {
   const { user, updateUserProfile } = useAuth();
+  const { t, language }             = useLanguage();
 
-  const [history, setHistory]               = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [activeTab, setActiveTab]           = useState('profile');
-  const [editing, setEditing]               = useState(!user?.profile_complete);
-  const [saving, setSaving]                 = useState(false);
-  const [saveMsg, setSaveMsg]               = useState('');
+  const [history, setHistory]                 = useState([]);
+  const [historyLoading, setHistoryLoading]   = useState(true);
+  const [activeTab, setActiveTab]             = useState('profile');
+  const [editing, setEditing]                 = useState(!user?.profile_complete);
+  const [saving, setSaving]                   = useState(false);
+  const [saveMsg, setSaveMsg]                 = useState('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarPreview, setAvatarPreview]   = useState(null);
+  const [avatarPreview, setAvatarPreview]     = useState(null);
   const fileInputRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -125,6 +128,7 @@ export default function ProfilePage() {
     age: '', country: '', bio: '', avatarUrl: '',
   });
 
+  // Hydrate le formulaire depuis user
   useEffect(() => {
     if (user) {
       setForm({
@@ -136,52 +140,38 @@ export default function ProfilePage() {
         bio:         user.bio          || '',
         avatarUrl:   user.avatar_url   || '',
       });
-      setAvatarPreview(user.avatar_url || null);
     }
   }, [user]);
 
+  // Charge l'historique
   useEffect(() => {
-    getHistory(10)
+    getHistory()
       .then(setHistory)
       .catch(console.error)
       .finally(() => setHistoryLoading(false));
   }, []);
 
-  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
-
-  // ── Upload avatar ─────────────────────────────────────────────
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setSaveMsg('Image trop lourde (5 Mo max).'); return; }
     setAvatarPreview(URL.createObjectURL(file));
     setUploadingAvatar(true);
-    setSaveMsg('');
     try {
-      const storage    = getStorage();
-      const storageRef = ref(storage, `avatars/${user.firebase_uid}/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const storage  = getStorage();
+      const fileRef  = ref(storage, `avatars/${user.uid}/${Date.now()}_${file.name}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
       setForm(f => ({ ...f, avatarUrl: url }));
-      setAvatarPreview(url);
-      setSaveMsg('Avatar mis à jour !');
-    } catch {
-      setSaveMsg("Erreur lors de l'upload. Réessayez.");
-      setAvatarPreview(user.avatar_url || null);
+    } catch (err) {
+      console.error('Avatar upload error:', err);
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  // ── Sauvegarde profil ─────────────────────────────────────────
   const handleSave = async (e) => {
     e.preventDefault();
     setSaveMsg('');
-    if (!form.firstName.trim()) return setSaveMsg('Le prénom est requis.');
-    if (!form.lastName.trim())  return setSaveMsg('Le nom est requis.');
-    if (!form.age || isNaN(Number(form.age)) || Number(form.age) < 5 || Number(form.age) > 120)
-      return setSaveMsg('Âge invalide (entre 5 et 120).');
-    if (!form.country) return setSaveMsg('Le pays est requis.');
     setSaving(true);
     try {
       await updateUserProfile({
@@ -193,10 +183,10 @@ export default function ProfilePage() {
         bio:         form.bio,
         avatarUrl:   form.avatarUrl,
       });
-      setSaveMsg('Profil sauvegardé !');
+      setSaveMsg(t('profile_save_success'));
       setEditing(false);
     } catch {
-      setSaveMsg('Erreur lors de la sauvegarde.');
+      setSaveMsg(t('profile_save_error'));
     } finally {
       setSaving(false);
     }
@@ -207,6 +197,22 @@ export default function ProfilePage() {
   const winRate = user.games_played > 0
     ? Math.round((user.games_won / user.games_played) * 100)
     : 0;
+
+  // En-têtes du tableau historique (traduits)
+  const historyHeaders = [
+    t('history_date'),
+    t('history_opponent'),
+    t('history_score'),
+    t('history_result'),
+    t('history_best_word'),
+  ];
+
+  // Onglets (traduits)
+  const TABS = [
+    { id: 'profile', label: t('tab_profile')  },
+    { id: 'stats',   label: t('tab_stats')    },
+    { id: 'history', label: t('tab_history')  },
+  ];
 
   // ── Rendu ─────────────────────────────────────────────────────
   return (
@@ -225,82 +231,108 @@ export default function ProfilePage() {
         }}>
           <span style={{ fontSize: '1.1rem' }}>⚠️</span>
           <MonoLabel style={{ flex: 1 }}>
-            Complétez votre profil pour apparaître dans le classement.
+            {t('profile_incomplete_banner')}
           </MonoLabel>
           <RetroButton
             variant="tobacco"
             onClick={() => { setEditing(true); setActiveTab('profile'); }}
           >
-            Compléter
+            {t('profile_complete_btn')}
           </RetroButton>
         </div>
       )}
 
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 24px' }}>
 
-        <PageHeader title="Mon profil" />
+        <PageHeader title={t('profile_title')} />
 
-        {/* ── En-tête : avatar + identité ──────────────────── */}
+        {/* ── En-tête avatar + identité ─────────────────────── */}
         <Card size="lg" style={{ padding: '24px', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '24px', flexWrap: 'wrap' }}>
 
             {/* Avatar */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <div
-                onClick={() => !uploadingAvatar && fileInputRef.current?.click()}
+                onClick={() => editing && !uploadingAvatar && fileInputRef.current?.click()}
                 style={{
-                  width: '90px', height: '90px',
-                  borderRadius: '50%',
-                  border: '3px solid var(--gold)',
-                  overflow: 'hidden',
-                  background: 'var(--bg-page-alt)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: editing ? 'pointer' : 'default',
-                  position: 'relative',
+                  width:          '90px',
+                  height:         '90px',
+                  borderRadius:   '50%',
+                  border:         '3px solid var(--gold)',
+                  overflow:       'hidden',
+                  background:     'var(--bg-page-alt)',
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  cursor:         editing ? 'pointer' : 'default',
+                  position:       'relative',
                 }}
               >
-                {avatarPreview
-                  ? <img src={avatarPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {user.display_name?.[0]?.toUpperCase() ?? '?'}
-                    </span>
-                }
-                {uploadingAvatar && (
-                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Spinner size={20} />
-                  </div>
+                {uploadingAvatar ? (
+                  <Spinner size={24} />
+                ) : avatarPreview || user.avatar_url ? (
+                  <img
+                    src={avatarPreview ?? user.avatar_url}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <span style={{
+                    fontFamily: "'Playfair Display', serif",
+                    fontSize:   '2rem',
+                    fontWeight: 700,
+                    color:      'var(--text-primary)',
+                  }}>
+                    {user.display_name?.[0]?.toUpperCase() ?? '?'}
+                  </span>
                 )}
               </div>
               {editing && (
-                <>
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
-                  <MonoLabel size="xs" style={{ cursor: 'pointer', color: 'var(--tobacco)' }}
-                    onClick={() => fileInputRef.current?.click()}>
-                    Changer
-                  </MonoLabel>
-                </>
+                <MonoLabel size="xs" style={{ cursor: 'pointer', color: 'var(--tobacco)' }}
+                  onClick={() => fileInputRef.current?.click()}>
+                  {t('profile_change_avatar')}
+                </MonoLabel>
               )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarChange}
+              />
             </div>
 
             {/* Identité */}
             <div style={{ flex: 1, minWidth: '180px' }}>
               <h2 style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: '1.6rem', fontWeight: 900,
-                color: 'var(--text-primary)',
-                margin: '0 0 6px',
-                letterSpacing: '-0.02em',
+                fontFamily:    "'Playfair Display', serif",
+                fontSize:      '1.8rem',
+                fontWeight:    900,
+                color:         'var(--text-primary)',
+                letterSpacing: '-0.03em',
+                margin:        '0 0 4px',
               }}>
                 {user.display_name}
               </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                <MonoLabel>{user.auth_provider === 'google' ? '🔵 Google' : '✉ Email'}</MonoLabel>
-                <Badge variant={user.profile_complete ? 'olive' : 'gold'}>
-                  {user.profile_complete ? '✓ Profil complet' : '⚠ Profil incomplet'}
+              <MonoLabel size="xs" style={{ marginBottom: '8px' }}>
+                {user.email}
+              </MonoLabel>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {user.country && (
+                  <Badge variant="default">{user.country}</Badge>
+                )}
+                <Badge variant={user.profile_complete ? 'success' : 'warn'}>
+                  {user.profile_complete ? t('profile_complete_badge') : t('profile_incomplete_badge')}
                 </Badge>
               </div>
               {user.bio && (
-                <p style={{ fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>
+                <p style={{
+                  fontFamily: "'Libre Baskerville', serif",
+                  fontStyle:  'italic',
+                  fontSize:   '0.9rem',
+                  color:      'var(--text-secondary)',
+                  margin:     0,
+                }}>
                   {user.bio}
                 </p>
               )}
@@ -311,18 +343,18 @@ export default function ProfilePage() {
               variant={editing ? 'default' : 'tobacco'}
               onClick={() => { setEditing(!editing); setActiveTab('profile'); }}
             >
-              {editing ? 'Annuler' : 'Modifier'}
+              {editing ? t('btn_cancel') : t('profile_edit_btn')}
             </RetroButton>
           </div>
         </Card>
 
-        {/* ── Tabs ─────────────────────────────────────────── */}
-        <div style={{ display: 'flex', borderBottom: '3px solid var(--border-primary)', marginBottom: '20px' }}>
-          {[
-            { id: 'profile', label: 'Profil' },
-            { id: 'stats',   label: 'Statistiques' },
-            { id: 'history', label: 'Historique' },
-          ].map(tab => (
+        {/* ── Onglets ───────────────────────────────────────── */}
+        <div style={{
+          display:      'flex',
+          borderBottom: '3px solid var(--border-primary)',
+          marginBottom: '20px',
+        }}>
+          {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -351,65 +383,91 @@ export default function ProfilePage() {
         {activeTab === 'profile' && (
           <Card style={{ padding: '28px' }}>
             {!editing ? (
+              // Lecture seule
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 32px' }}>
-                <Field label="Prénom"  value={user.first_name  || '—'} />
-                <Field label="Nom"     value={user.last_name   || '—'} />
-                <Field label="Pseudo"  value={user.display_name} />
-                <Field label="Âge"     value={user.age ? `${user.age} ans` : '—'} />
-                <Field label="Pays"    value={user.country     || '—'} />
-                <Field label="Email"   value={user.email} />
-                <Field label="Bio"     value={user.bio         || '—'} wide />
+                <Field label={t('field_firstname')}  value={user.first_name  || '—'} />
+                <Field label={t('field_lastname')}   value={user.last_name   || '—'} />
+                <Field label={t('field_username')}   value={user.display_name} />
+                <Field label={t('field_age')}        value={user.age ? `${user.age} ${t('field_age_unit')}` : '—'} />
+                <Field label={t('field_country')}    value={user.country    || '—'} />
+                <Field label={t('field_email')}      value={user.email} />
+                <Field label={t('field_bio')} wide   value={user.bio || '—'} />
               </div>
             ) : (
-              <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
-
-                  <FormField label="Prénom *">
-                    <input style={inputStyle} value={form.firstName} onChange={set('firstName')} placeholder="Jean" maxLength={64} required />
+              // Formulaire d'édition
+              <form onSubmit={handleSave}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
+                  <FormField label={t('field_firstname')}>
+                    <input
+                      style={inputStyle}
+                      value={form.firstName}
+                      onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
+                      placeholder={t('field_firstname')}
+                    />
                   </FormField>
-
-                  <FormField label="Nom *">
-                    <input style={inputStyle} value={form.lastName} onChange={set('lastName')} placeholder="Dupont" maxLength={64} required />
+                  <FormField label={t('field_lastname')}>
+                    <input
+                      style={inputStyle}
+                      value={form.lastName}
+                      onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
+                      placeholder={t('field_lastname')}
+                    />
                   </FormField>
-
-                  <FormField label="Pseudo *">
-                    <input style={inputStyle} value={form.displayName} onChange={set('displayName')} placeholder="JeanD" maxLength={32} required />
-                  </FormField>
-
-                  <FormField label="Âge *">
-                    <input style={inputStyle} type="number" value={form.age} onChange={set('age')} min={5} max={120} required />
-                  </FormField>
-
-                  <FormField label="Pays *" wide>
-                    <select
-                      value={form.country}
-                      onChange={set('country')}
+                  <FormField label={t('field_username')}>
+                    <input
+                      style={inputStyle}
+                      value={form.displayName}
+                      onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
+                      placeholder={t('field_username')}
                       required
-                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    />
+                  </FormField>
+                  <FormField label={t('field_age')}>
+                    <input
+                      style={inputStyle}
+                      type="number"
+                      min="5"
+                      max="120"
+                      value={form.age}
+                      onChange={e => setForm(f => ({ ...f, age: e.target.value }))}
+                      placeholder="—"
+                    />
+                  </FormField>
+                  <FormField label={t('field_country')} wide>
+                    <select
+                      style={inputStyle}
+                      value={form.country}
+                      onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
                     >
-                      <option value="">— Sélectionner —</option>
-                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      <option value="">{t('field_country_placeholder')}</option>
+                      {COUNTRIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
                     </select>
                   </FormField>
-
-                  <FormField label="Bio" wide>
+                  <FormField label={t('field_bio')} wide>
                     <textarea
-                      style={{ ...inputStyle, resize: 'vertical', minHeight: '80px', fontFamily: "'Libre Baskerville', serif" }}
+                      style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
                       value={form.bio}
-                      onChange={set('bio')}
-                      placeholder="Quelques mots sur vous…"
-                      maxLength={280}
+                      onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
+                      placeholder={t('field_bio_placeholder')}
+                      maxLength={300}
                     />
                   </FormField>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                  <RetroButton variant="primary" disabled={saving}>
-                    {saving ? 'Sauvegarde...' : 'Sauvegarder le profil'}
+                <div style={{
+                  display:        'flex',
+                  gap:            '10px',
+                  marginTop:      '20px',
+                  justifyContent: 'flex-end',
+                  alignItems:     'center',
+                }}>
+                  <RetroButton type="submit" variant="primary" disabled={saving}>
+                    {saving ? t('profile_saving') : t('profile_save_btn')}
                   </RetroButton>
                   {saveMsg && (
-                    <MonoLabel color={saveMsg.includes('Erreur') ? 'var(--brick)' : 'var(--olive)'}>
+                    <MonoLabel color={saveMsg === t('profile_save_success') ? 'var(--olive)' : 'var(--brick)'}>
                       {saveMsg}
                     </MonoLabel>
                   )}
@@ -419,16 +477,20 @@ export default function ProfilePage() {
           </Card>
         )}
 
-        {/* ── Onglet Stats ──────────────────────────────────── */}
+        {/* ── Onglet Statistiques ───────────────────────────── */}
         {activeTab === 'stats' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '16px' }}>
-            <StatCard label="Parties jouées"   value={user.games_played}                            icon="🎲" />
-            <StatCard label="Victoires"         value={user.games_won}                               icon="🏆" />
-            <StatCard label="Taux de victoire"  value={`${winRate}%`}                                icon="📊" />
-            <StatCard label="Meilleur score"    value={user.best_score}                              icon="⭐" />
-            <StatCard label="Score moyen"       value={Math.round(user.average_score)}               icon="📈" />
-            <StatCard label="Meilleur mot"
-              value={user.best_word ? `${user.best_word} (${user.best_word_score} pts)` : '—'}      icon="✏️" />
+          <div style={{
+            display:             'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap:                 '16px',
+          }}>
+            <StatCard label={t('stat_games_played')} value={user.games_played}                                     icon="🎲" />
+            <StatCard label={t('stat_wins')}          value={user.games_won}                                        icon="🏆" />
+            <StatCard label={t('stat_win_rate')}      value={`${winRate}%`}                                         icon="📊" />
+            <StatCard label={t('stat_best_score')}    value={user.best_score}                                       icon="⭐" />
+            <StatCard label={t('stat_avg_score')}     value={Math.round(user.average_score)}                        icon="📈" />
+            <StatCard label={t('stat_best_word')}
+              value={user.best_word ? `${user.best_word} (${user.best_word_score} pts)` : '—'}                      icon="✏️" />
           </div>
         )}
 
@@ -441,51 +503,64 @@ export default function ProfilePage() {
               </div>
             ) : history.length === 0 ? (
               <div style={{ padding: '2rem', textAlign: 'center' }}>
-                <MonoLabel>Aucune partie enregistrée pour l'instant.</MonoLabel>
+                <MonoLabel>{t('history_empty')}</MonoLabel>
               </div>
             ) : (
               <>
                 {/* En-tête tableau */}
                 <div style={{
-                  display: 'grid',
+                  display:             'grid',
                   gridTemplateColumns: '80px 1fr 100px 100px 1fr',
-                  gap: '8px',
-                  background: 'var(--bg-invert)',
-                  padding: '10px 16px',
+                  gap:                 '8px',
+                  background:          'var(--bg-invert)',
+                  padding:             '10px 16px',
                 }}>
-                  {['Date', 'Adversaire', 'Score', 'Résultat', 'Meilleur mot'].map(h => (
-                    <MonoLabel key={h} color="var(--gold)" style={{ fontSize: '0.55rem' }}>{h}</MonoLabel>
+                  {historyHeaders.map(h => (
+                    <MonoLabel key={h} color="var(--gold)" style={{ fontSize: '0.55rem' }}>
+                      {h}
+                    </MonoLabel>
                   ))}
                 </div>
 
-                {history.map(g => (
-                  <div
-                    key={g.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '80px 1fr 100px 100px 1fr',
-                      gap: '8px',
-                      padding: '12px 16px',
-                      borderBottom: '1px solid var(--border-muted)',
-                      background: g.won ? 'rgba(94,107,58,0.05)' : 'rgba(139,32,32,0.04)',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <MonoLabel size="xs">
-                      {new Date(g.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                    </MonoLabel>
-                    <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                      {g.ai_name} <MonoLabel size="xs">({g.ai_difficulty})</MonoLabel>
-                    </span>
-                    <MonoLabel>{g.user_score} — {g.ai_score}</MonoLabel>
-                    <Badge variant={g.won ? 'olive' : 'brick'}>
-                      {g.won ? '✓ Victoire' : '✗ Défaite'}
-                    </Badge>
-                    <MonoLabel size="xs">
-                      {g.best_word ? `${g.best_word} (+${g.best_word_score})` : '—'}
-                    </MonoLabel>
-                  </div>
-                ))}
+                {history.map(g => {
+                  const date = new Date(g.played_at ?? g.created_at);
+                  const dateStr = date.toLocaleDateString(
+                    language === 'fr' ? 'fr-FR' : 'en-GB',
+                    { day: '2-digit', month: '2-digit' }
+                  );
+                  return (
+                    <div
+                      key={g.id}
+                      style={{
+                        display:             'grid',
+                        gridTemplateColumns: '80px 1fr 100px 100px 1fr',
+                        gap:                 '8px',
+                        padding:             '12px 16px',
+                        borderBottom:        '1px solid var(--border-muted)',
+                        background:          g.won
+                          ? 'rgba(94,107,58,0.06)'
+                          : 'rgba(139,32,32,0.04)',
+                      }}
+                    >
+                      <MonoLabel size="xs">{dateStr}</MonoLabel>
+                      <MonoLabel size="xs">{g.ai_name}</MonoLabel>
+                      <MonoLabel size="xs">
+                        {g.user_score} — {g.ai_score}
+                      </MonoLabel>
+                      <MonoLabel
+                        size="xs"
+                        color={g.won ? 'var(--olive)' : 'var(--brick)'}
+                      >
+                        {g.won ? t('profile_victory') : t('profile_defeat')}
+                      </MonoLabel>
+                      <MonoLabel size="xs">
+                        {g.best_word
+                          ? `${g.best_word} (${g.best_word_score} pts)`
+                          : '—'}
+                      </MonoLabel>
+                    </div>
+                  );
+                })}
               </>
             )}
           </Card>

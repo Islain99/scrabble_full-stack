@@ -1,18 +1,22 @@
 // src/i18n/translations.js
 // Toutes les chaînes UI — ajouter une langue = ajouter une entrée ici.
-// Conventions de nommage :
+// Conventions :
 //   nav_*       → Navbar
-//   theme_*     → libellés thème (partagés Navbar + SettingsPage)
-//   section_*   → titres de section dans SettingsPage
-//   row_*       → lignes de paramètres (label + desc)
-//   diff_*      → niveaux de difficulté IA
-//   sync_*      → badge de synchronisation
+//   theme_*     → libellés thème
+//   section_*   → titres de section SettingsPage
+//   row_*       → lignes paramètres
+//   diff_*      → niveaux difficulté IA
+//   sync_*      → badge synchronisation
 //   btn_*       → boutons génériques
-//   turn_*      → options de durée de tour
-//   start_*     → écran de démarrage (web + mobile)
+//   turn_*      → durées de tour
+//   legend_*    → légende plateau
+//   start_*     → écran démarrage
 //   game_*      → GamePage / GameScreen
-//   legend_*    → légende du plateau
-//   profile_*   → ProfilePage
+//   profile_*   → ProfilePage (page entière)
+//   tab_*       → onglets ProfilePage
+//   field_*     → champs formulaire profil
+//   stat_*      → cartes statistiques
+//   history_*   → tableau historique
 
 export const translations = {
 
@@ -30,22 +34,20 @@ export const translations = {
     nav_appearance:  'Apparence',
     nav_currently:   'Actuellement',
 
-    // ── Thème (Navbar + SettingsPage) ─────────────────────────
+    // ── Thème ─────────────────────────────────────────────────
     theme_light:  'Clair',
     theme_dark:   'Sombre',
     theme_system: 'Système',
 
-    // ── SettingsPage — titre ──────────────────────────────────
+    // ── SettingsPage ──────────────────────────────────────────
     settings_title:    'Paramètres',
     settings_subtitle: 'Les préférences sont sauvegardées automatiquement',
 
-    // ── SettingsPage — sections ───────────────────────────────
     section_appearance: 'Apparence',
     section_game:       'Partie',
     section_display:    'Affichage',
     section_behavior:   'Comportement',
 
-    // ── SettingsPage — lignes ─────────────────────────────────
     row_theme:                   'Thème',
     row_theme_desc:              'Choisissez entre clair, sombre, ou la préférence de votre système.',
     row_language:                "Langue de l'interface",
@@ -108,7 +110,7 @@ export const translations = {
     legend_tl: 'Triple lettre',
     legend_dl: 'Double lettre',
 
-    // ── Écran de démarrage (web + mobile) ─────────────────────
+    // ── Écran démarrage ───────────────────────────────────────
     start_edition:            'Édition de Luxe — 1972',
     start_subtitle:           'Le jeu classique des mots croisés',
     start_btn:                'Démarrer la partie',
@@ -124,7 +126,7 @@ export const translations = {
     game_tiles_plural:    'tuiles',
     game_placed_singular: 'posée',
     game_placed_plural:   'posées',
-    game_swap_selected:   'sélectionnée(s) pour l\'échange',
+    game_swap_selected:   "sélectionnée(s) pour l'échange",
     game_drag_hint:       'Glissez vos lettres sur le plateau',
     game_swap_hint:       'Sélectionnez les lettres à échanger dans le rack',
     game_swap_cancel:     "Annuler l'échange",
@@ -142,10 +144,53 @@ export const translations = {
     game_my_profile:      'Mon profil',
     ai_thinking:          "L'IA réfléchit…",
 
-    // ── ProfilePage ───────────────────────────────────────────
-    profile_title:   'Profil',
-    profile_victory: '✓ Victoire',
-    profile_defeat:  '✗ Défaite',
+    // ── ProfilePage — général ─────────────────────────────────
+    profile_title:            'Mon profil',
+    profile_incomplete_banner:'Complétez votre profil pour apparaître dans le classement.',
+    profile_complete_btn:     'Compléter',
+    profile_complete_badge:   '✓ Profil complet',
+    profile_incomplete_badge: '⚠ Profil incomplet',
+    profile_change_avatar:    'Changer la photo',
+    profile_edit_btn:         'Modifier',
+    profile_save_btn:         'Sauvegarder le profil',
+    profile_saving:           'Sauvegarde…',
+    profile_save_success:     'Profil sauvegardé !',
+    profile_save_error:       'Erreur lors de la sauvegarde.',
+    profile_victory:          '✓ Victoire',
+    profile_defeat:           '✗ Défaite',
+
+    // ── ProfilePage — onglets ─────────────────────────────────
+    tab_profile: 'Profil',
+    tab_stats:   'Statistiques',
+    tab_history: 'Historique',
+
+    // ── ProfilePage — champs formulaire ───────────────────────
+    field_firstname:          'Prénom',
+    field_lastname:           'Nom',
+    field_username:           'Pseudo',
+    field_age:                'Âge',
+    field_age_unit:           'ans',
+    field_country:            'Pays',
+    field_country_placeholder:'Sélectionnez un pays',
+    field_email:              'E-mail',
+    field_bio:                'Bio',
+    field_bio_placeholder:    'Quelques mots sur vous…',
+
+    // ── ProfilePage — statistiques ────────────────────────────
+    stat_games_played: 'Parties jouées',
+    stat_wins:         'Victoires',
+    stat_win_rate:     'Taux de victoire',
+    stat_best_score:   'Meilleur score',
+    stat_avg_score:    'Score moyen',
+    stat_best_word:    'Meilleur mot',
+
+    // ── ProfilePage — historique ──────────────────────────────
+    history_date:      'Date',
+    history_opponent:  'Adversaire',
+    history_score:     'Score',
+    history_result:    'Résultat',
+    history_best_word: 'Meilleur mot',
+    history_empty:     "Aucune partie enregistrée pour l'instant.",
   },
 
   // ══════════════════════════════════════════════════════════════
@@ -167,17 +212,15 @@ export const translations = {
     theme_dark:   'Dark',
     theme_system: 'System',
 
-    // ── SettingsPage — title ──────────────────────────────────
+    // ── SettingsPage ──────────────────────────────────────────
     settings_title:    'Settings',
     settings_subtitle: 'Preferences are saved automatically',
 
-    // ── SettingsPage — sections ───────────────────────────────
     section_appearance: 'Appearance',
     section_game:       'Game',
     section_display:    'Display',
     section_behavior:   'Behaviour',
 
-    // ── SettingsPage — rows ───────────────────────────────────
     row_theme:                   'Theme',
     row_theme_desc:              'Choose between light, dark, or your system preference.',
     row_language:                'Interface Language',
@@ -240,7 +283,7 @@ export const translations = {
     legend_tl: 'Triple Letter',
     legend_dl: 'Double Letter',
 
-    // ── Start screen (web + mobile) ───────────────────────────
+    // ── Start screen ──────────────────────────────────────────
     start_edition:            'Luxury Edition — 1972',
     start_subtitle:           'The classic crossword board game',
     start_btn:                'Start Game',
@@ -274,10 +317,53 @@ export const translations = {
     game_my_profile:      'My profile',
     ai_thinking:          'AI is thinking…',
 
-    // ── ProfilePage ───────────────────────────────────────────
-    profile_title:   'Profile',
-    profile_victory: '✓ Win',
-    profile_defeat:  '✗ Loss',
+    // ── ProfilePage — general ─────────────────────────────────
+    profile_title:            'My Profile',
+    profile_incomplete_banner:'Complete your profile to appear on the leaderboard.',
+    profile_complete_btn:     'Complete',
+    profile_complete_badge:   '✓ Profile complete',
+    profile_incomplete_badge: '⚠ Profile incomplete',
+    profile_change_avatar:    'Change photo',
+    profile_edit_btn:         'Edit',
+    profile_save_btn:         'Save profile',
+    profile_saving:           'Saving…',
+    profile_save_success:     'Profile saved!',
+    profile_save_error:       'Error saving profile.',
+    profile_victory:          '✓ Win',
+    profile_defeat:           '✗ Loss',
+
+    // ── ProfilePage — tabs ────────────────────────────────────
+    tab_profile: 'Profile',
+    tab_stats:   'Statistics',
+    tab_history: 'History',
+
+    // ── ProfilePage — form fields ─────────────────────────────
+    field_firstname:          'First name',
+    field_lastname:           'Last name',
+    field_username:           'Username',
+    field_age:                'Age',
+    field_age_unit:           'years old',
+    field_country:            'Country',
+    field_country_placeholder:'Select a country',
+    field_email:              'Email',
+    field_bio:                'Bio',
+    field_bio_placeholder:    'A few words about you…',
+
+    // ── ProfilePage — stats ───────────────────────────────────
+    stat_games_played: 'Games played',
+    stat_wins:         'Wins',
+    stat_win_rate:     'Win rate',
+    stat_best_score:   'Best score',
+    stat_avg_score:    'Average score',
+    stat_best_word:    'Best word',
+
+    // ── ProfilePage — history ─────────────────────────────────
+    history_date:      'Date',
+    history_opponent:  'Opponent',
+    history_score:     'Score',
+    history_result:    'Result',
+    history_best_word: 'Best word',
+    history_empty:     'No games recorded yet.',
   },
 };
 
