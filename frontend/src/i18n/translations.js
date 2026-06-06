@@ -9,42 +9,43 @@
 //   sync_*      → badge de synchronisation
 //   btn_*       → boutons génériques
 //   turn_*      → options de durée de tour
-//   start_*     → StartScreen mobile
-//   profile_*   → ProfilePage
+//   start_*     → écran de démarrage (web + mobile)
 //   game_*      → GamePage / GameScreen
+//   legend_*    → légende du plateau
+//   profile_*   → ProfilePage
 
 export const translations = {
 
-  // ════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
   fr: {
 
-    // ── Navbar ──────────────────────────────────────────────────
-    nav_play:          'Jouer',
-    nav_leaderboard:   'Classement',
-    nav_profile:       'Profil',
-    nav_settings:      'Paramètres',
-    nav_login:         'Connexion',
-    nav_register:      'Inscription',
-    nav_logout:        'Déconnexion',
-    nav_appearance:    'Apparence',
-    nav_currently:     'Actuellement',
+    // ── Navbar ────────────────────────────────────────────────
+    nav_play:        'Jouer',
+    nav_leaderboard: 'Classement',
+    nav_profile:     'Profil',
+    nav_settings:    'Paramètres',
+    nav_login:       'Connexion',
+    nav_register:    'Inscription',
+    nav_logout:      'Déconnexion',
+    nav_appearance:  'Apparence',
+    nav_currently:   'Actuellement',
 
-    // ── Thème (partagé Navbar + SettingsPage) ───────────────────
-    theme_light:       'Clair',
-    theme_dark:        'Sombre',
-    theme_system:      'Système',
+    // ── Thème (Navbar + SettingsPage) ─────────────────────────
+    theme_light:  'Clair',
+    theme_dark:   'Sombre',
+    theme_system: 'Système',
 
-    // ── SettingsPage — titre / sous-titre ───────────────────────
+    // ── SettingsPage — titre ──────────────────────────────────
     settings_title:    'Paramètres',
     settings_subtitle: 'Les préférences sont sauvegardées automatiquement',
 
-    // ── SettingsPage — sections ──────────────────────────────────
+    // ── SettingsPage — sections ───────────────────────────────
     section_appearance: 'Apparence',
     section_game:       'Partie',
     section_display:    'Affichage',
     section_behavior:   'Comportement',
 
-    // ── SettingsPage — lignes ───────────────────────────────────
+    // ── SettingsPage — lignes ─────────────────────────────────
     row_theme:                   'Thème',
     row_theme_desc:              'Choisissez entre clair, sombre, ou la préférence de votre système.',
     row_language:                "Langue de l'interface",
@@ -66,19 +67,23 @@ export const translations = {
     row_confirm_validation:      'Confirmer avant valider',
     row_confirm_validation_desc: 'Demander une confirmation avant de valider un mot.',
 
-    // ── Boutons ──────────────────────────────────────────────────
+    // ── Boutons génériques ────────────────────────────────────
     btn_reset:         'Réinitialiser tous les paramètres',
     btn_cancel:        'Annuler',
     btn_confirm_reset: 'Réinitialiser',
+    btn_validate:      'Valider',
+    btn_pass:          'Passer',
+    btn_exchange:      'Échanger',
+    btn_resign:        'Abandonner',
     confirm_reset:     'Confirmer la réinitialisation ?',
 
-    // ── Sync badge ───────────────────────────────────────────────
+    // ── Sync badge ────────────────────────────────────────────
     sync_syncing:    '⟳ Synchronisation…',
     sync_saved:      '✓ Sauvegardé',
     sync_not_synced: 'Non synchronisé',
     sync_guest:      'Mode invité — connectez-vous pour synchroniser',
 
-    // ── Difficultés ──────────────────────────────────────────────
+    // ── Difficultés ───────────────────────────────────────────
     diff_beginner_label:   'Débutant',
     diff_beginner_desc:    "Mots très courts, beaucoup d'erreurs",
     diff_easy_label:       'Facile',
@@ -90,70 +95,89 @@ export const translations = {
     diff_hard_label:       'Expert',
     diff_hard_desc:        'Maximise chaque score, tous les bonus',
 
-    // ── Durées de tour ───────────────────────────────────────────
+    // ── Durées de tour ────────────────────────────────────────
     turn_unlimited: 'Illimité',
     turn_1min:      '1 minute',
     turn_2min:      '2 minutes',
     turn_3min:      '3 minutes',
     turn_5min:      '5 minutes',
 
-    // ── GamePage / GameScreen ────────────────────────────────────
-    game_score_preview:    'Score estimé',
-    game_tiles_singular:   'tuile',
-    game_tiles_plural:     'tuiles',
-    game_placed_singular:  'posée',
-    game_placed_plural:    'posées',
-    btn_validate:          'Valider',
-    btn_pass:              'Passer',
-    btn_exchange:          'Échanger',
-    btn_resign:            'Abandonner',
-    ai_thinking:           "L'IA réfléchit…",
+    // ── Légende plateau ───────────────────────────────────────
+    legend_tw: 'Triple mot',
+    legend_dw: 'Double mot',
+    legend_tl: 'Triple lettre',
+    legend_dl: 'Double lettre',
 
-    // ── ProfilePage ──────────────────────────────────────────────
-    profile_title:   'Profil',
-    profile_victory: '✓ Victoire',
-    profile_defeat:  '✗ Défaite',
-
-    // ── StartScreen (mobile) ─────────────────────────────────────
+    // ── Écran de démarrage (web + mobile) ─────────────────────
     start_edition:            'Édition de Luxe — 1972',
     start_subtitle:           'Le jeu classique des mots croisés',
+    start_btn:                'Démarrer la partie',
+    start_loading:            'Démarrage…',
+    start_change_in:          'Modifiable dans',
     start_your_name:          'Votre nom',
     start_player_placeholder: 'Joueur 1',
     start_difficulty:         "Difficulté de l'IA",
-    start_btn:                'Commencer la partie',
-    start_loading:            'Chargement…',
+
+    // ── GamePage ──────────────────────────────────────────────
+    game_score_preview:   'Aperçu du score',
+    game_tiles_singular:  'tuile',
+    game_tiles_plural:    'tuiles',
+    game_placed_singular: 'posée',
+    game_placed_plural:   'posées',
+    game_swap_selected:   'sélectionnée(s) pour l'échange',
+    game_drag_hint:       'Glissez vos lettres sur le plateau',
+    game_swap_hint:       'Sélectionnez les lettres à échanger dans le rack',
+    game_swap_cancel:     "Annuler l'échange",
+    game_swap_mode:       'Mode échange',
+    game_shuffle:         'Mélanger le rack',
+    game_abandon:         'Abandonner la partie',
+    game_abandon_title:   'Abandonner ?',
+    game_abandon_desc:    'La partie sera comptée comme une défaite.',
+    game_abandon_confirm: 'Confirmer',
+    game_confirm_play:    'Valider ce mot',
+    game_win_title:       'Victoire !',
+    game_lose_title:      'Défaite',
+    game_wins_sentence:   'remporte la partie',
+    game_replay:          'Rejouer',
+    game_my_profile:      'Mon profil',
+    ai_thinking:          "L'IA réfléchit…",
+
+    // ── ProfilePage ───────────────────────────────────────────
+    profile_title:   'Profil',
+    profile_victory: '✓ Victoire',
+    profile_defeat:  '✗ Défaite',
   },
 
-  // ════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
   en: {
 
-    // ── Navbar ──────────────────────────────────────────────────
-    nav_play:          'Play',
-    nav_leaderboard:   'Leaderboard',
-    nav_profile:       'Profile',
-    nav_settings:      'Settings',
-    nav_login:         'Log in',
-    nav_register:      'Sign up',
-    nav_logout:        'Log out',
-    nav_appearance:    'Appearance',
-    nav_currently:     'Currently',
+    // ── Navbar ────────────────────────────────────────────────
+    nav_play:        'Play',
+    nav_leaderboard: 'Leaderboard',
+    nav_profile:     'Profile',
+    nav_settings:    'Settings',
+    nav_login:       'Log in',
+    nav_register:    'Sign up',
+    nav_logout:      'Log out',
+    nav_appearance:  'Appearance',
+    nav_currently:   'Currently',
 
-    // ── Theme ────────────────────────────────────────────────────
-    theme_light:       'Light',
-    theme_dark:        'Dark',
-    theme_system:      'System',
+    // ── Theme ─────────────────────────────────────────────────
+    theme_light:  'Light',
+    theme_dark:   'Dark',
+    theme_system: 'System',
 
-    // ── SettingsPage — title / subtitle ─────────────────────────
+    // ── SettingsPage — title ──────────────────────────────────
     settings_title:    'Settings',
     settings_subtitle: 'Preferences are saved automatically',
 
-    // ── SettingsPage — sections ──────────────────────────────────
+    // ── SettingsPage — sections ───────────────────────────────
     section_appearance: 'Appearance',
     section_game:       'Game',
     section_display:    'Display',
     section_behavior:   'Behaviour',
 
-    // ── SettingsPage — rows ──────────────────────────────────────
+    // ── SettingsPage — rows ───────────────────────────────────
     row_theme:                   'Theme',
     row_theme_desc:              'Choose between light, dark, or your system preference.',
     row_language:                'Interface Language',
@@ -175,19 +199,23 @@ export const translations = {
     row_confirm_validation:      'Confirm Before Submit',
     row_confirm_validation_desc: 'Ask for confirmation before submitting a word.',
 
-    // ── Buttons ──────────────────────────────────────────────────
+    // ── Generic buttons ───────────────────────────────────────
     btn_reset:         'Reset all settings',
     btn_cancel:        'Cancel',
     btn_confirm_reset: 'Reset',
+    btn_validate:      'Submit',
+    btn_pass:          'Pass',
+    btn_exchange:      'Exchange',
+    btn_resign:        'Resign',
     confirm_reset:     'Confirm reset?',
 
-    // ── Sync badge ───────────────────────────────────────────────
+    // ── Sync badge ────────────────────────────────────────────
     sync_syncing:    '⟳ Syncing…',
     sync_saved:      '✓ Saved',
     sync_not_synced: 'Not synced',
     sync_guest:      'Guest mode — log in to sync',
 
-    // ── Difficulties ─────────────────────────────────────────────
+    // ── Difficulties ──────────────────────────────────────────
     diff_beginner_label:   'Beginner',
     diff_beginner_desc:    'Very short words, many mistakes',
     diff_easy_label:       'Easy',
@@ -199,38 +227,57 @@ export const translations = {
     diff_hard_label:       'Expert',
     diff_hard_desc:        'Maximises every score, all bonuses',
 
-    // ── Turn options ─────────────────────────────────────────────
+    // ── Turn options ──────────────────────────────────────────
     turn_unlimited: 'Unlimited',
     turn_1min:      '1 minute',
     turn_2min:      '2 minutes',
     turn_3min:      '3 minutes',
     turn_5min:      '5 minutes',
 
-    // ── GamePage / GameScreen ────────────────────────────────────
-    game_score_preview:    'Estimated score',
-    game_tiles_singular:   'tile',
-    game_tiles_plural:     'tiles',
-    game_placed_singular:  'placed',
-    game_placed_plural:    'placed',
-    btn_validate:          'Submit',
-    btn_pass:              'Pass',
-    btn_exchange:          'Exchange',
-    btn_resign:            'Resign',
-    ai_thinking:           'AI is thinking…',
+    // ── Board legend ──────────────────────────────────────────
+    legend_tw: 'Triple Word',
+    legend_dw: 'Double Word',
+    legend_tl: 'Triple Letter',
+    legend_dl: 'Double Letter',
 
-    // ── ProfilePage ──────────────────────────────────────────────
-    profile_title:   'Profile',
-    profile_victory: '✓ Win',
-    profile_defeat:  '✗ Loss',
-
-    // ── StartScreen (mobile) ─────────────────────────────────────
+    // ── Start screen (web + mobile) ───────────────────────────
     start_edition:            'Luxury Edition — 1972',
     start_subtitle:           'The classic crossword board game',
+    start_btn:                'Start Game',
+    start_loading:            'Starting…',
+    start_change_in:          'Change in',
     start_your_name:          'Your name',
     start_player_placeholder: 'Player 1',
     start_difficulty:         'AI Difficulty',
-    start_btn:                'Start Game',
-    start_loading:            'Loading…',
+
+    // ── GamePage ──────────────────────────────────────────────
+    game_score_preview:   'Score Preview',
+    game_tiles_singular:  'tile',
+    game_tiles_plural:    'tiles',
+    game_placed_singular: 'placed',
+    game_placed_plural:   'placed',
+    game_swap_selected:   'selected for exchange',
+    game_drag_hint:       'Drag your letters onto the board',
+    game_swap_hint:       'Select the letters to exchange from your rack',
+    game_swap_cancel:     'Cancel exchange',
+    game_swap_mode:       'Exchange mode',
+    game_shuffle:         'Shuffle rack',
+    game_abandon:         'Resign',
+    game_abandon_title:   'Resign?',
+    game_abandon_desc:    'This game will be counted as a loss.',
+    game_abandon_confirm: 'Confirm',
+    game_confirm_play:    'Submit this word',
+    game_win_title:       'Victory!',
+    game_lose_title:      'Defeat',
+    game_wins_sentence:   'wins the game',
+    game_replay:          'Play again',
+    game_my_profile:      'My profile',
+    ai_thinking:          'AI is thinking…',
+
+    // ── ProfilePage ───────────────────────────────────────────
+    profile_title:   'Profile',
+    profile_victory: '✓ Win',
+    profile_defeat:  '✗ Loss',
   },
 };
 
