@@ -1,6 +1,7 @@
 // src/hooks/useGameLogic.js
-// Toute la logique métier du jeu — extraite de App.jsx.
-// Miroir du useGameLogic.ts de l'app mobile.
+// Toute la logique métier du jeu.
+// Les notifications (erreurs, IA, succès) passent toutes par `addToast`
+// fourni en paramètre depuis GamePage via useToast().
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as gameService from '../api/gameService';
@@ -28,21 +29,30 @@ function calculatePreviewScore(placements) {
 // ── Hook principal ────────────────────────────────────────────────
 
 /**
- * @param {{ isAuthenticated: boolean, user: object|null, autoSortRack: boolean }} options
+ * @param {{
+ *   isAuthenticated: boolean,
+ *   user: object|null,
+ *   autoSortRack: boolean,
+ *   addToast: (message: string, type: 'info'|'success'|'error'|'warn') => void
+ * }} options
  */
-export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {}) {
+export function useGameLogic({
+  isAuthenticated,
+  user,
+  autoSortRack = false,
+  addToast = () => {},
+} = {}) {
 
   // ── State ─────────────────────────────────────────────────────
-  const [gameState, setGameState]                   = useState(null);
-  const [gameId, setGameId]                         = useState(null);
-  const [placements, setPlacements]                 = useState([]);       // tuiles posées temporairement
+  const [gameState, setGameState]                     = useState(null);
+  const [gameId, setGameId]                           = useState(null);
+  const [placements, setPlacements]                   = useState([]);
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
-  const [gameStartTime, setGameStartTime]           = useState(null);
-  const [gameSaved, setGameSaved]                   = useState(false);
-  const [aiMessage, setAiMessage]                   = useState(null);
-  const [timerActive, setTimerActive]               = useState(false);
-  const [isLoading, setIsLoading]                   = useState(false);
-  const [showAbandonModal, setShowAbandonModal]     = useState(false);
+  const [gameStartTime, setGameStartTime]             = useState(null);
+  const [gameSaved, setGameSaved]                     = useState(false);
+  const [timerActive, setTimerActive]                 = useState(false);
+  const [isLoading, setIsLoading]                     = useState(false);
+  const [showAbandonModal, setShowAbandonModal]       = useState(false);
 
   const timerResetRef = useRef(null);
 
@@ -69,7 +79,7 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
   const previewScore = useMemo(() => calculatePreviewScore(placements), [placements]);
   const isSwapMode   = selectedTilesToSwap.length > 0;
 
-  // ── IA auto-play ──────────────────────────────────────────────
+  // ── Tour IA automatique ───────────────────────────────────────
   useEffect(() => {
     if (!gameState || gameState.status !== 'ACTIVE' || !gameId) return;
     const currentPlayer = gameState.players[gameState.current_player_index];
@@ -79,12 +89,10 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
       try {
         const { gameState: updated, message } = await gameService.aiPlayTurn(gameId);
         setGameState(updated);
-        if (message) {
-          setAiMessage(message);
-          setTimeout(() => setAiMessage(null), 4000);
-        }
+        if (message) addToast(message, 'info');
       } catch (e) {
         console.error('Erreur IA:', e?.response?.data?.detail);
+        addToast('L\'IA a rencontré une erreur. Tour passé.', 'warn');
       }
     }, 1500);
 
@@ -129,8 +137,8 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
 
   // ── Actions ───────────────────────────────────────────────────
 
-    const initSwapMode  = useCallback(() => setSelectedTilesToSwap(['__placeholder__']), []);
-    const clearSwapMode = useCallback(() => setSelectedTilesToSwap([]), []);
+  const initSwapMode  = useCallback(() => setSelectedTilesToSwap(['__placeholder__']), []);
+  const clearSwapMode = useCallback(() => setSelectedTilesToSwap([]), []);
 
   const startGame = useCallback(async (difficulty = 'medium') => {
     setIsLoading(true);
@@ -146,11 +154,11 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
       setTimerActive(true);
     } catch (e) {
       console.error('Erreur démarrage:', e);
-      alert('Erreur lors du démarrage. Vérifiez votre connexion au backend.');
+      addToast('Impossible de démarrer la partie. Vérifiez votre connexion.', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, addToast]);
 
   /** Déposer une tuile du rack sur une case du plateau. */
   const handleDropTile = useCallback((rackIndex, r, c) => {
@@ -175,7 +183,7 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
 
   const handleValidateWord = useCallback(async () => {
     if (!gameId || placements.length === 0) {
-      alert('Veuillez placer un mot sur le plateau.');
+      addToast('Placez au moins une lettre sur le plateau.', 'warn');
       return;
     }
     setSelectedTilesToSwap([]);
@@ -183,56 +191,69 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
     try {
       const result = await gameService.playWord(gameId, activePlayerId, placementsAPI);
       setGameState(result);
+      // Bonus bingo : 7 tuiles posées d'un coup
+      if (placements.length === 7) {
+        addToast('🎉 Bingo ! 7 lettres posées — bonus 50 pts !', 'success');
+      }
       setPlacements([]);
       if (result.status !== 'FINISHED') {
         timerResetRef.current?.();
       }
     } catch (error) {
-      alert(`Erreur : ${error.response?.data?.detail || 'Mot invalide ou placement illégal.'}`);
+      const detail = error.response?.data?.detail || 'Mot invalide ou placement illégal.';
+      addToast(detail, 'error');
       setPlacements([]);
     }
-  }, [gameId, placements, activePlayerId]);
+  }, [gameId, placements, activePlayerId, addToast]);
 
   const handlePassTurn = useCallback(async () => {
     if (!gameId) return;
     try {
       const updated = await gameService.passTurn(gameId, activePlayerId);
       setGameState(updated);
+      addToast('Tour passé.', 'info');
     } catch (error) {
-      alert(`Erreur : ${error.response?.data?.detail || 'Erreur API'}`);
+      const detail = error.response?.data?.detail || 'Impossible de passer le tour.';
+      addToast(detail, 'error');
     }
-  }, [gameId, activePlayerId]);
+  }, [gameId, activePlayerId, addToast]);
 
   const handleShuffleRack = useCallback(async () => {
     if (!gameId) return;
     try {
       const updated = await gameService.shuffleRack(gameId, activePlayerId);
       setGameState(updated);
+      addToast('Rack mélangé.', 'success');
     } catch (error) {
-      alert(`Erreur : ${error.response?.data?.detail || 'Erreur API'}`);
+      const detail = error.response?.data?.detail || 'Impossible de mélanger le rack.';
+      addToast(detail, 'error');
     }
-  }, [gameId, activePlayerId]);
+  }, [gameId, activePlayerId, addToast]);
 
   const handleSwapTiles = useCallback(async () => {
-    if (!gameId || selectedTilesToSwap.length === 0) {
-      alert('Sélectionnez les lettres à échanger.');
+    const realTiles = selectedTilesToSwap.filter(l => l !== '__placeholder__');
+    if (!gameId || realTiles.length === 0) {
+      addToast('Sélectionnez les lettres à échanger.', 'warn');
       return;
     }
     setPlacements([]);
     try {
-      const updated = await gameService.swapTiles(gameId, activePlayerId, selectedTilesToSwap);
+      const updated = await gameService.swapTiles(gameId, activePlayerId, realTiles);
       setGameState(updated);
       setSelectedTilesToSwap([]);
+      addToast(`${realTiles.length} lettre(s) échangée(s).`, 'success');
     } catch (error) {
-      alert(`Échec de l'échange : ${error.response?.data?.detail || 'Erreur API'}`);
+      const detail = error.response?.data?.detail || 'Échange impossible.';
+      addToast(detail, 'error');
     }
-  }, [gameId, activePlayerId, selectedTilesToSwap]);
+  }, [gameId, activePlayerId, selectedTilesToSwap, addToast]);
 
   /** Expiration du timer → passe le tour automatiquement. */
   const handleTimerExpire = useCallback(async () => {
     if (!gameId || isAITurn) return;
     setPlacements([]);
     setSelectedTilesToSwap([]);
+    addToast('Temps écoulé — tour passé automatiquement.', 'warn');
     try {
       const updated = await gameService.passTurn(gameId, activePlayerId);
       setGameState(updated);
@@ -240,7 +261,7 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
     } catch (e) {
       console.error('Auto-pass échoué:', e);
     }
-  }, [gameId, activePlayerId, isAITurn]);
+  }, [gameId, activePlayerId, isAITurn, addToast]);
 
   const toggleTileForSwap = useCallback((letter) => {
     setSelectedTilesToSwap(prev =>
@@ -286,6 +307,7 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
 
     } catch (err) {
       console.warn('Abandon backend error:', err?.response?.data?.detail || err.message);
+      // Réinitialisation locale si le backend échoue
       setGameState(null);
       setGameId(null);
       setPlacements([]);
@@ -302,7 +324,6 @@ export function useGameLogic({ isAuthenticated, user, autoSortRack = false } = {
     gameId,
     placements,
     selectedTilesToSwap,
-    aiMessage,
     timerActive,
     isLoading,
     isSwapMode,

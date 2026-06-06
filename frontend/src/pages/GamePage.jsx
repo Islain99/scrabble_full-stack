@@ -91,8 +91,8 @@ function AbandonModal({ onConfirm, onCancel }) {
 export default function GamePage() {
   const { user, isAuthenticated } = useAuth();
   const { settings, DIFFICULTY_META } = useSettings();
-
-  const game = useGameLogic({ isAuthenticated, user, autoSortRack: settings.autoSortRack });
+  const { toasts, addToast, dismissToast } = useToast();
+  const game = useGameLogic({ isAuthenticated, user, autoSortRack: settings.autoSortRack, addToast });
 
   // ── Écran de démarrage ────────────────────────────────────────
   if (!game.gameState) {
@@ -186,19 +186,7 @@ export default function GamePage() {
       />
 
       {/* Toast message IA */}
-      {game.aiMessage && (
-        <div role="status" aria-live="polite" style={{
-          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 200, background: 'var(--bg-card)', border: '2px solid var(--gold)',
-          borderRadius: '8px', padding: '10px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
-          fontFamily: "'DM Mono', monospace", fontSize: '0.9rem', color: 'var(--text-primary)',
-          display: 'flex', alignItems: 'center', gap: '10px', maxWidth: '90vw',
-          animation: 'fadeInUp 0.25s ease',
-        }}>
-          <span style={{ fontSize: '1.1rem' }}>🤖</span>
-          <span>{game.aiMessage}</span>
-        </div>
-      )}
+      <Toast toasts={toasts} onDismiss={dismissToast} />
 
         <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start' }}>
