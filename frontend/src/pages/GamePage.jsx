@@ -115,87 +115,34 @@ export default function GamePage() {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
         <div style={{ background: 'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding: '3rem 2.5rem', maxWidth: '480px', width: '100%', boxShadow: '8px 8px 0 var(--shadow-card)', textAlign: 'center',}}>
-          <div style={{
-            fontFamily:    "'DM Mono', monospace",
-            fontSize:      '0.6rem',
-            color:         'var(--text-muted)',
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            marginBottom:  '6px',
-          }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px',}}>
             {t('start_edition')}
           </div>
-          <h1 style={{
-            fontFamily:    "'Playfair Display', Georgia, serif",
-            fontSize:      'clamp(2.5rem, 6vw, 4rem)',
-            fontWeight:    900,
-            color:         'var(--text-primary)',
-            letterSpacing: '-0.04em',
-            margin:        '0 0 4px',
-          }}>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 900, color: 'var(--text-primary)', letterSpacing: '-0.04em', margin: '0 0 4px',}}>
             SCRABBLE
           </h1>
-          <div style={{
-            height:     '3px',
-            background: 'var(--gold)',
-            margin:     '8px auto 12px',
-            width:      '60px',
-          }} />
-          <p style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize:   '0.7rem',
-            color:      'var(--text-muted)',
-            letterSpacing: '0.1em',
-            marginBottom: '2rem',
-          }}>
+          <div style={{ height: '3px', background: 'var(--gold)', margin: '8px auto 12px', width: '60px',}} />
+          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: '2rem',}}>
             {t('start_subtitle')}
           </p>
 
           {/* Difficulté courante */}
-          <div style={{
-            background:   'var(--bg-page-alt)',
-            border:       '1px solid var(--border-muted)',
-            borderRadius: '2px',
-            padding:      '12px 16px',
-            marginBottom: '1.5rem',
-            textAlign:    'left',
-          }}>
-            <div style={{
-              fontFamily:    "'DM Mono', monospace",
-              fontSize:      '0.6rem',
-              color:         'var(--text-muted)',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              marginBottom:  '6px',
-            }}>
+          <div style={{ background: 'var(--bg-page-alt)', border: '1px solid var(--border-muted)', borderRadius: '2px', padding: '12px 16px', marginBottom: '1.5rem', textAlign: 'left',}}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '6px',}}>
               {t('row_difficulty')}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '1.4rem' }}>{meta.emoji}</span>
               <div>
-                <div style={{
-                  fontFamily: "'Playfair Display', serif",
-                  fontSize:   '1rem',
-                  fontWeight: 700,
-                  color:      'var(--text-primary)',
-                }}>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)',}}>
                   {t(`diff_${settings.difficulty}_label`)}
                 </div>
-                <div style={{
-                  fontFamily: "'DM Mono', monospace",
-                  fontSize:   '0.62rem',
-                  color:      'var(--text-muted)',
-                }}>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--text-muted)',}}>
                   {t(`diff_${settings.difficulty}_desc`)}
                 </div>
               </div>
             </div>
-            <div style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize:   '0.6rem',
-              color:      'var(--text-muted)',
-              marginTop:  '8px',
-            }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '8px',}}>
               {t('start_change_in')}{' '}
               <a href="#/settings" style={{ color: 'var(--tobacco)' }}>
                 {t('nav_settings')}
@@ -222,42 +169,15 @@ export default function GamePage() {
     const won         = game.gameState.winner_name === humanPlayer?.name;
 
     return (
-      <div style={{
-        minHeight:      'calc(100vh - 60px)',
-        background:     'var(--bg-page)',
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'center',
-        padding:        '2rem',
-      }}>
-        <div style={{
-          background:   'var(--bg-card)',
-          border:       '3px solid var(--border-primary)',
-          borderRadius: '3px',
-          padding:      '3rem',
-          maxWidth:     '480px',
-          width:        '100%',
-          boxShadow:    '8px 8px 0 var(--shadow-card)',
-          textAlign:    'center',
-        }}>
+      <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
+        <div style={{ background:   'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding:      '3rem', maxWidth:     '480px', width:        '100%', boxShadow:    '8px 8px 0 var(--shadow-card)', textAlign:    'center',}}>
           <div style={{ fontSize: '3rem', marginBottom: '12px' }}>
             {won ? '🏆' : '🎩'}
           </div>
-          <h2 style={{
-            fontFamily: "'Playfair Display', serif",
-            fontSize:   '2rem',
-            fontWeight: 900,
-            color:      won ? 'var(--olive)' : 'var(--brick)',
-            margin:     '0 0 6px',
-          }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 900, color: won ? 'var(--olive)' : 'var(--brick)', margin: '0 0 6px', }}>
             {won ? t('game_win_title') : t('game_lose_title')}
           </h2>
-          <p style={{
-            fontFamily:   "'DM Mono', monospace",
-            fontSize:     '0.75rem',
-            color:        'var(--text-muted)',
-            marginBottom: '2rem',
-          }}>
+          <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2rem',}}>
             {game.gameState.winner_name} {t('game_wins_sentence')}
           </p>
 
@@ -266,13 +186,7 @@ export default function GamePage() {
             currentPlayerId={-1}
           />
 
-          <div style={{
-            display:        'flex',
-            gap:            '10px',
-            justifyContent: 'center',
-            flexWrap:       'wrap',
-            marginTop:      '2rem',
-          }}>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '2rem', }}>
             <RetroButton
               onClick={() => game.startGame(settings.difficulty)}
               variant="primary"
@@ -306,18 +220,8 @@ export default function GamePage() {
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
 
-      <div style={{
-        padding:    'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)',
-        maxWidth:   '1600px',
-        margin:     '0 auto',
-        boxSizing:  'border-box',
-      }}>
-        <div style={{
-          display:             'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)',
-          gap:                 'clamp(1rem, 2vw, 2rem)',
-          alignItems:          'start',
-        }}>
+      <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box',}}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start',}}>
 
           {/* ── Colonne gauche : plateau + rack ─────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -333,15 +237,7 @@ export default function GamePage() {
 
             <div style={{ marginTop: '4px' }}>
               {/* Instruction contextuelle */}
-              <div style={{
-                fontFamily:    "'DM Mono', monospace",
-                fontSize:      '0.78rem',
-                color:         'var(--text-muted)',
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                textAlign:     'center',
-                marginBottom:  '12px',
-              }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px', }}>
                 {game.isSwapMode
                   ? `${game.selectedTilesToSwap.length} ${t(
                       game.selectedTilesToSwap.length > 1
@@ -361,15 +257,7 @@ export default function GamePage() {
           </div>
 
           {/* ── Sidebar droite ──────────────────────────────── */}
-          <aside style={{
-            display:    'flex',
-            flexDirection: 'column',
-            gap:        '16px',
-            position:   'sticky',
-            top:        '80px',
-            maxHeight:  'calc(100vh - 100px)',
-            overflowY:  'auto',
-          }}>
+          <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', }}>
             <ScorePanel
               players={game.gameState.players}
               currentPlayerId={game.activePlayerId}
@@ -424,19 +312,10 @@ export default function GamePage() {
               </RetroButton>
 
               {/* Mode échange */}
-              <div style={{
-                borderTop:  '1px solid var(--border-muted)',
-                paddingTop: '10px',
-              }}>
+              <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '10px', }}>
                 {game.isSwapMode ? (
                   <>
-                    <div style={{
-                      fontFamily:   "'DM Mono', monospace",
-                      fontSize:     '0.65rem',
-                      color:        'var(--text-muted)',
-                      textAlign:    'center',
-                      marginBottom: '8px',
-                    }}>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '8px',}}>
                       {t('game_swap_hint')}
                     </div>
                     <RetroButton
@@ -470,11 +349,7 @@ export default function GamePage() {
               </div>
 
               {/* Abandonner */}
-              <div style={{
-                borderTop:  '1px solid rgba(139,32,32,0.2)',
-                paddingTop: '14px',
-                marginTop:  '4px',
-              }}>
+              <div style={{ borderTop:  '1px solid rgba(139,32,32,0.2)', paddingTop: '14px', marginTop:  '4px',}}>
                 <RetroButton
                   variant="danger"
                   fullWidth
