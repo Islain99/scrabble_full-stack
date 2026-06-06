@@ -1,12 +1,9 @@
 // src/pages/SettingsPage.jsx
-// Refactorisé : composants Section/Row/Toggle/ChipGroup locaux
-// → Card, PageHeader, MonoLabel, RetroButton, Spinner du design system ui/
-
 import React, { useState } from 'react';
-import { useSettings } from '../context/SettingsContext';
-import { useTheme }    from '../context/ThemeContext';
-import { useLanguage }         from '../context/LanguageContext';
-import { LANGUAGES }           from '../i18n/translations';
+import { useSettings }  from '../context/SettingsContext';
+import { useTheme }     from '../context/ThemeContext';
+import { useLanguage }  from '../context/LanguageContext';
+import { LANGUAGES }    from '../i18n/translations';
 import { Card, PageHeader, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Composants internes ───────────────────────────────────────────
@@ -22,10 +19,10 @@ const Row = ({ label, desc, children }) => (
   }}>
     <div style={{ flex: 1, minWidth: '160px' }}>
       <div style={{
-        fontFamily:  "'Playfair Display', serif",
-        fontSize:    '0.95rem',
-        fontWeight:  700,
-        color:       'var(--text-primary)',
+        fontFamily:   "'Playfair Display', serif",
+        fontSize:     '0.95rem',
+        fontWeight:   700,
+        color:        'var(--text-primary)',
         marginBottom: '2px',
       }}>
         {label}
@@ -103,6 +100,22 @@ const ChipGroup = ({ options, value, onChange }) => (
   </div>
 );
 
+// ── SectionHeader interne ─────────────────────────────────────────
+
+const SectionTitle = ({ emoji, label }) => (
+  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <span style={{ fontSize: '1rem' }}>{emoji}</span>
+    <span style={{
+      fontFamily: "'Playfair Display', serif",
+      fontSize:   '1rem',
+      fontWeight: 700,
+      color:      'var(--text-invert)',
+    }}>
+      {label}
+    </span>
+  </span>
+);
+
 // ── Page principale ───────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -111,29 +124,51 @@ export default function SettingsPage() {
     TURN_OPTIONS, DIFFICULTY_META,
     syncing, lastSynced, currentUid,
   } = useSettings();
+
   const { preference, setTheme } = useTheme();
-  const { t, language, setLanguage, t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const diffOptions = Object.entries(DIFFICULTY_META).map(([key, meta]) => ({
-    key, ...meta, value: key,
-  }));
+  // ── Options traduites ─────────────────────────────────────────
 
   const themeOptions = [
-    { value: 'light',  emoji: '☀️', label: t('theme_light')   },
-    { value: 'dark',   emoji: '🌙', label: t('theme_dark')  },
+    { value: 'light',  emoji: '☀️', label: t('theme_light')  },
+    { value: 'dark',   emoji: '🌙', label: t('theme_dark')   },
     { value: 'system', emoji: '⚙️', label: t('theme_system') },
   ];
 
-  const langOptions = LANGUAGES.map(l => ({ ...l, key: l.value }));
+  const langOptions = LANGUAGES.map(l => ({
+    value: l.value,
+    label: l.label,
+    emoji: l.emoji,
+  }));
+
+  // Difficultés avec labels/descs traduits
+  const diffOptions = Object.entries(DIFFICULTY_META).map(([key, meta]) => ({
+    key,
+    emoji: meta.emoji,
+    label: t(`diff_${key}_label`),
+    desc:  t(`diff_${key}_desc`),
+  }));
+
+  // Durées de tour traduites
+  const turnKeys = ['turn_unlimited', 'turn_1min', 'turn_2min', 'turn_3min', 'turn_5min'];
+  const turnValues = [0, 60, 120, 180, 300];
+  const turnOptions = TURN_OPTIONS.map((o, i) => ({
+    value: o.value,
+    label: t(turnKeys[i]),
+    short: i === 0 ? '∞' : `${turnValues[i] / 60} min`,
+  }));
+
+  // ── Badge de synchronisation ──────────────────────────────────
 
   const syncLabel = syncing
-    ? '⟳ Synchronisation…'
+    ? t('sync_syncing')
     : lastSynced
-      ? `✓ Sauvegardé ${lastSynced.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+      ? `${t('sync_saved')} ${lastSynced.toLocaleTimeString(language === 'fr' ? 'fr-FR' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}`
       : currentUid
-        ? 'Non synchronisé'
-        : 'Mode invité — connectez-vous pour synchroniser';
+        ? t('sync_not_synced')
+        : t('sync_guest');
 
   const SyncBadge = () => (
     <div style={{
@@ -142,8 +177,16 @@ export default function SettingsPage() {
       gap:        '6px',
       marginTop:  '8px',
       padding:    '4px 10px',
-      background: syncing ? 'var(--bg-card-alt)' : lastSynced ? 'rgba(94,107,58,0.12)' : 'var(--bg-card-alt)',
-      border:     `1px solid ${syncing ? 'var(--border-muted)' : lastSynced ? 'var(--olive)' : 'var(--border-muted)'}`,
+      background: syncing
+        ? 'var(--bg-card-alt)'
+        : lastSynced
+          ? 'rgba(94,107,58,0.12)'
+          : 'var(--bg-card-alt)',
+      border: `1px solid ${
+        syncing   ? 'var(--border-muted)' :
+        lastSynced ? 'var(--olive)'       :
+                     'var(--border-muted)'
+      }`,
       borderRadius: '2px',
     }}>
       {syncing && <Spinner size={10} />}
@@ -153,13 +196,15 @@ export default function SettingsPage() {
     </div>
   );
 
+  // ── Render ────────────────────────────────────────────────────
+
   return (
     <div className="s-page">
       <div className="s-container">
 
         <PageHeader
-          title="Paramètres"
-          subtitle="Les préférences sont sauvegardées automatiquement"
+          title={t('settings_title')}
+          subtitle={t('settings_subtitle')}
         >
           <SyncBadge />
         </PageHeader>
@@ -169,41 +214,31 @@ export default function SettingsPage() {
           {/* ── Apparence ──────────────────────────────────── */}
           <Card>
             <Card.Header>
-              <span style={{ fontSize: '1rem' }}>🎨</span>
-              <span style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: '1rem', fontWeight: 700,
-                color: 'var(--text-invert)',
-              }}>
-                t('section_appearance')
-              </span>
+              <SectionTitle emoji="🎨" label={t('section_appearance')} />
             </Card.Header>
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <Row label="Thème" desc="Choisissez entre clair, sombre, ou la préférence de votre système.">
+
+              <Row label={t('row_theme')} desc={t('row_theme_desc')}>
                 <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
               </Row>
-              <Row label={t('section_language')} desc={t('settings_language_desc')}>
+
+              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+
+              <Row label={t('row_language')} desc={t('row_language_desc')}>
                 <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
               </Row>
+
             </Card.Body>
           </Card>
 
           {/* ── Partie ─────────────────────────────────────── */}
           <Card>
             <Card.Header>
-              <span style={{ fontSize: '1rem' }}>🎮</span>
-              <span style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: '1rem', fontWeight: 700,
-                color: 'var(--text-invert)',
-              }}>
-                {t('section_game')}
-              </span>
+              <SectionTitle emoji="🎮" label={t('section_game')} />
             </Card.Header>
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
-              <Row label="Difficulté de l'IA" desc="Niveau de l'adversaire IA.">
-                {/* Sélecteur de difficulté enrichi (avec desc) */}
+              <Row label={t('row_difficulty')} desc={t('row_difficulty_desc')}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '260px' }}>
                   {diffOptions.map(d => {
                     const active = d.key === settings.difficulty;
@@ -212,17 +247,17 @@ export default function SettingsPage() {
                         key={d.key}
                         onClick={() => update('difficulty', d.key)}
                         style={{
-                          display:     'flex',
-                          alignItems:  'center',
-                          gap:         '10px',
-                          padding:     '10px 14px',
+                          display:      'flex',
+                          alignItems:   'center',
+                          gap:          '10px',
+                          padding:      '10px 14px',
                           borderRadius: '2px',
-                          border:      `2px solid ${active ? 'var(--border-primary)' : 'var(--border-muted)'}`,
-                          background:  active ? 'var(--bg-invert)' : 'transparent',
-                          cursor:      'pointer',
-                          transition:  'all 0.15s',
-                          boxShadow:   active ? '3px 3px 0 var(--border-gold-dk)' : 'none',
-                          textAlign:   'left',
+                          border:       `2px solid ${active ? 'var(--border-primary)' : 'var(--border-muted)'}`,
+                          background:   active ? 'var(--bg-invert)' : 'transparent',
+                          cursor:       'pointer',
+                          transition:   'all 0.15s',
+                          boxShadow:    active ? '3px 3px 0 var(--border-gold-dk)' : 'none',
+                          textAlign:    'left',
                         }}
                       >
                         <span style={{ fontSize: '1.1rem' }}>{d.emoji}</span>
@@ -254,12 +289,9 @@ export default function SettingsPage() {
 
               <div style={{ borderTop: '1px solid var(--border-muted)' }} />
 
-              <Row
-                label="Durée de tour"
-                desc="Temps alloué par tour. Quand le temps expire, le tour est passé automatiquement."
-              >
+              <Row label={t('row_turn_duration')} desc={t('row_turn_duration_desc')}>
                 <ChipGroup
-                  options={TURN_OPTIONS.map(o => ({ ...o, value: o.value, short: o.label }))}
+                  options={turnOptions}
                   value={settings.turnDuration}
                   onChange={v => update('turnDuration', v)}
                 />
@@ -271,68 +303,102 @@ export default function SettingsPage() {
           {/* ── Affichage ──────────────────────────────────── */}
           <Card>
             <Card.Header>
-              <span style={{ fontSize: '1rem' }}>👁️</span>
-              <span style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: '1rem', fontWeight: 700,
-                color: 'var(--text-invert)',
-              }}>
-                Affichage
-              </span>
+              <SectionTitle emoji="👁️" label={t('section_display')} />
             </Card.Header>
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <Row label="Score provisoire" desc="Afficher le score estimé pendant le placement des tuiles.">
-                <Toggle value={settings.showScorePreview} onChange={v => update('showScorePreview', v)} />
+
+              <Row label={t('row_score_preview')} desc={t('row_score_preview_desc')}>
+                <Toggle
+                  value={settings.showScorePreview}
+                  onChange={v => update('showScorePreview', v)}
+                />
               </Row>
-              <Row label="Tuiles restantes" desc="Afficher le nombre de tuiles restantes dans le sac.">
-                <Toggle value={settings.showRemainingTiles} onChange={v => update('showRemainingTiles', v)} />
+
+              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+
+              <Row label={t('row_remaining_tiles')} desc={t('row_remaining_tiles_desc')}>
+                <Toggle
+                  value={settings.showRemainingTiles}
+                  onChange={v => update('showRemainingTiles', v)}
+                />
               </Row>
-              <Row label="Labels des cases bonus" desc="Afficher 2M, 3L, etc. sur les cases spéciales du plateau.">
-                <Toggle value={settings.showBonusLabels} onChange={v => update('showBonusLabels', v)} />
+
+              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+
+              <Row label={t('row_bonus_labels')} desc={t('row_bonus_labels_desc')}>
+                <Toggle
+                  value={settings.showBonusLabels}
+                  onChange={v => update('showBonusLabels', v)}
+                />
               </Row>
-              <Row label="Animations" desc="Transitions et effets visuels.">
-                <Toggle value={settings.animationsEnabled} onChange={v => update('animationsEnabled', v)} />
+
+              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+
+              <Row label={t('row_animations')} desc={t('row_animations_desc')}>
+                <Toggle
+                  value={settings.animationsEnabled}
+                  onChange={v => update('animationsEnabled', v)}
+                />
               </Row>
+
             </Card.Body>
           </Card>
 
           {/* ── Comportement ───────────────────────────────── */}
           <Card>
             <Card.Header>
-              <span style={{ fontSize: '1rem' }}>⚙️</span>
-              <span style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: '1rem', fontWeight: 700,
-                color: 'var(--text-invert)',
-              }}>
-                Comportement
-              </span>
+              <SectionTitle emoji="⚙️" label={t('section_behavior')} />
             </Card.Header>
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <Row label="Tri automatique du rack" desc="Trier les lettres du rack par ordre alphabétique.">
-                <Toggle value={settings.autoSortRack} onChange={v => update('autoSortRack', v)} />
+
+              <Row label={t('row_auto_sort')} desc={t('row_auto_sort_desc')}>
+                <Toggle
+                  value={settings.autoSortRack}
+                  onChange={v => update('autoSortRack', v)}
+                />
               </Row>
-              <Row label="Confirmer avant valider" desc="Demander une confirmation avant de valider un mot.">
-                <Toggle value={settings.confirmValidation} onChange={v => update('confirmValidation', v)} />
+
+              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+
+              <Row label={t('row_confirm_validation')} desc={t('row_confirm_validation_desc')}>
+                <Toggle
+                  value={settings.confirmValidation}
+                  onChange={v => update('confirmValidation', v)}
+                />
               </Row>
+
             </Card.Body>
           </Card>
 
           {/* ── Réinitialiser ──────────────────────────────── */}
           <div style={{ textAlign: 'right', paddingBottom: '2rem' }}>
             {showResetConfirm ? (
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                <MonoLabel>Confirmer la réinitialisation ?</MonoLabel>
-                <RetroButton variant="default" onClick={() => setShowResetConfirm(false)}>
-                  Annuler
+              <div style={{
+                display:     'flex',
+                gap:         '10px',
+                justifyContent: 'flex-end',
+                alignItems:  'center',
+              }}>
+                <MonoLabel>{t('confirm_reset')}</MonoLabel>
+                <RetroButton
+                  variant="default"
+                  onClick={() => setShowResetConfirm(false)}
+                >
+                  {t('btn_cancel')}
                 </RetroButton>
-                <RetroButton variant="danger" onClick={() => { reset(); setShowResetConfirm(false); }}>
-                  Réinitialiser
+                <RetroButton
+                  variant="danger"
+                  onClick={() => { reset(); setShowResetConfirm(false); }}
+                >
+                  {t('btn_confirm_reset')}
                 </RetroButton>
               </div>
             ) : (
-              <RetroButton variant="default" onClick={() => setShowResetConfirm(true)}>
-                Réinitialiser tous les paramètres
+              <RetroButton
+                variant="default"
+                onClick={() => setShowResetConfirm(true)}
+              >
+                {t('btn_reset')}
               </RetroButton>
             )}
           </div>
