@@ -1,9 +1,9 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth }     from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Card, MonoLabel, Input, RetroButton, Spinner, Divider } from '../components/ui';
 
-// ── Icône Google ──────────────────────────────────────────────────
 const GoogleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -13,9 +13,10 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ── Page ──────────────────────────────────────────────────────────
 export default function LoginPage() {
-  const { signInWithEmail, signInWithGoogle, error, clearError, loading } = useAuth();
+  const { signInWithEmail, signInWithGoogle, error, clearError } = useAuth();
+  const { t } = useLanguage();
+
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -37,7 +38,7 @@ export default function LoginPage() {
     try {
       const result = await signInWithGoogle();
       if (result) window.location.hash = '#/';
-    } catch { /* error dans AuthContext */ }
+    } catch { /* error géré dans AuthContext */ }
   };
 
   return (
@@ -46,34 +47,54 @@ export default function LoginPage() {
 
         {/* Masthead */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.04em', margin: 0, color: 'var(--text-primary)' }}>
+          <h1 style={{
+            fontFamily:    "'Playfair Display', serif",
+            fontSize:      '3rem',
+            fontWeight:    900,
+            letterSpacing: '-0.04em',
+            margin:        0,
+            color:         'var(--text-primary)',
+          }}>
             SCRABBLE
           </h1>
           <div className="s-gold-bar" style={{ margin: '10px auto' }} />
-          <MonoLabel size="sm" color="var(--text-muted)">Connexion</MonoLabel>
+          <MonoLabel size="sm" color="var(--text-muted)">{t('login_subtitle')}</MonoLabel>
         </div>
 
-        {/* Bannière d'erreur */}
+        {/* Bannière erreur */}
         {error && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(139,32,32,0.08)', border: '1.5px solid var(--brick)', borderRadius: '2px', padding: '10px 14px', marginBottom: '1.5rem', gap: '8px' }}>
+          <div style={{
+            display:      'flex',
+            alignItems:   'center',
+            justifyContent:'space-between',
+            background:   'rgba(139,32,32,0.08)',
+            border:       '1.5px solid var(--brick)',
+            borderRadius: '2px',
+            padding:      '10px 14px',
+            marginBottom: '1.5rem',
+            gap:          '8px',
+          }}>
             <MonoLabel color="var(--brick)">⚠ {error}</MonoLabel>
-            <button onClick={clearError} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brick)', fontSize: '1rem', lineHeight: 1, padding: 0 }}>✕</button>
+            <button
+              onClick={clearError}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brick)', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+            >✕</button>
           </div>
         )}
 
         {/* Formulaire */}
         <form onSubmit={handleEmail} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <Input
-            label="Adresse email"
+            label={t('login_email')}
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            placeholder="vous@exemple.com"
+            placeholder={t('login_email_ph')}
             autoComplete="email"
             required
           />
           <Input
-            label="Mot de passe"
+            label={t('login_password')}
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
@@ -83,37 +104,65 @@ export default function LoginPage() {
           />
           <RetroButton variant="primary" fullWidth disabled={submitting}>
             {submitting
-              ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Spinner size={12} color="var(--text-invert)" /> Connexion…</span>
-              : 'Se connecter'}
+              ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <Spinner size={12} color="var(--text-invert)" /> {t('login_loading')}
+                </span>
+              : t('login_btn')}
           </RetroButton>
         </form>
 
         {/* Séparateur */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '1.5rem 0' }}>
           <Divider style={{ flex: 1 }} />
-          <MonoLabel>ou</MonoLabel>
+          <MonoLabel>{t('auth_or')}</MonoLabel>
           <Divider style={{ flex: 1 }} />
         </div>
 
         {/* Google */}
         <button
           onClick={handleGoogle}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '11px 18px', background: 'var(--bg-card-alt)', border: '2px solid var(--border-muted)', borderRadius: '2px', cursor: 'pointer', fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', letterSpacing: '0.06em', color: 'var(--text-primary)', transition: 'border-color 0.15s' }}
+          style={{
+            width:          '100%',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            gap:            '10px',
+            padding:        '11px 18px',
+            background:     'var(--bg-card-alt)',
+            border:         '2px solid var(--border-muted)',
+            borderRadius:   '2px',
+            cursor:         'pointer',
+            fontFamily:     "'DM Mono', monospace",
+            fontSize:       '0.82rem',
+            letterSpacing:  '0.06em',
+            color:          'var(--text-primary)',
+            transition:     'border-color 0.15s',
+          }}
           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-primary)'}
           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-muted)'}
         >
           <GoogleIcon />
-          Continuer avec Google
+          {t('auth_google')}
         </button>
 
         {/* Liens */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '1.5rem' }}>
-          <a href="#/register" style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--tobacco)', letterSpacing: '0.06em' }}>
-            Créer un compte
+          <a href="#/register" style={{
+            fontFamily:    "'DM Mono', monospace",
+            fontSize:      '0.62rem',
+            color:         'var(--tobacco)',
+            letterSpacing: '0.06em',
+          }}>
+            {t('login_create_account')}
           </a>
           <MonoLabel color="var(--gold)">·</MonoLabel>
-          <a href="#/reset-password" style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--tobacco)', letterSpacing: '0.06em' }}>
-            Mot de passe oublié ?
+          <a href="#/reset-password" style={{
+            fontFamily:    "'DM Mono', monospace",
+            fontSize:      '0.62rem',
+            color:         'var(--tobacco)',
+            letterSpacing: '0.06em',
+          }}>
+            {t('login_forgot_password')}
           </a>
         </div>
 

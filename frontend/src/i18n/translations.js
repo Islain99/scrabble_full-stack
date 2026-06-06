@@ -1,29 +1,33 @@
 // src/i18n/translations.js
 // Toutes les chaînes UI — ajouter une langue = ajouter une entrée ici.
 // Conventions :
-//   nav_*       → Navbar
-//   theme_*     → libellés thème
-//   section_*   → titres de section SettingsPage
-//   row_*       → lignes paramètres
-//   diff_*      → niveaux difficulté IA
-//   sync_*      → badge synchronisation
-//   btn_*       → boutons génériques
-//   turn_*      → durées de tour
-//   legend_*    → légende plateau
-//   start_*     → écran démarrage
-//   game_*      → GamePage / GameScreen
-//   profile_*   → ProfilePage (page entière)
-//   tab_*       → onglets ProfilePage
-//   field_*     → champs formulaire profil
-//   stat_*      → cartes statistiques
-//   history_*   → tableau historique
+//   nav_*        → Navbar
+//   theme_*      → libellés thème
+//   section_*    → titres de section SettingsPage
+//   row_*        → lignes paramètres
+//   diff_*       → niveaux difficulté IA
+//   sync_*       → badge synchronisation
+//   btn_*        → boutons génériques
+//   turn_*       → durées de tour
+//   legend_*     → légende plateau
+//   start_*      → écran démarrage
+//   game_*       → GamePage / GameScreen
+//   profile_*    → ProfilePage (général)
+//   tab_*        → onglets ProfilePage
+//   field_*      → champs formulaire profil
+//   stat_*       → cartes statistiques
+//   history_*    → tableau historique
+//   lb_*         → LeaderboardPage
+//   login_*      → LoginPage
+//   register_*   → RegisterPage
+//   auth_*       → partagé Login + Register
 
 export const translations = {
 
-  // ══════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
   fr: {
 
-    // ── Navbar ────────────────────────────────────────────────
+    // ── Navbar ────────────────────────────────────────────────────
     nav_play:        'Jouer',
     nav_leaderboard: 'Classement',
     nav_profile:     'Profil',
@@ -34,12 +38,12 @@ export const translations = {
     nav_appearance:  'Apparence',
     nav_currently:   'Actuellement',
 
-    // ── Thème ─────────────────────────────────────────────────
+    // ── Thème ─────────────────────────────────────────────────────
     theme_light:  'Clair',
     theme_dark:   'Sombre',
     theme_system: 'Système',
 
-    // ── SettingsPage ──────────────────────────────────────────
+    // ── SettingsPage ──────────────────────────────────────────────
     settings_title:    'Paramètres',
     settings_subtitle: 'Les préférences sont sauvegardées automatiquement',
 
@@ -69,7 +73,7 @@ export const translations = {
     row_confirm_validation:      'Confirmer avant valider',
     row_confirm_validation_desc: 'Demander une confirmation avant de valider un mot.',
 
-    // ── Boutons génériques ────────────────────────────────────
+    // ── Boutons génériques ────────────────────────────────────────
     btn_reset:         'Réinitialiser tous les paramètres',
     btn_cancel:        'Annuler',
     btn_confirm_reset: 'Réinitialiser',
@@ -79,13 +83,13 @@ export const translations = {
     btn_resign:        'Abandonner',
     confirm_reset:     'Confirmer la réinitialisation ?',
 
-    // ── Sync badge ────────────────────────────────────────────
+    // ── Sync badge ────────────────────────────────────────────────
     sync_syncing:    '⟳ Synchronisation…',
     sync_saved:      '✓ Sauvegardé',
     sync_not_synced: 'Non synchronisé',
     sync_guest:      'Mode invité — connectez-vous pour synchroniser',
 
-    // ── Difficultés ───────────────────────────────────────────
+    // ── Difficultés ───────────────────────────────────────────────
     diff_beginner_label:   'Débutant',
     diff_beginner_desc:    "Mots très courts, beaucoup d'erreurs",
     diff_easy_label:       'Facile',
@@ -97,20 +101,20 @@ export const translations = {
     diff_hard_label:       'Expert',
     diff_hard_desc:        'Maximise chaque score, tous les bonus',
 
-    // ── Durées de tour ────────────────────────────────────────
+    // ── Durées de tour ────────────────────────────────────────────
     turn_unlimited: 'Illimité',
     turn_1min:      '1 minute',
     turn_2min:      '2 minutes',
     turn_3min:      '3 minutes',
     turn_5min:      '5 minutes',
 
-    // ── Légende plateau ───────────────────────────────────────
+    // ── Légende plateau ───────────────────────────────────────────
     legend_tw: 'Triple mot',
     legend_dw: 'Double mot',
     legend_tl: 'Triple lettre',
     legend_dl: 'Double lettre',
 
-    // ── Écran démarrage ───────────────────────────────────────
+    // ── Écran démarrage ───────────────────────────────────────────
     start_edition:            'Édition de Luxe — 1972',
     start_subtitle:           'Le jeu classique des mots croisés',
     start_btn:                'Démarrer la partie',
@@ -120,7 +124,7 @@ export const translations = {
     start_player_placeholder: 'Joueur 1',
     start_difficulty:         "Difficulté de l'IA",
 
-    // ── GamePage ──────────────────────────────────────────────
+    // ── GamePage ──────────────────────────────────────────────────
     game_score_preview:   'Aperçu du score',
     game_tiles_singular:  'tuile',
     game_tiles_plural:    'tuiles',
@@ -144,9 +148,9 @@ export const translations = {
     game_my_profile:      'Mon profil',
     ai_thinking:          "L'IA réfléchit…",
 
-    // ── ProfilePage — général ─────────────────────────────────
+    // ── ProfilePage — général ─────────────────────────────────────
     profile_title:            'Mon profil',
-    profile_incomplete_banner:'Complétez votre profil pour apparaître dans le classement.',
+    profile_incomplete_banner:"Complétez votre profil pour apparaître dans le classement.",
     profile_complete_btn:     'Compléter',
     profile_complete_badge:   '✓ Profil complet',
     profile_incomplete_badge: '⚠ Profil incomplet',
@@ -159,12 +163,12 @@ export const translations = {
     profile_victory:          '✓ Victoire',
     profile_defeat:           '✗ Défaite',
 
-    // ── ProfilePage — onglets ─────────────────────────────────
+    // ── ProfilePage — onglets ─────────────────────────────────────
     tab_profile: 'Profil',
     tab_stats:   'Statistiques',
     tab_history: 'Historique',
 
-    // ── ProfilePage — champs formulaire ───────────────────────
+    // ── ProfilePage — champs formulaire ──────────────────────────
     field_firstname:          'Prénom',
     field_lastname:           'Nom',
     field_username:           'Pseudo',
@@ -176,7 +180,7 @@ export const translations = {
     field_bio:                'Bio',
     field_bio_placeholder:    'Quelques mots sur vous…',
 
-    // ── ProfilePage — statistiques ────────────────────────────
+    // ── ProfilePage — statistiques ────────────────────────────────
     stat_games_played: 'Parties jouées',
     stat_wins:         'Victoires',
     stat_win_rate:     'Taux de victoire',
@@ -184,19 +188,71 @@ export const translations = {
     stat_avg_score:    'Score moyen',
     stat_best_word:    'Meilleur mot',
 
-    // ── ProfilePage — historique ──────────────────────────────
+    // ── ProfilePage — historique ──────────────────────────────────
     history_date:      'Date',
     history_opponent:  'Adversaire',
     history_score:     'Score',
     history_result:    'Résultat',
     history_best_word: 'Meilleur mot',
     history_empty:     "Aucune partie enregistrée pour l'instant.",
+
+    // ── LeaderboardPage ───────────────────────────────────────────
+    lb_title:              'Classement',
+    lb_subtitle_players:   'joueurs inscrits',
+    lb_filter_period:      'Période',
+    lb_filter_sort:        'Trier par',
+    lb_period_all:         'Tout temps',
+    lb_period_month:       'Ce mois',
+    lb_period_week:        'Cette semaine',
+    lb_sort_best:          'Meilleur score',
+    lb_sort_avg:           'Score moyen',
+    lb_sort_wins:          'Victoires',
+    lb_sort_played:        'Parties jouées',
+    lb_your_rank:          'Votre rang',
+    lb_col_player:         'Joueur',
+    lb_col_played:         'Parties',
+    lb_col_wins:           'Victoires',
+    lb_col_winrate:        'V%',
+    lb_col_best:           'Meilleur',
+    lb_col_avg:            'Moyen',
+    lb_you:                'Vous',
+    lb_empty:              'Aucun joueur pour cette période.',
+
+    // ── LoginPage ─────────────────────────────────────────────────
+    login_subtitle:        'Connexion',
+    login_email:           'Adresse email',
+    login_email_ph:        'vous@exemple.com',
+    login_password:        'Mot de passe',
+    login_btn:             'Se connecter',
+    login_loading:         'Connexion…',
+    login_create_account:  'Créer un compte',
+    login_forgot_password: 'Mot de passe oublié ?',
+
+    // ── RegisterPage ──────────────────────────────────────────────
+    register_subtitle:        'Créer un compte',
+    register_username:        'Pseudo',
+    register_username_ph:     'Votre nom de joueur',
+    register_pw_ph:           '6 caractères minimum',
+    register_confirm_pw:      'Confirmer le mot de passe',
+    register_btn:             'Créer mon compte',
+    register_loading:         'Création…',
+    register_already_account: 'Déjà un compte ?',
+    register_login_link:      'Se connecter',
+    register_err_name_short:  'Le pseudo doit contenir au moins 2 caractères.',
+    register_err_name_long:   'Le pseudo ne peut pas dépasser 32 caractères.',
+    register_err_email:       'Email invalide.',
+    register_err_pw_short:    'Mot de passe trop court (6 caractères minimum).',
+    register_err_pw_match:    'Les mots de passe ne correspondent pas.',
+
+    // ── Auth partagé ──────────────────────────────────────────────
+    auth_or:     'ou',
+    auth_google: 'Continuer avec Google',
   },
 
-  // ══════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
   en: {
 
-    // ── Navbar ────────────────────────────────────────────────
+    // ── Navbar ────────────────────────────────────────────────────
     nav_play:        'Play',
     nav_leaderboard: 'Leaderboard',
     nav_profile:     'Profile',
@@ -207,12 +263,12 @@ export const translations = {
     nav_appearance:  'Appearance',
     nav_currently:   'Currently',
 
-    // ── Theme ─────────────────────────────────────────────────
+    // ── Theme ─────────────────────────────────────────────────────
     theme_light:  'Light',
     theme_dark:   'Dark',
     theme_system: 'System',
 
-    // ── SettingsPage ──────────────────────────────────────────
+    // ── SettingsPage ──────────────────────────────────────────────
     settings_title:    'Settings',
     settings_subtitle: 'Preferences are saved automatically',
 
@@ -242,7 +298,7 @@ export const translations = {
     row_confirm_validation:      'Confirm Before Submit',
     row_confirm_validation_desc: 'Ask for confirmation before submitting a word.',
 
-    // ── Generic buttons ───────────────────────────────────────
+    // ── Generic buttons ───────────────────────────────────────────
     btn_reset:         'Reset all settings',
     btn_cancel:        'Cancel',
     btn_confirm_reset: 'Reset',
@@ -252,13 +308,13 @@ export const translations = {
     btn_resign:        'Resign',
     confirm_reset:     'Confirm reset?',
 
-    // ── Sync badge ────────────────────────────────────────────
+    // ── Sync badge ────────────────────────────────────────────────
     sync_syncing:    '⟳ Syncing…',
     sync_saved:      '✓ Saved',
     sync_not_synced: 'Not synced',
     sync_guest:      'Guest mode — log in to sync',
 
-    // ── Difficulties ──────────────────────────────────────────
+    // ── Difficulties ──────────────────────────────────────────────
     diff_beginner_label:   'Beginner',
     diff_beginner_desc:    'Very short words, many mistakes',
     diff_easy_label:       'Easy',
@@ -270,20 +326,20 @@ export const translations = {
     diff_hard_label:       'Expert',
     diff_hard_desc:        'Maximises every score, all bonuses',
 
-    // ── Turn options ──────────────────────────────────────────
+    // ── Turn options ──────────────────────────────────────────────
     turn_unlimited: 'Unlimited',
     turn_1min:      '1 minute',
     turn_2min:      '2 minutes',
     turn_3min:      '3 minutes',
     turn_5min:      '5 minutes',
 
-    // ── Board legend ──────────────────────────────────────────
+    // ── Board legend ──────────────────────────────────────────────
     legend_tw: 'Triple Word',
     legend_dw: 'Double Word',
     legend_tl: 'Triple Letter',
     legend_dl: 'Double Letter',
 
-    // ── Start screen ──────────────────────────────────────────
+    // ── Start screen ──────────────────────────────────────────────
     start_edition:            'Luxury Edition — 1972',
     start_subtitle:           'The classic crossword board game',
     start_btn:                'Start Game',
@@ -293,7 +349,7 @@ export const translations = {
     start_player_placeholder: 'Player 1',
     start_difficulty:         'AI Difficulty',
 
-    // ── GamePage ──────────────────────────────────────────────
+    // ── GamePage ──────────────────────────────────────────────────
     game_score_preview:   'Score Preview',
     game_tiles_singular:  'tile',
     game_tiles_plural:    'tiles',
@@ -317,7 +373,7 @@ export const translations = {
     game_my_profile:      'My profile',
     ai_thinking:          'AI is thinking…',
 
-    // ── ProfilePage — general ─────────────────────────────────
+    // ── ProfilePage — general ─────────────────────────────────────
     profile_title:            'My Profile',
     profile_incomplete_banner:'Complete your profile to appear on the leaderboard.',
     profile_complete_btn:     'Complete',
@@ -332,12 +388,12 @@ export const translations = {
     profile_victory:          '✓ Win',
     profile_defeat:           '✗ Loss',
 
-    // ── ProfilePage — tabs ────────────────────────────────────
+    // ── ProfilePage — tabs ────────────────────────────────────────
     tab_profile: 'Profile',
     tab_stats:   'Statistics',
     tab_history: 'History',
 
-    // ── ProfilePage — form fields ─────────────────────────────
+    // ── ProfilePage — form fields ─────────────────────────────────
     field_firstname:          'First name',
     field_lastname:           'Last name',
     field_username:           'Username',
@@ -349,7 +405,7 @@ export const translations = {
     field_bio:                'Bio',
     field_bio_placeholder:    'A few words about you…',
 
-    // ── ProfilePage — stats ───────────────────────────────────
+    // ── ProfilePage — stats ───────────────────────────────────────
     stat_games_played: 'Games played',
     stat_wins:         'Wins',
     stat_win_rate:     'Win rate',
@@ -357,13 +413,65 @@ export const translations = {
     stat_avg_score:    'Average score',
     stat_best_word:    'Best word',
 
-    // ── ProfilePage — history ─────────────────────────────────
+    // ── ProfilePage — history ─────────────────────────────────────
     history_date:      'Date',
     history_opponent:  'Opponent',
     history_score:     'Score',
     history_result:    'Result',
     history_best_word: 'Best word',
     history_empty:     'No games recorded yet.',
+
+    // ── LeaderboardPage ───────────────────────────────────────────
+    lb_title:              'Leaderboard',
+    lb_subtitle_players:   'registered players',
+    lb_filter_period:      'Period',
+    lb_filter_sort:        'Sort by',
+    lb_period_all:         'All time',
+    lb_period_month:       'This month',
+    lb_period_week:        'This week',
+    lb_sort_best:          'Best score',
+    lb_sort_avg:           'Average score',
+    lb_sort_wins:          'Wins',
+    lb_sort_played:        'Games played',
+    lb_your_rank:          'Your rank',
+    lb_col_player:         'Player',
+    lb_col_played:         'Games',
+    lb_col_wins:           'Wins',
+    lb_col_winrate:        'W%',
+    lb_col_best:           'Best',
+    lb_col_avg:            'Avg',
+    lb_you:                'You',
+    lb_empty:              'No players for this period.',
+
+    // ── LoginPage ─────────────────────────────────────────────────
+    login_subtitle:        'Log in',
+    login_email:           'Email address',
+    login_email_ph:        'you@example.com',
+    login_password:        'Password',
+    login_btn:             'Log in',
+    login_loading:         'Logging in…',
+    login_create_account:  'Create an account',
+    login_forgot_password: 'Forgot password?',
+
+    // ── RegisterPage ──────────────────────────────────────────────
+    register_subtitle:        'Create an account',
+    register_username:        'Username',
+    register_username_ph:     'Your player name',
+    register_pw_ph:           'Minimum 6 characters',
+    register_confirm_pw:      'Confirm password',
+    register_btn:             'Create account',
+    register_loading:         'Creating…',
+    register_already_account: 'Already have an account?',
+    register_login_link:      'Log in',
+    register_err_name_short:  'Username must be at least 2 characters.',
+    register_err_name_long:   'Username cannot exceed 32 characters.',
+    register_err_email:       'Invalid email address.',
+    register_err_pw_short:    'Password too short (minimum 6 characters).',
+    register_err_pw_match:    'Passwords do not match.',
+
+    // ── Auth partagé ──────────────────────────────────────────────
+    auth_or:     'or',
+    auth_google: 'Continue with Google',
   },
 };
 

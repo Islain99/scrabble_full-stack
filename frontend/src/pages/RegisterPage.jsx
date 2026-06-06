@@ -1,6 +1,7 @@
 // src/pages/RegisterPage.jsx
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth }     from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Card, MonoLabel, Input, RetroButton, Spinner, Divider } from '../components/ui';
 
 const GoogleIcon = () => (
@@ -14,18 +15,23 @@ const GoogleIcon = () => (
 
 export default function RegisterPage() {
   const { signUpWithEmail, signInWithGoogle, error, clearError } = useAuth();
-  const [form, setForm]           = useState({ displayName: '', email: '', password: '', confirm: '' });
+  const { t } = useLanguage();
+
+  const [form, setForm]             = useState({ displayName: '', email: '', password: '', confirm: '' });
   const [submitting, setSubmitting] = useState(false);
   const [fieldError, setFieldError] = useState('');
 
-  const set = (k) => (e) => { setForm(f => ({ ...f, [k]: e.target.value })); setFieldError(''); };
+  const set = (k) => (e) => {
+    setForm(f => ({ ...f, [k]: e.target.value }));
+    setFieldError('');
+  };
 
   const validate = () => {
-    if (form.displayName.trim().length < 2)  return 'Le pseudo doit contenir au moins 2 caractères.';
-    if (form.displayName.trim().length > 32) return 'Le pseudo ne peut pas dépasser 32 caractères.';
-    if (!form.email.includes('@'))           return 'Email invalide.';
-    if (form.password.length < 6)            return 'Mot de passe trop court (6 caractères minimum).';
-    if (form.password !== form.confirm)      return 'Les mots de passe ne correspondent pas.';
+    if (form.displayName.trim().length < 2)  return t('register_err_name_short');
+    if (form.displayName.trim().length > 32) return t('register_err_name_long');
+    if (!form.email.includes('@'))           return t('register_err_email');
+    if (form.password.length < 6)            return t('register_err_pw_short');
+    if (form.password !== form.confirm)      return t('register_err_pw_match');
     return null;
   };
 
@@ -48,7 +54,7 @@ export default function RegisterPage() {
     try {
       const result = await signInWithGoogle();
       if (result) window.location.hash = '#/';
-    } catch { /* error dans AuthContext */ }
+    } catch { /* error géré dans AuthContext */ }
   };
 
   const anyError = fieldError || error;
@@ -59,52 +65,72 @@ export default function RegisterPage() {
 
         {/* Masthead */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.04em', margin: 0, color: 'var(--text-primary)' }}>
+          <h1 style={{
+            fontFamily:    "'Playfair Display', serif",
+            fontSize:      '3rem',
+            fontWeight:    900,
+            letterSpacing: '-0.04em',
+            margin:        0,
+            color:         'var(--text-primary)',
+          }}>
             SCRABBLE
           </h1>
           <div className="s-gold-bar" style={{ margin: '10px auto' }} />
-          <MonoLabel size="sm" color="var(--text-muted)">Créer un compte</MonoLabel>
+          <MonoLabel size="sm" color="var(--text-muted)">{t('register_subtitle')}</MonoLabel>
         </div>
 
-        {/* Bannière d'erreur */}
+        {/* Bannière erreur */}
         {anyError && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(139,32,32,0.08)', border: '1.5px solid var(--brick)', borderRadius: '2px', padding: '10px 14px', marginBottom: '1.5rem', gap: '8px' }}>
+          <div style={{
+            display:       'flex',
+            alignItems:    'center',
+            justifyContent:'space-between',
+            background:    'rgba(139,32,32,0.08)',
+            border:        '1.5px solid var(--brick)',
+            borderRadius:  '2px',
+            padding:       '10px 14px',
+            marginBottom:  '1.5rem',
+            gap:           '8px',
+          }}>
             <MonoLabel color="var(--brick)">⚠ {anyError}</MonoLabel>
-            <button onClick={() => { clearError(); setFieldError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brick)', fontSize: '1rem', lineHeight: 1, padding: 0 }}>✕</button>
+            <button
+              onClick={() => { clearError(); setFieldError(''); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brick)', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+            >✕</button>
           </div>
         )}
 
         {/* Formulaire */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <Input
-            label="Pseudo"
+            label={t('register_username')}
             type="text"
             value={form.displayName}
             onChange={set('displayName')}
-            placeholder="Votre nom de joueur"
+            placeholder={t('register_username_ph')}
             autoComplete="username"
             required
           />
           <Input
-            label="Adresse email"
+            label={t('login_email')}
             type="email"
             value={form.email}
             onChange={set('email')}
-            placeholder="vous@exemple.com"
+            placeholder={t('login_email_ph')}
             autoComplete="email"
             required
           />
           <Input
-            label="Mot de passe"
+            label={t('login_password')}
             type="password"
             value={form.password}
             onChange={set('password')}
-            placeholder="6 caractères minimum"
+            placeholder={t('register_pw_ph')}
             autoComplete="new-password"
             required
           />
           <Input
-            label="Confirmer le mot de passe"
+            label={t('register_confirm_pw')}
             type="password"
             value={form.confirm}
             onChange={set('confirm')}
@@ -114,34 +140,59 @@ export default function RegisterPage() {
           />
           <RetroButton variant="primary" fullWidth disabled={submitting}>
             {submitting
-              ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Spinner size={12} color="var(--text-invert)" /> Création…</span>
-              : 'Créer mon compte'}
+              ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <Spinner size={12} color="var(--text-invert)" /> {t('register_loading')}
+                </span>
+              : t('register_btn')}
           </RetroButton>
         </form>
 
         {/* Séparateur */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '1.5rem 0' }}>
           <Divider style={{ flex: 1 }} />
-          <MonoLabel>ou</MonoLabel>
+          <MonoLabel>{t('auth_or')}</MonoLabel>
           <Divider style={{ flex: 1 }} />
         </div>
 
         {/* Google */}
         <button
           onClick={handleGoogle}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '11px 18px', background: 'var(--bg-card-alt)', border: '2px solid var(--border-muted)', borderRadius: '2px', cursor: 'pointer', fontFamily: "'DM Mono', monospace", fontSize: '0.82rem', letterSpacing: '0.06em', color: 'var(--text-primary)', transition: 'border-color 0.15s' }}
+          style={{
+            width:          '100%',
+            display:        'flex',
+            alignItems:     'center',
+            justifyContent: 'center',
+            gap:            '10px',
+            padding:        '11px 18px',
+            background:     'var(--bg-card-alt)',
+            border:         '2px solid var(--border-muted)',
+            borderRadius:   '2px',
+            cursor:         'pointer',
+            fontFamily:     "'DM Mono', monospace",
+            fontSize:       '0.82rem',
+            letterSpacing:  '0.06em',
+            color:          'var(--text-primary)',
+            transition:     'border-color 0.15s',
+          }}
           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-primary)'}
           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-muted)'}
         >
           <GoogleIcon />
-          Continuer avec Google
+          {t('auth_google')}
         </button>
 
         {/* Lien connexion */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <MonoLabel color="var(--text-muted)" style={{ marginRight: '8px' }}>Déjà un compte ?</MonoLabel>
-          <a href="#/login" style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--tobacco)', letterSpacing: '0.06em' }}>
-            Se connecter
+          <MonoLabel color="var(--text-muted)" style={{ marginRight: '8px' }}>
+            {t('register_already_account')}
+          </MonoLabel>
+          <a href="#/login" style={{
+            fontFamily:    "'DM Mono', monospace",
+            fontSize:      '0.62rem',
+            color:         'var(--tobacco)',
+            letterSpacing: '0.06em',
+          }}>
+            {t('register_login_link')}
           </a>
         </div>
 
