@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider }     from './context/AuthContext';
 import { ThemeProvider }    from './context/ThemeContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { LanguageProvider } from './context/LanguageContext';
 
 import Navbar         from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -60,12 +61,14 @@ function Router() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <SettingsProvider>
-        <AuthProvider>
-          <Router />
-        </AuthProvider>
-      </SettingsProvider>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <Router />
+          </AuthProvider>
+        </SettingsProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }

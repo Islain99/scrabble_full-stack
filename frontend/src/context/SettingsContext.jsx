@@ -32,6 +32,7 @@ export const DEFAULTS = {
   confirmValidation:  false,
   boardSize:          'normal',
   animationsEnabled:  true,
+  language:           'fr',
 };
 
 export const TURN_OPTIONS = [

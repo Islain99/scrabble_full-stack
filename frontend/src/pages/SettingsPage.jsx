@@ -5,6 +5,8 @@
 import React, { useState } from 'react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme }    from '../context/ThemeContext';
+import { useLanguage }         from '../context/LanguageContext';
+import { LANGUAGES }           from '../i18n/translations';
 import { Card, PageHeader, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Composants internes ───────────────────────────────────────────
@@ -110,6 +112,7 @@ export default function SettingsPage() {
     syncing, lastSynced, currentUid,
   } = useSettings();
   const { preference, setTheme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const diffOptions = Object.entries(DIFFICULTY_META).map(([key, meta]) => ({
@@ -121,6 +124,8 @@ export default function SettingsPage() {
     { value: 'dark',   emoji: '🌙', label: 'Sombre'  },
     { value: 'system', emoji: '⚙️', label: 'Système' },
   ];
+
+  const langOptions = LANGUAGES.map(l => ({ ...l, key: l.value }));
 
   const syncLabel = syncing
     ? '⟳ Synchronisation…'
@@ -176,6 +181,9 @@ export default function SettingsPage() {
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <Row label="Thème" desc="Choisissez entre clair, sombre, ou la préférence de votre système.">
                 <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
+              </Row>
+              <Row label={t('settings_language')} desc={t('settings_language_desc')}>
+                <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
               </Row>
             </Card.Body>
           </Card>
