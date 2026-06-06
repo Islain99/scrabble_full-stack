@@ -112,7 +112,7 @@ export default function SettingsPage() {
     syncing, lastSynced, currentUid,
   } = useSettings();
   const { preference, setTheme } = useTheme();
-  const { language, setLanguage, t } = useLanguage();
+  const { t, language, setLanguage, t } = useLanguage();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const diffOptions = Object.entries(DIFFICULTY_META).map(([key, meta]) => ({
@@ -120,9 +120,9 @@ export default function SettingsPage() {
   }));
 
   const themeOptions = [
-    { value: 'light',  emoji: '☀️', label: 'Clair'   },
-    { value: 'dark',   emoji: '🌙', label: 'Sombre'  },
-    { value: 'system', emoji: '⚙️', label: 'Système' },
+    { value: 'light',  emoji: '☀️', label: t('theme_light')   },
+    { value: 'dark',   emoji: '🌙', label: t('theme_dark')  },
+    { value: 'system', emoji: '⚙️', label: t('theme_system') },
   ];
 
   const langOptions = LANGUAGES.map(l => ({ ...l, key: l.value }));
@@ -175,14 +175,14 @@ export default function SettingsPage() {
                 fontSize: '1rem', fontWeight: 700,
                 color: 'var(--text-invert)',
               }}>
-                Apparence
+                t('section_appearance')
               </span>
             </Card.Header>
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <Row label="Thème" desc="Choisissez entre clair, sombre, ou la préférence de votre système.">
                 <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
               </Row>
-              <Row label={t('settings_language')} desc={t('settings_language_desc')}>
+              <Row label={t('section_language')} desc={t('settings_language_desc')}>
                 <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
               </Row>
             </Card.Body>
@@ -197,7 +197,7 @@ export default function SettingsPage() {
                 fontSize: '1rem', fontWeight: 700,
                 color: 'var(--text-invert)',
               }}>
-                Partie
+                {t('section_game')}
               </span>
             </Card.Header>
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>

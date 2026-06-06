@@ -16,9 +16,9 @@ export default function Navbar() {
 
   // Labels traduits (recalculés à chaque render, donc réactifs au changement de langue)
   const ThemeLabels = {
-    light:  t('nav_theme_light'),
-    dark:   t('nav_theme_dark'),
-    system: t('nav_theme_sys'),
+    light:  t('theme_light'),
+    dark:   t('theme_dark'),
+    system: t('theme_system'),
   };
 
   const NAV_LINKS = [
@@ -122,7 +122,7 @@ export default function Navbar() {
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowThemeMenu(v => !v)}
-            title={`${t('nav_appearance')} : ${ThemeLabels[preference]}`}
+            title={`${t('section_appearence')} : ${ThemeLabels[preference]}`}
             style={{
               display:      'flex',
               alignItems:   'center',
@@ -204,7 +204,7 @@ export default function Navbar() {
                       </div>
                       {theme === 'system' && (
                         <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', marginTop: '1px' }}>
-                          {t('nav_currently')} : {resolvedTheme === 'dark' ? t('nav_theme_dark').toLowerCase() : t('nav_theme_light').toLowerCase()}
+                          {t('nav_system')} : {resolvedTheme === 'dark' ? t('theme_dark').toLowerCase() : t('theme_light').toLowerCase()}
                         </div>
                       )}
                     </div>
