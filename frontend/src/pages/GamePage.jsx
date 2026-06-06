@@ -20,39 +20,14 @@ function ScorePreview({ score, count, t }) {
   const tile  = count > 1 ? t('game_tiles_plural')   : t('game_tiles_singular');
   const placed = count > 1 ? t('game_placed_plural') : t('game_placed_singular');
   return (
-    <div style={{
-      background:   'var(--bg-card)',
-      border:       '2px solid var(--gold)',
-      borderRadius: '2px',
-      padding:      '10px 16px',
-      textAlign:    'center',
-      boxShadow:    '3px 3px 0 var(--gold)',
-    }}>
-      <div style={{
-        fontFamily:    "'DM Mono', monospace",
-        fontSize:      '0.6rem',
-        color:         'var(--text-muted)',
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        marginBottom:  '4px',
-      }}>
+    <div style={{ background: 'var(--bg-card)', border: '2px solid var(--gold)', borderRadius: '2px', padding: '10px 16px', textAlign: 'center', boxShadow: '3px 3px 0 var(--gold)',}}>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px',}}>
         {t('game_score_preview')}
       </div>
-      <div style={{
-        fontFamily: "'Playfair Display', serif",
-        fontSize:   '2rem',
-        fontWeight: 900,
-        color:      'var(--gold)',
-        lineHeight: 1,
-      }}>
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 900, color: 'var(--gold)', lineHeight: 1,}}>
         +{score}
       </div>
-      <div style={{
-        fontFamily: "'DM Mono', monospace",
-        fontSize:   '0.6rem',
-        color:      'var(--text-muted)',
-        marginTop:  '2px',
-      }}>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px',}}>
         {count} {tile} {placed}
       </div>
     </div>
@@ -72,28 +47,14 @@ function Legend({ t }) {
     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
       {items.map(({ label, color, key }) => (
         <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{
-            width:          '22px',
-            height:         '22px',
-            background:     color,
-            borderRadius:   '2px',
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'center',
-          }}>
-            <span style={{
-              fontFamily:    "'DM Mono', monospace",
-              fontSize:      '0.55rem',
-              color:         '#fff',
-              fontWeight:    700,
-              letterSpacing: '0.05em',
-            }}>{label}</span>
+          <div style={{ width: '22px', height: '22px', background: color, borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center',}}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.55rem', color: '#fff', fontWeight: 700, letterSpacing: '0.05em',}}>
+              {label}
+            </span>
           </div>
-          <span style={{
-            fontFamily: "'DM Mono', monospace",
-            fontSize:   '0.65rem',
-            color:      'var(--text-muted)',
-          }}>{t(key)}</span>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)',}}>
+            {t(key)}
+          </span>
         </div>
       ))}
     </div>
@@ -105,49 +66,18 @@ function Legend({ t }) {
 function AbandonModal({ onConfirm, onCancel, t }) {
   return (
     <div
-      style={{
-        position:       'fixed',
-        inset:          0,
-        background:     'rgba(30,26,18,0.75)',
-        display:        'flex',
-        alignItems:     'center',
-        justifyContent: 'center',
-        zIndex:         1000,
-        padding:        '1rem',
-      }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(30,26,18,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,padding: '1rem',}}
       onClick={onCancel}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
-          background:   'var(--bg-page)',
-          border:       '3px solid #8B2020',
-          borderRadius: '3px',
-          padding:      '2rem 2.4rem',
-          maxWidth:     '420px',
-          width:        '100%',
-          boxShadow:    '8px 8px 0 #8B2020',
-          textAlign:    'center',
-        }}
+        style={{ background: 'var(--bg-page)', border: '3px solid #8B2020', borderRadius: '3px', padding: '2rem 2.4rem', maxWidth: '420px', width: '100%', boxShadow: '8px 8px 0 #8B2020', textAlign: 'center',}}
       >
         <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🏳️</div>
-        <h2 style={{
-          fontFamily:    "'Playfair Display', serif",
-          fontSize:      '1.6rem',
-          fontWeight:    900,
-          color:         'var(--brick)',
-          margin:        '0 0 8px',
-          letterSpacing: '-0.02em',
-        }}>
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 900, color: 'var(--brick)', margin: '0 0 8px', letterSpacing: '-0.02em',}}>
           {t('game_abandon_title')}
         </h2>
-        <p style={{
-          fontFamily: "'Libre Baskerville', serif",
-          fontSize:   '0.95rem',
-          color:      'var(--text-secondary)',
-          fontStyle:  'italic',
-          margin:     '0 0 20px',
-        }}>
+        <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: '0.95rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: '0 0 20px',}}>
           {t('game_abandon_desc')}
         </p>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
@@ -183,24 +113,8 @@ export default function GamePage() {
     };
 
     return (
-      <div style={{
-        minHeight:       '100vh',
-        background:      'var(--bg-page)',
-        display:         'flex',
-        alignItems:      'center',
-        justifyContent:  'center',
-        padding:         '2rem',
-      }}>
-        <div style={{
-          background:   'var(--bg-card)',
-          border:       '3px solid var(--border-primary)',
-          borderRadius: '3px',
-          padding:      '3rem 2.5rem',
-          maxWidth:     '480px',
-          width:        '100%',
-          boxShadow:    '8px 8px 0 var(--shadow-card)',
-          textAlign:    'center',
-        }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
+        <div style={{ background: 'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding: '3rem 2.5rem', maxWidth: '480px', width: '100%', boxShadow: '8px 8px 0 var(--shadow-card)', textAlign: 'center',}}>
           <div style={{
             fontFamily:    "'DM Mono', monospace",
             fontSize:      '0.6rem',
