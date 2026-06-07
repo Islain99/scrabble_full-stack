@@ -247,6 +247,40 @@ export const translations = {
     // ── Auth partagé ──────────────────────────────────────────────
     auth_or:     'ou',
     auth_google: 'Continuer avec Google',
+
+    // ── Tutoriel ─────────────────────────────────────────────────
+    tuto_skip:  'Passer',
+    tuto_prev:  'Précédent',
+    tuto_next:  'Suivant',
+    tuto_finish: 'Terminer',
+    tuto_open_btn_title: 'Aide & tutoriel',
+  
+    tuto_step0_title: 'Bienvenue sur Scrabble !',
+    tuto_step0_body:  'Ce tutoriel vous guidera à travers les bases du jeu en quelques étapes. Vous pouvez le relancer à tout moment via le bouton « ? ».',
+  
+    tuto_step1_title: 'Le plateau de jeu',
+    tuto_step1_body:  'Le plateau est une grille de 15×15 cases. Les mots doivent s\'y croiser, comme dans des mots croisés. La partie commence toujours par la case centrale.',
+  
+    tuto_step2_title: 'La case centrale ★',
+    tuto_step2_body:  'Le premier mot posé doit obligatoirement passer par l\'étoile au centre du plateau. Cela double automatiquement le score du premier coup !',
+  
+    tuto_step3_title: 'Les cases bonus',
+    tuto_step3_body:  '🟥 TM = Triple Mot · 🟧 DM = Double Mot · 🟦 TL = Triple Lettre · 🔷 DL = Double Lettre. Positionnez vos tuiles sur ces cases pour multiplier votre score.',
+  
+    tuto_step4_title: 'Votre chevalet',
+    tuto_step4_body:  'Vous avez 7 lettres en main. Glissez-les sur le plateau pour former un mot. Poser les 7 lettres d\'un coup rapporte un bonus de 50 points (Bingo) !',
+  
+    tuto_step5_title: 'Aperçu du score',
+    tuto_step5_body:  'Pendant que vous posez vos tuiles, le score estimé s\'affiche ici en temps réel. Il inclut les multiplicateurs des cases bonus.',
+  
+    tuto_step6_title: 'Valider votre mot',
+    tuto_step6_body:  'Une fois vos lettres posées, cliquez sur « Valider » pour soumettre le mot. S\'il est invalide ou mal placé, les tuiles reviennent dans votre chevalet.',
+  
+    tuto_step7_title: 'Passer son tour',
+    tuto_step7_body:  'Si vous ne pouvez pas ou ne voulez pas jouer, passez votre tour. Après 6 passes consécutives (tous joueurs confondus), la partie se termine.',
+  
+    tuto_step8_title: 'Tableau des scores',
+    tuto_step8_body:  'Suivez l\'évolution des scores ici. Le joueur dont le nom est surligné est celui dont c\'est le tour. Bonne chance !',
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -472,6 +506,40 @@ export const translations = {
     // ── Auth partagé ──────────────────────────────────────────────
     auth_or:     'or',
     auth_google: 'Continue with Google',
+
+    // ── Tutorial ─────────────────────────────────────────────────
+    tuto_skip:  'Skip',
+    tuto_prev:  'Previous',
+    tuto_next:  'Next',
+    tuto_finish: 'Finish',
+    tuto_open_btn_title: 'Help & tutorial',
+  
+    tuto_step0_title: 'Welcome to Scrabble!',
+    tuto_step0_body:  'This tutorial will walk you through the basics of the game in a few steps. You can reopen it at any time using the "?" button.',
+  
+    tuto_step1_title: 'The game board',
+    tuto_step1_body:  'The board is a 15×15 grid. Words must intersect like a crossword puzzle. Every game starts from the center square.',
+  
+    tuto_step2_title: 'The center square ★',
+    tuto_step2_body:  'Your first word must pass through the star at the center of the board. This automatically doubles the score of the opening move!',
+  
+    tuto_step3_title: 'Bonus squares',
+    tuto_step3_body:  '🟥 TW = Triple Word · 🟧 DW = Double Word · 🟦 TL = Triple Letter · 🔷 DL = Double Letter. Place your tiles on these squares to multiply your score.',
+  
+    tuto_step4_title: 'Your rack',
+    tuto_step4_body:  'You have 7 letters in hand. Drag them onto the board to form a word. Playing all 7 tiles at once earns a 50-point bonus (Bingo)!',
+  
+    tuto_step5_title: 'Score preview',
+    tuto_step5_body:  'As you place your tiles, the estimated score updates here in real time — including bonus square multipliers.',
+  
+    tuto_step6_title: 'Submit your word',
+    tuto_step6_body:  'Once your letters are placed, click "Submit" to validate the word. If it\'s invalid or misplaced, the tiles return to your rack.',
+  
+    tuto_step7_title: 'Pass your turn',
+    tuto_step7_body:  'If you can\'t or don\'t want to play, pass your turn. After 6 consecutive passes across all players, the game ends.',
+  
+    tuto_step8_title: 'Score panel',
+    tuto_step8_body:  'Track the score progression here. The highlighted player name is the one whose turn it currently is. Good luck!',
   },
 };
 

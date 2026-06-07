@@ -87,9 +87,15 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
           else if (bonus.bg)             cellBg = bonus.bg;
           else                           cellBg = 'var(--board-cell-empty)';
 
+          // Attributs data-tutorial pour le tutoriel
+          const tutorialAttr = {};
+          if (r === 7 && c === 7)  tutorialAttr['data-tutorial'] = 'board-center';
+          if (r === 0 && c === 0)  tutorialAttr['data-tutorial'] = 'board-bonus';
+
           return (
             <div
               key={cellKey}
+              {...tutorialAttr}
               style={{ display:'flex', justifyContent:'center', alignItems:'center', backgroundColor:cellBg, borderRadius:'1px', transition:'background 0.08s', position:'relative', outline: isHovered&&!isPerm&&!isTemp?'2px solid rgba(200,168,48,0.8)':'none', outlineOffset:'-1px', opacity:isDraggingFrom?0.35:1, overflow:'hidden' }}
               onDragOver={(e) => handleDragOver(e, r, c)}
               onDragLeave={handleDragLeave}

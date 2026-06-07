@@ -12,6 +12,9 @@ import ScorePanel  from '../components/ScorePanel';
 import RetroButton from '../components/ui/RetroButton';
 import { useToast } from '../hooks/useToast';
 import { Toast }   from '../components/Toast';
+import { useTutorial }       from '../hooks/useTutorial';
+import TutorialOverlay       from '../components/TutorialOverlay';
+import TutorialButton        from '../components/TutorialButton';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -101,6 +104,7 @@ export default function GamePage() {
   const { t, language }        = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   const game = useGameLogic({ addToast });
+  const tutorial = useTutorial();
 
   // ── Écran de démarrage ────────────────────────────────────────
   if (!game.gameState || game.gameState.status === 'SETUP') {
@@ -219,19 +223,30 @@ export default function GamePage() {
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
+      <TutorialOverlay
+        isOpen={tutorial.isOpen}
+        step={tutorial.step}
+        onNext={tutorial.nextStep}
+        onPrev={tutorial.prevStep}
+        onClose={tutorial.closeTutorial}
+        t={t}
+      />
+      <TutorialButton onClick={tutorial.openTutorial} t={t} />
 
       <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box',}}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start',}}>
 
           {/* ── Colonne gauche : plateau + rack ─────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <Board
-              gameState={game.gameState}
-              placements={game.placements}
-              onDropTile={game.handleDropTile}
-              onMoveTile={game.handleMoveTile}
-              onReturnTile={game.handleReturnTile}
-            />
+            <div data-tutorial="board" style={{ width: '100%' }}>
+              <Board
+                gameState={game.gameState}
+                placements={game.placements}
+                onDropTile={game.handleDropTile}
+                onMoveTile={game.handleMoveTile}
+                onReturnTile={game.handleReturnTile}
+              />
+            </div>
 
             <Legend t={t} />
 
@@ -247,59 +262,69 @@ export default function GamePage() {
                   : t('game_drag_hint')}
               </div>
 
-              <TileRack
-                tiles={game.rackTilesForDisplay}
-                playerId={game.activePlayerId}
-                onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
-                selectedTiles={game.selectedTilesToSwap}
-              />
+              <div data-tutorial="tile-rack">
+                <TileRack
+                  tiles={game.rackTilesForDisplay}
+                  playerId={game.activePlayerId}
+                  onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
+                  selectedTiles={game.selectedTilesToSwap}
+                />
+              </div>
             </div>
           </div>
 
           {/* ── Sidebar droite ──────────────────────────────── */}
           <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', }}>
-            <ScorePanel
-              players={game.gameState.players}
-              currentPlayerId={game.activePlayerId}
-            />
-
-            {settings.showScorePreview && (
-              <ScorePreview
-                score={game.previewScore}
-                count={game.placements.length}
-                t={t}
+            <div data-tutorial="score-panel">
+              <ScorePanel
+                players={game.gameState.players}
+                currentPlayerId={game.activePlayerId}
               />
-            )}
+            </div>
+
+            <div data-tutorial="score-preview">
+              {settings.showScorePreview && (
+                <ScorePreview
+                  score={game.previewScore}
+                  count={game.placements.length}
+                  t={t}
+                />
+              )}
+            </div>
 
             {/* Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
               {/* Valider */}
-              <RetroButton
-                variant="primary"
-                fullWidth
-                disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
-                onClick={async () => {
-                  if (settings.confirmValidation && game.placements.length > 0) {
-                    const n = game.placements.length;
-                    const tile = n > 1 ? t('game_tiles_plural') : t('game_tiles_singular');
-                    if (!window.confirm(`${t('game_confirm_play')} (${n} ${tile}) ?`)) return;
-                  }
-                  await game.handleValidateWord();
-                }}
-              >
-                ✓ {t('btn_validate')} ({game.placements.length})
-              </RetroButton>
+                <span data-tutorial="btn-validate" style={{ display: 'contents' }}>
+                  <RetroButton
+                    variant="primary"
+                    fullWidth
+                    disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
+                    onClick={async () => {
+                      if (settings.confirmValidation && game.placements.length > 0) {
+                        const n = game.placements.length;
+                        const tile = n > 1 ? t('game_tiles_plural') : t('game_tiles_singular');
+                        if (!window.confirm(`${t('game_confirm_play')} (${n} ${tile}) ?`)) return;
+                      }
+                      await game.handleValidateWord();
+                    }}
+                  >
+                    ✓ {t('btn_validate')} ({game.placements.length})
+                  </RetroButton>
+                </span>
 
               {/* Passer */}
-              <RetroButton
-                variant="default"
-                fullWidth
-                disabled={game.placements.length > 0 || game.isAITurn || game.isSwapMode}
-                onClick={game.handlePassTurn}
-              >
-                → {t('btn_pass')}
-              </RetroButton>
+              <span data-tutorial="btn-pass" style={{ display: 'contents' }}>
+                <RetroButton
+                  variant="default"
+                  fullWidth
+                  disabled={game.placements.length > 0 || game.isAITurn || game.isSwapMode}
+                  onClick={game.handlePassTurn}
+                >
+                  → {t('btn_pass')}
+                </RetroButton>
+              </span>
 
               {/* Mélanger */}
               <RetroButton
