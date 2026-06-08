@@ -281,6 +281,10 @@ export const translations = {
   
     tuto_step8_title: 'Tableau des scores',
     tuto_step8_body:  'Suivez l\'évolution des scores ici. Le joueur dont le nom est surligné est celui dont c\'est le tour. Bonne chance !',
+    tuto_action_required: 'Action requise',
+    tuto_waiting:         'En attente…',
+    tuto_step4_hint:      'Essayez : glissez une lettre sur le plateau',
+    tuto_step6_hint:      'Essayez : cliquez sur Valider',
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -540,6 +544,10 @@ export const translations = {
   
     tuto_step8_title: 'Score panel',
     tuto_step8_body:  'Track the score progression here. The highlighted player name is the one whose turn it currently is. Good luck!',
+    tuto_action_required: 'Action required',
+    tuto_waiting:         'Waiting…',
+    tuto_step4_hint:      'Try it: drag a letter onto the board',
+    tuto_step6_hint:      'Try it: click Submit',
   },
 };
 

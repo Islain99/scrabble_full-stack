@@ -20,6 +20,7 @@ import RegisterPage   from './pages/RegisterPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 
 import './index.css';
+import { TutorialProvider } from './context/TutorialContext';
 
 // ── Router hash-based ─────────────────────────────────────────────
 
@@ -63,11 +64,13 @@ export default function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <SettingsProvider>
-          <AuthProvider>
-            <Router />
-          </AuthProvider>
-        </SettingsProvider>
+        <TutorialProvider>
+          <SettingsProvider>
+            <AuthProvider>
+              <Router />
+            </AuthProvider>
+          </SettingsProvider>
+        </TutorialProvider>
       </ThemeProvider>
     </LanguageProvider>
   );

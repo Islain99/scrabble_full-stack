@@ -12,7 +12,7 @@ import ScorePanel  from '../components/ScorePanel';
 import RetroButton from '../components/ui/RetroButton';
 import { useToast } from '../hooks/useToast';
 import { Toast }   from '../components/Toast';
-import { useTutorial }       from '../hooks/useTutorial';
+import { useTutorialContext, useTutorialRef } from '../context/TutorialContext';
 import TutorialOverlay       from '../components/TutorialOverlay';
 import TutorialButton        from '../components/TutorialButton';
 
@@ -104,8 +104,31 @@ export default function GamePage() {
   const { t, language }        = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   const game = useGameLogic({ addToast });
-  const tutorial = useTutorial();
+  const { notifyGameState } = useTutorialContext();
+  const scorePreviewRef = useTutorialRef('score-preview');
+  const btnValidateRef  = useTutorialRef('btn-validate');
+  const btnPassRef      = useTutorialRef('btn-pass');
+  const legendRef       = useTutorialRef('board-legend');
 
+    // ── Synchronisation état jeu → tutoriel ──────────────────
+  const validatedTurnsRef = React.useRef(0);
+  const prevPlayerIndexRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!game.gameState) return;
+    // Détecter un changement de joueur (= un coup validé ou passé)
+    const idx = game.gameState.current_player_index;
+    if (prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== idx) {
+      validatedTurnsRef.current += 1;
+    }
+    prevPlayerIndexRef.current = idx;
+
+    notifyGameState({
+      placementsCount: game.placements.length,
+      validatedTurns:  validatedTurnsRef.current,
+    });
+  }, [game.gameState, game.placements.length, notifyGameState]);
+  
   // ── Écran de démarrage ────────────────────────────────────────
   if (!game.gameState || game.gameState.status === 'SETUP') {
     const { DIFFICULTY_META } = useSettings ? settings : {};
@@ -223,15 +246,8 @@ export default function GamePage() {
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
-      <TutorialOverlay
-        isOpen={tutorial.isOpen}
-        step={tutorial.step}
-        onNext={tutorial.nextStep}
-        onPrev={tutorial.prevStep}
-        onClose={tutorial.closeTutorial}
-        t={t}
-      />
-      <TutorialButton onClick={tutorial.openTutorial} t={t} />
+      <TutorialOverlay t={t} />
+      <TutorialButton t={t} />
 
       <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box',}}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start',}}>
@@ -248,7 +264,9 @@ export default function GamePage() {
               />
             </div>
 
-            <Legend t={t} />
+            <div ref={legendRef}>
+              <Legend t={t} />
+            </div>
 
             <div style={{ marginTop: '4px' }}>
               {/* Instruction contextuelle */}
@@ -282,7 +300,7 @@ export default function GamePage() {
               />
             </div>
 
-            <div data-tutorial="score-preview">
+            <div ref={scorePreviewRef} data-tutorial="score-preview">
               {settings.showScorePreview && (
                 <ScorePreview
                   score={game.previewScore}
@@ -296,7 +314,7 @@ export default function GamePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
               {/* Valider */}
-                <span data-tutorial="btn-validate" style={{ display: 'contents' }}>
+                <span ref={btnValidateRef} data-tutorial="btn-validate" style={{ display: 'contents' }}>
                   <RetroButton
                     variant="primary"
                     fullWidth
@@ -315,7 +333,7 @@ export default function GamePage() {
                 </span>
 
               {/* Passer */}
-              <span data-tutorial="btn-pass" style={{ display: 'contents' }}>
+              <span ref={btnPassRef} data-tutorial="btn-pass" style={{ display: 'contents' }}>
                 <RetroButton
                   variant="default"
                   fullWidth

@@ -1,5 +1,6 @@
 // src/components/Board.jsx
 import React, { useState, useCallback } from 'react';
+import { useTutorialRef } from '../context/TutorialContext';
 
 const BONUS_STYLES = {
   TM:      { bg: 'var(--bonus-tm)',    label: '3M', text: 'var(--bonus-tm-text)' },
@@ -22,6 +23,8 @@ const getBonus = (r, c) => {
 const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) => {
   const [hoverCell, setHoverCell] = useState(null);
   const [dragSource, setDragSource] = useState(null);
+  const boardRef       = useTutorialRef('board');
+  const boardCenterRef = useTutorialRef('board-center');
 
   const grid = gameState?.board?.grid ?? null;
   const tempMap = {};
@@ -64,6 +67,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
 
   return (
     <div
+      ref={boardRef}
       style={{ width: '100%', maxWidth: 'min(100%, calc(100vh - 160px))', aspectRatio: '1/1', background: 'var(--board-bg)', borderRadius: '6px', padding: 'clamp(6px, 1.5%, 14px)', boxShadow: '6px 6px 0 var(--board-shadow)', border: '3px solid var(--board-border)', position: 'relative', userSelect: 'none', boxSizing: 'border-box', margin: '0 auto' }}
       onDragEnd={handleBoardDragEnd}
     >
@@ -89,12 +93,14 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
 
           // Attributs data-tutorial pour le tutoriel
           const tutorialAttr = {};
+          const cellRef = (r === 7 && c === 7) ? boardCenterRef : undefined;
           if (r === 7 && c === 7)  tutorialAttr['data-tutorial'] = 'board-center';
           if (r === 0 && c === 0)  tutorialAttr['data-tutorial'] = 'board-bonus';
 
           return (
             <div
               key={cellKey}
+              ref={cellRef}
               {...tutorialAttr}
               style={{ display:'flex', justifyContent:'center', alignItems:'center', backgroundColor:cellBg, borderRadius:'1px', transition:'background 0.08s', position:'relative', outline: isHovered&&!isPerm&&!isTemp?'2px solid rgba(200,168,48,0.8)':'none', outlineOffset:'-1px', opacity:isDraggingFrom?0.35:1, overflow:'hidden' }}
               onDragOver={(e) => handleDragOver(e, r, c)}

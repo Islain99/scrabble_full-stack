@@ -1,9 +1,11 @@
 // src/components/TileRack.jsx
 import React, { useState } from 'react';
+import { useTutorialRef } from '../context/TutorialContext';
 
 const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
   const isSwapMode = onTileClick !== undefined;
   const [draggingIndex, setDraggingIndex] = useState(null);
+  const rackRef = useTutorialRef('tile-rack');
 
   const handleDragStart = (e, tile, index) => {
     if (isSwapMode) { e.preventDefault(); return; }
@@ -16,7 +18,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
   const handleDragEnd = () => setDraggingIndex(null);
 
   return (
-    <div style={{
+    <div ref={rackRef} style={{
       background: 'var(--rack-bg)',
       borderRadius: '6px',
       padding: '18px 20px 20px',

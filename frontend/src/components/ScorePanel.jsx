@@ -1,8 +1,11 @@
 // src/components/ScorePanel.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useTutorialRef } from '../context/TutorialContext';
 
 const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
+  const panelRef = useTutorialRef('score-panel');
+
   if (!players || players.length === 0) {
     return (
       <div style={{ padding: '1.2rem', border: '2px solid var(--tobacco)', borderRadius: '2px', color: 'var(--text-muted)', textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', fontSize: '1rem' }}>
@@ -12,7 +15,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
   }
 
   return (
-    <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-primary)', borderRadius: '2px', overflow: 'hidden', boxShadow: '4px 4px 0 var(--shadow-card)', transition: 'background 0.25s, border-color 0.25s' }}>
+    <div ref={panelRef} style={{ background: 'var(--bg-card)', border: '2px solid var(--border-primary)', borderRadius: '2px', overflow: 'hidden', boxShadow: '4px 4px 0 var(--shadow-card)', transition: 'background 0.25s, border-color 0.25s' }}>
       {/* Header */}
       <div style={{ background: 'var(--bg-invert)', color: 'var(--text-invert)', padding: '10px 18px', display: 'flex', alignItems: 'baseline', gap: '12px' }}>
         <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
