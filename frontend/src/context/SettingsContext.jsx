@@ -33,6 +33,7 @@ export const DEFAULTS = {
   boardSize:          'normal',
   animationsEnabled:  true,
   language:           'fr',
+  tutorialSeen:       false,
 };
 
 export const TURN_OPTIONS = [

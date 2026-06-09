@@ -285,6 +285,14 @@ export const translations = {
     tuto_waiting:         'En attente…',
     tuto_step4_hint:      'Essayez : glissez une lettre sur le plateau',
     tuto_step6_hint:      'Essayez : cliquez sur Valider',
+    tuto_progress_label: 'Progression du tutoriel',
+    tuto_hint_label:     'Conseil',
+    tuto_step_label:     'Étape',
+    tuto_step_of:        'sur',
+    tuto_skip_aria:      'Fermer le tutoriel',
+    tuto_prev_aria:      'Étape précédente',
+    tuto_next_aria:      'Étape suivante',
+    tuto_finish_aria:    'Terminer le tutoriel',
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -548,6 +556,14 @@ export const translations = {
     tuto_waiting:         'Waiting…',
     tuto_step4_hint:      'Try it: drag a letter onto the board',
     tuto_step6_hint:      'Try it: click Submit',
+    tuto_progress_label: 'Tutorial progress',
+    tuto_hint_label:     'Tip',
+    tuto_step_label:     'Step',
+    tuto_step_of:        'of',
+    tuto_skip_aria:      'Close the tutorial',
+    tuto_prev_aria:      'Previous step',
+    tuto_next_aria:      'Next step',
+    tuto_finish_aria:    'Finish the tutorial',
   },
 };
 

@@ -83,6 +83,7 @@ class PreferencesResponse(BaseModel):
     confirmValidation:  bool
     boardSize:          str
     animationsEnabled:  bool
+    tutorialSeen:       bool = False
 
 
 class PreferencesPatchRequest(BaseModel):
@@ -99,6 +100,7 @@ class PreferencesPatchRequest(BaseModel):
     confirmValidation:  bool | None = None
     boardSize:          str | None = None
     animationsEnabled:  bool | None = None
+    tutorialSeen:       bool | None = None
 
     @field_validator("difficulty")
     @classmethod

@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider }     from './context/AuthContext';
 import { ThemeProvider }    from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { LanguageProvider } from './context/LanguageContext';
 
 import Navbar         from './components/Navbar';
@@ -58,19 +58,28 @@ function Router() {
   );
 }
 
+function AppWithTutorial({ children }) {
+  const { settings } = useSettings();
+  return (
+    <TutorialProvider settings={settings}>
+      {children}
+    </TutorialProvider>
+  );
+}
+
 // ── Racine ────────────────────────────────────────────────────────
 
 export default function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <TutorialProvider>
+        <AppWithTutorial>
           <SettingsProvider>
             <AuthProvider>
               <Router />
             </AuthProvider>
           </SettingsProvider>
-        </TutorialProvider>
+        </AppWithTutorial>
       </ThemeProvider>
     </LanguageProvider>
   );

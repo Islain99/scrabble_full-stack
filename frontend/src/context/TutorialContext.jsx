@@ -1,30 +1,143 @@
+// src/context/TutorialContext.jsx  (v3 — persistance Firebase + localStorage fallback)
+// Remplace entièrement la v2.
+//
+// Stratégie de persistance :
+//   1. Au montage : charger tutorialSeen depuis les préférences serveur
+//      (via SettingsContext qui expose `settings.tutorialSeen`)
+//   2. À la fermeture : écrire localStorage (immédiat) + PATCH /me/preferences
+//      (silencieux, fire-and-forget)
+//   3. Si non connecté : localStorage uniquement (comportement identique à v2)
+
 import React, {
   createContext, useContext, useRef, useCallback,
   useState, useEffect,
 } from 'react';
+import { useAuth } from './AuthContext';
+import { savePreferences } from '../api/authService';
 
 // ── Contexte ─────────────────────────────────────────────────────
 
 const TutorialContext = createContext(null);
 
-// ── Définition des conditions par étape ──────────────────────────
-// Chaque condition reçoit le snapshot de l'état de jeu exposé par
-// notifyGameState(). Retourner true = l'overlay avance automatiquement.
-// null = pas de condition (bouton « Suivant » classique).
+// ── Conditions par étape ─────────────────────────────────────────
+// null = bouton « Suivant » classique
+// fn   = avance automatiquement quand retourne true
 
 const STEP_CONDITIONS = {
-  // Étape 4 : chevalet — l'utilisateur doit poser au moins 1 tuile
   4: (snap) => snap.placementsCount > 0,
-  // Étape 6 : valider — l'utilisateur doit avoir validé au moins 1 mot
-  //           (on détecte via l'augmentation du compteur de turns joués)
   6: (snap) => snap.validatedTurns > 0,
 };
 
+const STORAGE_KEY  = 'scrabble-tutorial-seen';
+const TOTAL_STEPS  = 9;
+
 // ── Provider ─────────────────────────────────────────────────────
 
-export function TutorialProvider({ children }) {
-  // ── Registre des refs ───────────────────────────────────────────
-  const refsMap = useRef(new Map()); // Map<string, React.RefObject>
+export function TutorialProvider({ children, settings }) {
+  // `settings` est injecté depuis App.jsx via useSettings()
+  // pour éviter une dépendance circulaire entre contextes.
+  // settings.tutorialSeen peut être undefined au premier rendu (chargement async).
+
+  const { isAuthenticated } = useAuth();
+
+  // ── Refs ─────────────────────────────────────────────────────
+  const refsMap    = useRef(new Map());
+  const gameSnap   = useRef({ placementsCount: 0, validatedTurns: 0 });
+  const syncedRef  = useRef(false); // évite un double-write au montage
+
+  // ── État ─────────────────────────────────────────────────────
+  const [isOpen, setIsOpen] = useState(false);
+  const [step, setStep]     = useState(0);
+
+  // hasSeen : priorité serveur > localStorage
+  const [hasSeen, setHasSeen] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
+  });
+
+  // Synchronisation depuis les préférences serveur (chargées de façon async par SettingsContext)
+  useEffect(() => {
+    if (syncedRef.current) return;
+    if (settings?.tutorialSeen === true) {
+      setHasSeen(true);
+      syncedRef.current = true;
+    } else if (settings?.tutorialSeen === false && syncedRef.current === false) {
+      // Le serveur dit "pas encore vu" → on s'assure que hasSeen est false
+      // (cas : utilisateur sur un nouvel appareil, localStorage absent)
+      setHasSeen(false);
+      syncedRef.current = true;
+    }
+  }, [settings?.tutorialSeen]);
+
+  // Auto-open à la première visite (quand hasSeen est établi)
+  useEffect(() => {
+    if (!syncedRef.current) return; // attendre la résolution
+    if (!hasSeen) {
+      const t = setTimeout(() => setIsOpen(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [hasSeen, syncedRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Vérification des conditions ───────────────────────────────
+  useEffect(() => {
+    if (!isOpen) return;
+    const condition = STEP_CONDITIONS[step];
+    if (!condition) return;
+
+    const interval = setInterval(() => {
+      if (condition(gameSnap.current)) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setStep(s => (s < TOTAL_STEPS - 1 ? s + 1 : s));
+        }, 600);
+      }
+    }, 300);
+
+    return () => clearInterval(interval);
+  }, [isOpen, step]);
+
+  // ── Persistance ───────────────────────────────────────────────
+
+  const persistSeen = useCallback(async () => {
+    // 1. localStorage (immédiat)
+    try { localStorage.setItem(STORAGE_KEY, '1'); } catch {}
+
+    // 2. Firebase via API (fire-and-forget, silencieux)
+    if (isAuthenticated) {
+      try {
+        await savePreferences({ tutorialSeen: true });
+      } catch (err) {
+        // Non bloquant — le localStorage est le fallback
+        console.warn('[Tutorial] Persistance Firebase échouée :', err?.message);
+      }
+    }
+  }, [isAuthenticated]);
+
+  // ── Actions publiques ─────────────────────────────────────────
+
+  const openTutorial = useCallback(() => {
+    setStep(0);
+    setIsOpen(true);
+  }, []);
+
+  const closeTutorial = useCallback(() => {
+    setIsOpen(false);
+    setHasSeen(true);
+    persistSeen();
+  }, [persistSeen]);
+
+  const nextStep = useCallback((total = TOTAL_STEPS) => {
+    setStep(s => (s < total - 1 ? s + 1 : s));
+  }, []);
+
+  const prevStep = useCallback(() => {
+    setStep(s => Math.max(0, s - 1));
+  }, []);
+
+  const notifyGameState = useCallback((snap) => {
+    gameSnap.current = snap;
+  }, []);
+
+  // ── Refs ──────────────────────────────────────────────────────
 
   const registerRef = useCallback((id, ref) => {
     refsMap.current.set(id, ref);
@@ -34,95 +147,18 @@ export function TutorialProvider({ children }) {
     return refsMap.current.get(id) ?? null;
   }, []);
 
-  // ── État du tutoriel ────────────────────────────────────────────
-  const STORAGE_KEY = 'scrabble-tutorial-seen';
+  // ── Valeur du contexte ────────────────────────────────────────
 
-  const [isOpen, setIsOpen]   = useState(false);
-  const [step, setStep]       = useState(0);
-  const [hasSeen, setHasSeen] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
-  });
-
-  // Snapshot de l'état jeu pour les conditions (mis à jour via notifyGameState)
-  const gameSnap = useRef({ placementsCount: 0, validatedTurns: 0 });
-
-  // Auto-open à la première visite
-  useEffect(() => {
-    if (!hasSeen) {
-      const t = setTimeout(() => setIsOpen(true), 800);
-      return () => clearTimeout(t);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Vérification des conditions (polling léger) ─────────────────
-  // S'active seulement quand le tutoriel est ouvert et qu'il y a
-  // une condition pour l'étape courante.
-  useEffect(() => {
-    if (!isOpen) return;
-    const condition = STEP_CONDITIONS[step];
-    if (!condition) return;
-
-    const interval = setInterval(() => {
-      if (condition(gameSnap.current)) {
-        clearInterval(interval);
-        // Petit délai pour que l'utilisateur voit ce qu'il vient de faire
-        setTimeout(() => {
-          setStep(s => {
-            const TOTAL_STEPS = 9; // nombre d'étapes (0..8)
-            return s < TOTAL_STEPS - 1 ? s + 1 : s;
-          });
-        }, 600);
-      }
-    }, 300);
-
-    return () => clearInterval(interval);
-  }, [isOpen, step]);
-
-  // ── Actions publiques ───────────────────────────────────────────
-  const openTutorial = useCallback(() => {
-    setStep(0);
-    setIsOpen(true);
-  }, []);
-
-  const closeTutorial = useCallback(() => {
-    setIsOpen(false);
-    setHasSeen(true);
-    try { localStorage.setItem(STORAGE_KEY, '1'); } catch {}
-  }, []);
-
-  const nextStep = useCallback((totalSteps) => {
-    setStep(s => (s < totalSteps - 1 ? s + 1 : s));
-  }, []);
-
-  const prevStep = useCallback(() => {
-    setStep(s => Math.max(0, s - 1));
-  }, []);
-
-  /**
-   * Appelé depuis GamePage à chaque render significatif.
-   * Permet aux conditions de s'évaluer sans couplage direct.
-   *
-   * @param {{ placementsCount: number, validatedTurns: number }} snap
-   */
-  const notifyGameState = useCallback((snap) => {
-    gameSnap.current = snap;
-  }, []);
-
-  // ── Valeur du contexte ──────────────────────────────────────────
   const value = {
-    // Refs
     registerRef,
     getRef,
-    // État tutoriel
     isOpen,
     step,
     hasSeenTutorial: hasSeen,
-    // Actions
     openTutorial,
     closeTutorial,
     nextStep,
     prevStep,
-    // Conditions
     notifyGameState,
     stepConditions: STEP_CONDITIONS,
   };
@@ -136,10 +172,6 @@ export function TutorialProvider({ children }) {
 
 // ── Hooks consommateurs ──────────────────────────────────────────
 
-/**
- * Accès complet au contexte tutoriel.
- * À utiliser dans TutorialOverlay, TutorialButton, GamePage.
- */
 export function useTutorialContext() {
   const ctx = useContext(TutorialContext);
   if (!ctx) throw new Error('useTutorialContext doit être utilisé dans <TutorialProvider>');
@@ -148,14 +180,8 @@ export function useTutorialContext() {
 
 /**
  * Enregistre un élément DOM dans le registre de refs du tutoriel.
- * Retourne la ref à attacher au composant cible.
- *
- * @param {string} id  Identifiant de l'étape (ex: 'tile-rack', 'board')
+ * @param {string} id  ex: 'tile-rack', 'board', 'btn-validate'
  * @returns {React.RefObject<HTMLElement>}
- *
- * @example
- *   const rackRef = useTutorialRef('tile-rack');
- *   <div ref={rackRef}>...</div>
  */
 export function useTutorialRef(id) {
   const { registerRef } = useTutorialContext();
@@ -163,7 +189,6 @@ export function useTutorialRef(id) {
 
   useEffect(() => {
     registerRef(id, ref);
-    // Pas de cleanup : la ref reste valide tant que le Provider existe.
   }, [id, registerRef]);
 
   return ref;

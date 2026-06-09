@@ -20,6 +20,7 @@ DEFAULT_PREFERENCES: dict = {
     "confirmValidation":  False,
     "boardSize":          "normal",
     "animationsEnabled":  True,
+    "tutorialSeen":       False,
 }
 
 
