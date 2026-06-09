@@ -73,13 +73,13 @@ export default function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <AppWithTutorial>
-          <SettingsProvider>
+        <SettingsProvider>
+          <AppWithTutorial>
             <AuthProvider>
               <Router />
             </AuthProvider>
-          </SettingsProvider>
-        </AppWithTutorial>
+          </AppWithTutorial>
+        </SettingsProvider>
       </ThemeProvider>
     </LanguageProvider>
   );
