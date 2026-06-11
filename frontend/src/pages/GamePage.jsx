@@ -101,7 +101,7 @@ function AbandonModal({ onConfirm, onCancel, t }) {
 export default function GamePage() {
   const { isAuthenticated }    = useAuth();
   const { settings }           = useSettings();
-  const { t, language }        = useLanguage();
+  const { t, tp, language }        = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   const game = useGameLogic({ addToast });
   const { notifyGameState } = useTutorialContext();
@@ -272,11 +272,7 @@ export default function GamePage() {
               {/* Instruction contextuelle */}
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px', }}>
                 {game.isSwapMode
-                  ? `${game.selectedTilesToSwap.length} ${t(
-                      game.selectedTilesToSwap.length > 1
-                        ? 'game_tiles_plural'
-                        : 'game_tiles_singular'
-                    )} ${t('game_swap_selected')}`
+                  ? tp('game_swap_count', game.selectedTilesToSwap.length)
                   : t('game_drag_hint')}
               </div>
 
@@ -322,7 +318,7 @@ export default function GamePage() {
                     onClick={async () => {
                       if (settings.confirmValidation && game.placements.length > 0) {
                         const n = game.placements.length;
-                        const tile = n > 1 ? t('game_tiles_plural') : t('game_tiles_singular');
+                        const tile = tp('game_tile', game.placements.length);
                         if (!window.confirm(`${t('game_confirm_play')} (${n} ${tile}) ?`)) return;
                       }
                       await game.handleValidateWord();

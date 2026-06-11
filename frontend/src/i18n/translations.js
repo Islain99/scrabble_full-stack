@@ -126,11 +126,10 @@ export const translations = {
 
     // ── GamePage ──────────────────────────────────────────────────
     game_score_preview:   'Aperçu du score',
-    game_tiles_singular:  'tuile',
-    game_tiles_plural:    'tuiles',
-    game_placed_singular: 'posée',
-    game_placed_plural:   'posées',
-    game_swap_selected:   "sélectionnée(s) pour l'échange",
+    game_tile_one:        '{{count}} tuile posée',
+    game_tile_other:      '{{count}} tuiles posées',
+    game_swap_count_one:  "{{count}} lettre sélectionnée pour l'échange",
+    game_swap_count_other:"{{count}} lettres sélectionnées pour l'échange",
     game_drag_hint:       'Glissez vos lettres sur le plateau',
     game_swap_hint:       'Sélectionnez les lettres à échanger dans le rack',
     game_swap_cancel:     "Annuler l'échange",
@@ -398,11 +397,10 @@ export const translations = {
 
     // ── GamePage ──────────────────────────────────────────────────
     game_score_preview:   'Score Preview',
-    game_tiles_singular:  'tile',
-    game_tiles_plural:    'tiles',
-    game_placed_singular: 'placed',
-    game_placed_plural:   'placed',
-    game_swap_selected:   'selected for exchange',
+    game_tile_one:        '{{count}} tile placed',
+    game_tile_other:      '{{count}} tiles placed',
+    game_swap_count_one:  '{{count}} letter selected for exchange',
+    game_swap_count_other:'{{count}} letters selected for exchange',
     game_drag_hint:       'Drag your letters onto the board',
     game_swap_hint:       'Select the letters to exchange from your rack',
     game_swap_cancel:     'Cancel exchange',
