@@ -29,9 +29,7 @@ export function LanguageProvider({ children }) {
    * t(key, { n: 3 })     → interpolation {{n}}
    */
   const t = useCallback((key, vars) => {
-    const val =
-      translations[language]?.[key] ??
-      translations['fr']?.[key];
+    const val = translations[language]?.[key] ?? translations['fr']?.[key];
 
     if (val === undefined) {
       if (IS_DEV) console.warn(`[i18n] Clé manquante : "${key}" (lang="${language}")`);
