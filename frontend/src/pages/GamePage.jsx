@@ -18,10 +18,9 @@ import TutorialButton        from '../components/TutorialButton';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
-function ScorePreview({ score, count, t }) {
+function ScorePreview({ score, count, t, tp}) {
   if (count === 0) return null;
-  const tile  = count > 1 ? t('game_tiles_plural')   : t('game_tiles_singular');
-  const placed = count > 1 ? t('game_placed_plural') : t('game_placed_singular');
+
   return (
     <div style={{ background: 'var(--bg-card)', border: '2px solid var(--gold)', borderRadius: '2px', padding: '10px 16px', textAlign: 'center', boxShadow: '3px 3px 0 var(--gold)',}}>
       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px',}}>
@@ -31,7 +30,7 @@ function ScorePreview({ score, count, t }) {
         +{score}
       </div>
       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px',}}>
-        {count} {tile} {placed}
+        {tp('game_tile', count)};
       </div>
     </div>
   );
@@ -302,6 +301,7 @@ export default function GamePage() {
                   score={game.previewScore}
                   count={game.placements.length}
                   t={t}
+                  tp={tp}
                 />
               )}
             </div>
