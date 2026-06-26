@@ -14,7 +14,7 @@ import * as mpService  from '../api/multiplayerService';
 
 import Board      from '../components/Board';
 import ScorePanel from '../components/ScorePanel';
-import Toast      from '../components/Toast';
+import { Toast }      from '../components/Toast';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Sous-composants ───────────────────────────────────────────────

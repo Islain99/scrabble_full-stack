@@ -249,11 +249,3 @@ export function useMultiplayerGame({
   };
 }
 
-// ── Note : export `rtdb` depuis firebase.js ───────────────────────
-//
-// Ajouter dans src/firebase.js :
-//
-//   import { getDatabase } from 'firebase/database';
-//   export const rtdb = getDatabase(app);
-//
-// (app est l'instance Firebase déjà initialisée dans ce fichier)
