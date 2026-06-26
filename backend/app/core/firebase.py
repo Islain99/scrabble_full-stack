@@ -43,7 +43,9 @@ def init_firebase() -> bool:
             )
             return False
 
-        firebase_admin.initialize_app(cred)
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": os.getenv("FIREBASE_DATABASE_URL")
+        })
         _initialized = True
         logger.info("Firebase Admin SDK initialisé.")
         return True
