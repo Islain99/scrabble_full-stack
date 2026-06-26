@@ -25,7 +25,10 @@ package-lock.json
 *.sln
 *.sw?
 
-# Environment variables
 *.env
-*.env.local
-.env.local.*
+
+# Optional npm cache directory
+.npm
+
+projet-scrabble-firebase-adminsdk-fbsvc-94e2b501c8.json
+cle.py
