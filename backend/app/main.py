@@ -24,6 +24,7 @@ from app.db.database import init_db, engine, Base
 from app.auth.router import router as auth_router
 from app.users.router import router as users_router
 from app.leaderboard.router import router as leaderboard_router
+from app.multiplayer.router import router as multiplayer_router
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -121,7 +122,7 @@ if settings.is_production:
 app.include_router(auth_router,        prefix="/api/v2")
 app.include_router(users_router,       prefix="/api/v2")
 app.include_router(leaderboard_router, prefix="/api/v2")
-
+app.include_router(multiplayer_router, prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])

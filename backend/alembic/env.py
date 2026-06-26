@@ -11,6 +11,7 @@ load_dotenv()
 
 from app.db.database import Base
 from app.db import models  # noqa — enregistre les modèles pour l'autogenerate
+from app.multiplayer import models as _mp_models  # noqa — MultiplayerGame
 
 config = context.config
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", ""))

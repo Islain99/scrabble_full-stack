@@ -20,3 +20,6 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export default app;
+
+import { getDatabase } from 'firebase/database';
+export const rtdb = getDatabase(app);

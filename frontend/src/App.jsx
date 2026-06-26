@@ -18,6 +18,7 @@ import SettingsPage   from './pages/SettingsPage';
 import LoginPage      from './pages/LoginPage';
 import RegisterPage   from './pages/RegisterPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import MultiplayerPage   from './pages/MultiplayerPage';
 
 import './index.css';
 import { TutorialProvider } from './context/TutorialContext';
@@ -42,6 +43,11 @@ function Router() {
     if (hash === '#/register')    return <RegisterPage />;
     if (hash === '#/settings')    return <SettingsPage />;
     if (hash === '#/leaderboard') return <LeaderboardPage />;
+    if (hash === '#/multiplayer') return (
+      <ProtectedRoute>
+        <MultiplayerPage />
+      </ProtectedRoute>
+    );
 
     return (
       <ProtectedRoute>

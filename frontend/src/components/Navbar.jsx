@@ -23,6 +23,7 @@ export default function Navbar() {
 
   const NAV_LINKS = [
     { label: t('nav_play'),      hash: '#/'            },
+    { label: 'Multijoueur',      hash: '#/multiplayer', authOnly: true },
     { label: t('nav_leaderboard'), hash: '#/leaderboard' },
     { label: t('nav_profile'),   hash: '#/profile', authOnly: true },
     { label: t('nav_settings'),  hash: '#/settings'  },
