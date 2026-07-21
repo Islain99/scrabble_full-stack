@@ -14,7 +14,16 @@ from app.db import models  # noqa — enregistre les modèles pour l'autogenerat
 from app.multiplayer import models as _mp_models  # noqa — MultiplayerGame
 
 config = context.config
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL", ""))
+
+# ── Fix driver : Railway fournit postgresql://, asyncpg requiert postgresql+asyncpg://
+db_url = os.getenv("DATABASE_URL", "")
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif db_url.startswith("postgres://"):
+    # Ancienne forme Heroku/Railway parfois présente
+    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+
+config.set_main_option("sqlalchemy.url", db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
