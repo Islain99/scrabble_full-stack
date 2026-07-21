@@ -114,7 +114,15 @@ export default function GamePage() {
   const prevPlayerIndexRef = React.useRef(null);
 
   React.useEffect(() => {
-    if (!game.gameState) return;
+    if (!gameState || !gameState.players?.length) return (
+      <div style={{ padding: '3rem', textAlign: 'center' }}>
+        <Spinner size="lg" />
+        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
+          Synchronisation de la partie…
+        </p>
+      </div>
+    );
+
     // Détecter un changement de joueur (= un coup validé ou passé)
     const idx = game.gameState.current_player_index;
     if (prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== idx) {
@@ -292,6 +300,7 @@ export default function GamePage() {
               <ScorePanel
                 players={game.gameState.players}
                 currentPlayerId={game.activePlayerId}
+                remainingTiles={gameState.remaining_tiles?.length ?? 0}
               />
             </div>
 

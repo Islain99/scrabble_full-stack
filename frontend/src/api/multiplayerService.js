@@ -10,10 +10,14 @@ const BASE = '/multiplayer';
 
 /** Crée une nouvelle salle. Retourne { room_id, status, host_name } */
 export const createRoom = async () => {
-  const { data } = await api.post(`${BASE}/rooms`);
-  return data;
+  try {
+    const { data } = await api.post(`${BASE}/rooms`);
+    return data;
+  } catch (err) {
+    const detail = err?.response?.data?.detail || 'Impossible de créer la salle.';
+    throw new Error(detail);
+  }
 };
-
 /**
  * Rejoint une salle existante et démarre la partie.
  * Retourne RoomStateResponse (game_state inclus).

@@ -14,7 +14,7 @@ import * as mpService  from '../api/multiplayerService';
 
 import Board      from '../components/Board';
 import ScorePanel from '../components/ScorePanel';
-import { Toast }      from '../components/Toast';
+import Toast      from '../components/Toast';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Sous-composants ───────────────────────────────────────────────
@@ -152,7 +152,7 @@ function WaitingScreen({ roomId, onCancel }) {
 }
 
 // Rack simplifié (inline pour éviter une dépendance)
-function SimpleRack({ tiles, placements, onTileClick, selectedForSwap, isSwapMode }) {
+function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap = [], isSwapMode }) {
   const placed = placements.map(p => p.originalTile);
   return (
     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -277,7 +277,7 @@ function PlayingScreen({ mp, user, roomId }) {
       <ScorePanel
         players={gameState.players}
         currentPlayerId={currentPlayer.id}
-        remainingTiles={gameState.remaining_tiles.length}
+        remainingTiles={(gameState.remaining_tiles ?? []).length}
       />
 
       {/* Plateau */}
@@ -446,7 +446,7 @@ export default function MultiplayerPage() {
     <div className="s-page">
       {/* Toasts */}
       <div style={{ position: 'fixed', top: '70px', right: '16px', zIndex: 200, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {toasts.map(t => (
+        {(toasts ?? []).map(t => (
           <Toast key={t.id} toast={t} onDismiss={dismissToast} />
         ))}
       </div>

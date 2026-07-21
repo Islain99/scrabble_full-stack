@@ -26,6 +26,12 @@ from app.users.router import router as users_router
 from app.leaderboard.router import router as leaderboard_router
 from app.multiplayer.router import router as multiplayer_router
 
+from alembic.config import Config
+from alembic import command
+
+alembic_cfg = Config("alembic.ini")
+command.upgrade(alembic_cfg, "head")
+
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
