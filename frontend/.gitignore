@@ -25,7 +25,8 @@ package-lock.json
 *.sln
 *.sw?
 
-*.env
+# Environment variables
+*.env*
 
 # Optional npm cache directory
 .npm
