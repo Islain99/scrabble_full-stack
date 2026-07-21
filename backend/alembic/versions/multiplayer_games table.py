@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision = "0004_multiplayer"
-down_revision = "0003"
+down_revision = "b2c3d4e5f6a7"
 branch_labels = None
 depends_on = None
 
