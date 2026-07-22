@@ -295,7 +295,7 @@ React.useEffect(() => {
               <ScorePanel
                 players={game.gameState.players}
                 currentPlayerId={game.activePlayerId}
-                remainingTiles={gameState.remaining_tiles?.length ?? 0}
+                remainingTiles={game.gameState.remaining_tiles?.length ?? 0}
               />
             </div>
 
