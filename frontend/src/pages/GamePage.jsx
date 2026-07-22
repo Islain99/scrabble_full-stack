@@ -113,28 +113,23 @@ export default function GamePage() {
   const validatedTurnsRef = React.useRef(0);
   const prevPlayerIndexRef = React.useRef(null);
 
-  React.useEffect(() => {
-    if (!gameState || !gameState.players?.length) return (
-      <div style={{ padding: '3rem', textAlign: 'center' }}>
-        <Spinner size="lg" />
-        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
-          Synchronisation de la partie…
-        </p>
-      </div>
-    );
+React.useEffect(() => {
+  const { gameState, placements } = game;
 
-    // Détecter un changement de joueur (= un coup validé ou passé)
-    const idx = game.gameState.current_player_index;
-    if (prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== idx) {
-      validatedTurnsRef.current += 1;
-    }
-    prevPlayerIndexRef.current = idx;
+  // ✅ Guard simple — pas de JSX, juste un return vide
+  if (!gameState || !gameState.players?.length) return;
 
-    notifyGameState({
-      placementsCount: game.placements.length,
-      validatedTurns:  validatedTurnsRef.current,
-    });
-  }, [game.gameState, game.placements.length, notifyGameState]);
+  const idx = gameState.current_player_index;
+  if (prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== idx) {
+    validatedTurnsRef.current += 1;
+  }
+  prevPlayerIndexRef.current = idx;
+
+  notifyGameState({
+    placementsCount: placements.length,
+    validatedTurns:  validatedTurnsRef.current,
+  });
+}, [game.gameState, game.placements.length, notifyGameState]);
   
   // ── Écran de démarrage ────────────────────────────────────────
   if (!game.gameState || game.gameState.status === 'SETUP') {
