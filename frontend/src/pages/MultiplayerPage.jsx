@@ -5,6 +5,12 @@
 //   WAITING  → hôte attend l'adversaire (affiche room_id à partager)
 //   PLAYING  → plateau de jeu (réutilise Board, ScorePanel, etc.)
 //
+// FIX B1 : roomId est maintenant toujours passé au hook (plus de conditional
+//   phase === 'PLAYING' ? roomId : null). Pendant LOBBY, roomId est null —
+//   le hook le gère via `if (!roomId) return`. Pendant WAITING, le listener
+//   RTDB est actif et reçoit le push _sync_rtdb() dès que l'invité rejoint,
+//   ce qui déclenche la transition WAITING → PLAYING.
+//
 import React, { useState, useCallback, useRef } from 'react';
 import { useAuth }     from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -391,8 +397,13 @@ export default function MultiplayerPage() {
   const [hostUserId,   setHostUserId]   = useState(null);
   const [isCreating,   setIsCreating]   = useState(false);
 
+  // FIX B1 : roomId est passé directement — plus de conditional phase === 'PLAYING'.
+  // Pendant LOBBY, roomId est null → le hook fait `if (!roomId) return` sans effet.
+  // Pendant WAITING, le listener RTDB est actif : quand l'invité rejoint, le backend
+  // appelle _sync_rtdb() → Firebase pousse l'état → onValue() se déclenche →
+  // mp.gameState devient non-null → l'effet ci-dessous transite vers PLAYING.
   const mp = useMultiplayerGame({
-    roomId:        phase === 'PLAYING' ? roomId : null,
+    roomId,
     currentUserId: user?.id,
     hostUserId,
     addToast,
