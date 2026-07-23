@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, onValue, off } from 'firebase/database';
-import { rtdb } from '../firebase'; // export nommé depuis firebase.js (voir note bas de fichier)
+import { rtdb } from '../firebase';
 import * as mp from '../api/multiplayerService';
 import { POINTS_LETTRES, BONUS_MAP } from '../data/constants';
 
@@ -222,6 +222,7 @@ export function useMultiplayerGame({
     );
   }, []);
 
+  console.log('useMultiplayerGame: gameState: ', gameState, 'roomStatus: ', roomStatus, 'placements: ', placements, 'selectedTilesToSwap: ', selectedTilesToSwap);
   // ── API publique ──────────────────────────────────────────────
   return {
     // État
