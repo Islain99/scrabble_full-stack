@@ -10,6 +10,14 @@
 #   5. À chaque écriture DB → push de l'état dans Firebase RTDB (games/{room_id})
 #      → les deux frontends écoutent onValue() et se mettent à jour automatiquement.
 #
+# FIX : create_room utilisait scalar_one_or_none() sans LIMIT sur la requête de
+#   détection des salles existantes. Si plusieurs salles WAITING étaient présentes
+#   pour le même hôte (données orphelines de tests précédents), SQLAlchemy levait
+#   MultipleResultsFound → exception non catchée → 500 → Starlette supprime le
+#   header CORS → le navigateur voit une erreur CORS. Corrigé en ajoutant .limit(1)
+#   à la requête et en utilisant .scalars().first() (retourne None ou le premier
+#   objet, ne lève jamais MultipleResultsFound).
+#
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -59,6 +67,7 @@ def _room_to_response(room: MultiplayerGame) -> RoomStateResponse:
 
 
 async def _get_room_or_404(room_id: str, db: AsyncSession) -> MultiplayerGame:
+    # room_id est UNIQUE — scalar_one_or_none() est sûr ici.
     result = await db.execute(
         select(MultiplayerGame).where(MultiplayerGame.room_id == room_id)
     )
@@ -129,14 +138,17 @@ async def create_room(
     """
     engine = _get_engine(request)
 
-    # Une salle WAITING par hôte maximum
-    existing = await db.execute(
-        select(MultiplayerGame).where(
+    # FIX : .limit(1) + .scalars().first() au lieu de scalar_one_or_none() sans LIMIT.
+    # Évite MultipleResultsFound si des salles orphelines existent en DB.
+    existing_result = await db.execute(
+        select(MultiplayerGame)
+        .where(
             MultiplayerGame.host_user_id == current_user.id,
             MultiplayerGame.status == RoomStatus.WAITING,
         )
+        .limit(1)
     )
-    if existing.scalar_one_or_none():
+    if existing_result.scalars().first():
         raise HTTPException(
             status_code=409,
             detail="Vous avez déjà une salle en attente. Rejoignez-la ou annulez-la.",
@@ -197,16 +209,19 @@ async def join_room(
     )
     gs_dict = _game_state_to_dict(game_state)
 
-    room.guest_user_id  = current_user.id
-    room.status         = RoomStatus.ACTIVE
-    room.game_state     = gs_dict
+    room.guest_user_id   = current_user.id
+    room.status          = RoomStatus.ACTIVE
+    room.game_state      = gs_dict
     room.current_user_id = room.host_user_id  # l'hôte commence
-    room.host_score     = 0
-    room.guest_score    = 0
+    room.host_score      = 0
+    room.guest_score     = 0
     await db.flush()
 
     _sync_rtdb(room_id, gs_dict)
-    logger.info("Partie multijoueur démarrée : room %s | %s vs %s", room_id, host.display_name, current_user.display_name)
+    logger.info(
+        "Partie multijoueur démarrée : room %s | %s vs %s",
+        room_id, host.display_name, current_user.display_name,
+    )
 
     return _room_to_response(room)
 
@@ -227,7 +242,6 @@ async def get_room(
     """
     room = await _get_room_or_404(room_id, db)
 
-    # Vérifier que l'utilisateur fait partie de la salle
     if current_user.id not in (room.host_user_id, room.guest_user_id):
         raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
 
@@ -259,7 +273,6 @@ async def play_move(
     if room.current_user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Ce n'est pas votre tour.")
 
-    # Restaurer le GameState dans le moteur (stateless entre requêtes)
     from api.models import GameState as GSModel
     gs = GSModel.model_validate(room.game_state)
     engine.active_games[gs.game_id] = gs
@@ -276,7 +289,6 @@ async def play_move(
     gs_updated = engine.active_games[gs.game_id]
     gs_dict    = _game_state_to_dict(gs_updated)
 
-    # Mettre à jour les dénormalisations
     room.game_state      = gs_dict
     room.host_score      = gs_updated.players[0].score
     room.guest_score     = gs_updated.players[1].score if len(gs_updated.players) > 1 else None
@@ -285,8 +297,9 @@ async def play_move(
     if gs_updated.status.value == "FINISHED":
         room.status      = RoomStatus.FINISHED
         room.finished_at = datetime.now(timezone.utc)
-        winner_idx       = next(
-            (i for i, p in enumerate(gs_updated.players) if p.name == gs_updated.winner_name), None
+        winner_idx = next(
+            (i for i, p in enumerate(gs_updated.players) if p.name == gs_updated.winner_name),
+            None,
         )
         if winner_idx is not None:
             room.winner_user_id = room.host_user_id if winner_idx == 0 else room.guest_user_id
