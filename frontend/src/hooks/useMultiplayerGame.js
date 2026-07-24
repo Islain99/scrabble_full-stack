@@ -1,13 +1,22 @@
 // src/hooks/useMultiplayerGame.js
 //
 // Gère l'intégralité d'une partie multijoueur :
-//   - Sync temps réel via Firebase RTDB (onValue sur /games/{roomId})
+//   - Sync temps réel via Firebase RTDB (onValue sur /games/{roomId}/for_host
+//     ou /games/{roomId}/for_guest selon myPlayerIndex)
 //   - Fallback polling REST toutes les 5 s si RTDB indisponible
 //   - Actions : playMove, passTurn, swapTiles
 //   - Placement côté client (même logique que useGameLogic.js)
 //
+// FIX B2 — Fuite des racks via RTDB :
+//   Avant : écoute sur /games/{roomId} → game_state complet visible des deux côtés.
+//   Après : écoute sur /games/{roomId}/for_host (myPlayerIndex=0) ou
+//           /games/{roomId}/for_guest (myPlayerIndex=1). Le backend pousse deux
+//           payloads distincts avec le rack adverse masqué dans chaque chemin.
+//   myPlayerIndex ajouté aux dépendances du useEffect pour recréer le listener
+//   si le rôle change (ne devrait pas arriver en pratique, mais sûr).
+//
 // Usage :
-//   const mp = useMultiplayerGame({ roomId, currentUserId, addToast });
+//   const mp = useMultiplayerGame({ roomId, currentUserId, hostUserId, addToast });
 //   mp.gameState / mp.isMyTurn / mp.handleDropTile / mp.handleValidateWord ...
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -39,8 +48,8 @@ function calcPreview(placements) {
 /**
  * @param {{
  *   roomId: string,
- *   currentUserId: number,       // id PostgreSQL de l'utilisateur connecté
- *   hostUserId: number,          // pour déduire l'index joueur (0 = hôte, 1 = invité)
+ *   currentUserId: number,
+ *   hostUserId: number,
  *   addToast: Function,
  * }} options
  */
@@ -52,7 +61,7 @@ export function useMultiplayerGame({
 } = {}) {
 
   const [gameState,  setGameState]  = useState(null);
-  const [roomStatus, setRoomStatus] = useState('ACTIVE'); // ACTIVE | FINISHED
+  const [roomStatus, setRoomStatus] = useState('ACTIVE');
   const [placements, setPlacements] = useState([]);
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [isLoading,  setIsLoading]  = useState(false);
@@ -77,7 +86,7 @@ export function useMultiplayerGame({
   const previewScore = useMemo(() => calcPreview(placements), [placements]);
 
   // ── Sync Firebase RTDB ────────────────────────────────────────
-  const pollingRef = useRef(null);
+  const pollingRef      = useRef(null);
   const rtdbListenerRef = useRef(null);
 
   const applyRoomState = useCallback((roomData) => {
@@ -89,21 +98,24 @@ export function useMultiplayerGame({
   useEffect(() => {
     if (!roomId) return;
 
-    let usingRtdb = false;
+    // FIX B2 : écouter le sous-chemin dédié au joueur courant.
+    // Le backend pousse /games/{roomId}/for_host et /games/{roomId}/for_guest
+    // avec le rack adverse masqué dans chacun.
+    const rtdbSubPath = myPlayerIndex === 0
+      ? `/games/${roomId}/for_host`
+      : `/games/${roomId}/for_guest`;
 
     // Tentative RTDB
     try {
       if (rtdb) {
-        const gameRef = ref(rtdb, `/games/${roomId}`);
+        const gameRef = ref(rtdb, rtdbSubPath);
         const unsubscribe = onValue(gameRef, (snapshot) => {
           const data = snapshot.val();
           if (data) {
             setGameState(data);
-            usingRtdb = true;
           }
         });
         rtdbListenerRef.current = () => off(gameRef);
-        // Si RTDB fonctionne, pas besoin de polling
         return () => {
           unsubscribe();
           rtdbListenerRef.current = null;
@@ -114,6 +126,7 @@ export function useMultiplayerGame({
     }
 
     // Fallback : polling REST toutes les 5 s
+    // GET /rooms/{roomId} retourne aussi un game_state masqué (rack adverse caché).
     const poll = async () => {
       try {
         const room = await mp.getRoom(roomId);
@@ -128,7 +141,8 @@ export function useMultiplayerGame({
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [roomId, applyRoomState]);
+  }, [roomId, myPlayerIndex, applyRoomState]);
+  //            ↑ myPlayerIndex ajouté : recrée le listener si le rôle change
 
   // ── Placement côté client (identique à useGameLogic) ──────────
 
@@ -222,7 +236,6 @@ export function useMultiplayerGame({
     );
   }, []);
 
-  console.log('useMultiplayerGame: gameState: ', gameState, 'roomStatus: ', roomStatus, 'placements: ', placements, 'selectedTilesToSwap: ', selectedTilesToSwap);
   // ── API publique ──────────────────────────────────────────────
   return {
     // État
@@ -249,4 +262,3 @@ export function useMultiplayerGame({
     toggleTileForSwap,
   };
 }
-

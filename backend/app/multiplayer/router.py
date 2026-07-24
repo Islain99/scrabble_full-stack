@@ -7,17 +7,25 @@
 #   2. Joueur B  → POST /multiplayer/rooms/{id}/join → rejoint, partie démarre
 #   3. Chacun    → GET  /multiplayer/rooms/{id}      → lit l'état courant
 #   4. Joueur actif → POST .../move | .../pass | .../swap → joue, état mis à jour
-#   5. À chaque écriture DB → push de l'état dans Firebase RTDB (games/{room_id})
-#      → les deux frontends écoutent onValue() et se mettent à jour automatiquement.
+#   5. À chaque écriture DB → push dans Firebase RTDB (games/{room_id}/for_host
+#      et games/{room_id}/for_guest) avec rack adverse masqué dans chaque chemin.
 #
-# FIX : create_room utilisait scalar_one_or_none() sans LIMIT sur la requête de
-#   détection des salles existantes. Si plusieurs salles WAITING étaient présentes
-#   pour le même hôte (données orphelines de tests précédents), SQLAlchemy levait
-#   MultipleResultsFound → exception non catchée → 500 → Starlette supprime le
-#   header CORS → le navigateur voit une erreur CORS. Corrigé en ajoutant .limit(1)
-#   à la requête et en utilisant .scalars().first() (retourne None ou le premier
-#   objet, ne lève jamais MultipleResultsFound).
+# FIX B2 — Fuite des racks via RTDB et REST :
+#   Avant : _sync_rtdb poussait le game_state complet sur /games/{room_id}.
+#   Chaque joueur pouvait lire le rack de son adversaire.
+#   Après :
+#     • _build_masked_state() remplace le rack adverse par des placeholders {"letter":"?"}
+#     • _sync_rtdb() pousse deux payloads distincts :
+#         /games/{room_id}/for_host  → rack invité masqué
+#         /games/{room_id}/for_guest → rack hôte masqué
+#     • GET /rooms/{id} filtre aussi le game_state selon le joueur demandeur.
+#     • Le frontend écoute /games/{room_id}/for_host ou /for_guest selon myPlayerIndex.
 #
+# FIX B1 (antérieur) — scalar_one_or_none() sans LIMIT dans create_room levait
+#   MultipleResultsFound si des salles orphelines existaient → 500 sans CORS.
+#   Corrigé avec .limit(1) + .scalars().first().
+#
+import copy
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -77,21 +85,47 @@ async def _get_room_or_404(room_id: str, db: AsyncSession) -> MultiplayerGame:
     return room
 
 
-def _sync_rtdb(room_id: str, game_state: dict) -> None:
+def _build_masked_state(gs_dict: dict, viewer_index: int) -> dict:
+    """
+    Retourne une copie profonde du game_state avec le rack de l'adversaire masqué.
+    Les tuiles adverses sont remplacées par {"letter": "?", "score": 0} pour
+    préserver la taille du rack sans révéler les lettres.
+
+    viewer_index : 0 = hôte voit son rack intact, invité masqué.
+                   1 = invité voit son rack intact, hôte masqué.
+    """
+    masked = copy.deepcopy(gs_dict)
+    opponent_index = 1 - viewer_index
+    players = masked.get("players") or []
+    if len(players) > opponent_index:
+        opp = players[opponent_index]
+        rack_size = len(opp.get("rack") or [])
+        opp["rack"] = [{"letter": "?", "score": 0}] * rack_size
+    return masked
+
+
+def _sync_rtdb(room_id: str, gs_dict: dict) -> None:
     """
     Pousse l'état de partie dans Firebase Realtime Database.
-    Chemin : /games/{room_id}
+
+    Structure :
+        /games/{room_id}/for_host  — rack de l'invité masqué
+        /games/{room_id}/for_guest — rack de l'hôte masqué
+
+    Chaque frontend écoute le chemin qui lui correspond (for_host ou for_guest)
+    selon myPlayerIndex, et ne peut donc pas lire le rack adverse.
 
     Non bloquant : les erreurs sont loguées mais n'interrompent pas la réponse HTTP.
-    Le frontend écoute ce chemin avec onValue() pour se mettre à jour en temps réel.
     """
     try:
         from firebase_admin import db as rtdb
         ref = rtdb.reference(f"/games/{room_id}")
-        ref.set(game_state)
+        ref.set({
+            "for_host":  _build_masked_state(gs_dict, viewer_index=0),
+            "for_guest": _build_masked_state(gs_dict, viewer_index=1),
+        })
         logger.debug("RTDB sync OK pour room %s", room_id)
     except Exception as exc:
-        # RTDB optionnel : si non configuré, la partie reste jouable via polling REST.
         logger.warning("RTDB sync ignorée (room=%s) : %s", room_id, exc)
 
 
@@ -131,15 +165,9 @@ async def create_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    L'hôte crée une salle vide.
-    Le `room_id` renvoyé doit être partagé à l'adversaire (lien / code).
-    La partie démarre automatiquement quand un second joueur rejoint via /join.
-    """
     engine = _get_engine(request)
 
-    # FIX : .limit(1) + .scalars().first() au lieu de scalar_one_or_none() sans LIMIT.
-    # Évite MultipleResultsFound si des salles orphelines existent en DB.
+    # .limit(1) + .scalars().first() évite MultipleResultsFound sur salles orphelines.
     existing_result = await db.execute(
         select(MultiplayerGame)
         .where(
@@ -155,7 +183,6 @@ async def create_room(
         )
 
     room_id = str(uuid.uuid4())
-
     room = MultiplayerGame(
         room_id=room_id,
         host_user_id=current_user.id,
@@ -184,11 +211,6 @@ async def join_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Le second joueur rejoint la salle.
-    Si elle est WAITING et que l'utilisateur n'est pas l'hôte,
-    la partie est initialisée et passe en ACTIVE.
-    """
     engine = _get_engine(request)
     room = await _get_room_or_404(room_id, db)
 
@@ -197,22 +219,19 @@ async def join_room(
     if room.host_user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Vous êtes déjà l'hôte de cette salle.")
 
-    # Charger le nom de l'hôte pour initialiser GameEngine
     host_result = await db.execute(select(User).where(User.id == room.host_user_id))
     host = host_result.scalar_one()
 
-    # Créer la partie côté moteur
-    # Convention : joueur 0 = hôte, joueur 1 = invité
     game_state = engine.start_new_game(
         player_names=[host.display_name, current_user.display_name],
-        difficulty="medium",  # non utilisé en multi, mais requis par l'API
+        difficulty="medium",
     )
     gs_dict = _game_state_to_dict(game_state)
 
     room.guest_user_id   = current_user.id
     room.status          = RoomStatus.ACTIVE
     room.game_state      = gs_dict
-    room.current_user_id = room.host_user_id  # l'hôte commence
+    room.current_user_id = room.host_user_id
     room.host_score      = 0
     room.guest_score     = 0
     await db.flush()
@@ -223,7 +242,10 @@ async def join_room(
         room_id, host.display_name, current_user.display_name,
     )
 
-    return _room_to_response(room)
+    # L'invité (viewer_index=1) reçoit son rack intact, hôte masqué.
+    response = _room_to_response(room)
+    response.game_state = _build_masked_state(gs_dict, viewer_index=1)
+    return response
 
 
 @router.get(
@@ -237,15 +259,19 @@ async def get_room(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Lecture de l'état complet de la partie.
-    Utile comme fallback si la connexion RTDB est absente (polling).
+    Lecture de l'état complet de la partie (fallback polling si RTDB absent).
+    Le game_state retourné a le rack adverse masqué selon le joueur demandeur.
     """
     room = await _get_room_or_404(room_id, db)
 
     if current_user.id not in (room.host_user_id, room.guest_user_id):
         raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
 
-    return _room_to_response(room)
+    viewer_index = 0 if current_user.id == room.host_user_id else 1
+    response = _room_to_response(room)
+    if response.game_state:
+        response.game_state = _build_masked_state(response.game_state, viewer_index)
+    return response
 
 
 @router.post(
@@ -260,11 +286,6 @@ async def play_move(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Valide et applique un coup.
-    `placements` : liste de { r, c, letter }.
-    Seul le joueur dont c'est le tour peut appeler cette route.
-    """
     engine = _get_engine(request)
     room   = await _get_room_or_404(room_id, db)
 
@@ -307,7 +328,10 @@ async def play_move(
     await db.flush()
     _sync_rtdb(room_id, gs_dict)
 
-    return _room_to_response(room)
+    # Le joueur actif reçoit son rack intact dans la réponse REST.
+    response = _room_to_response(room)
+    response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
+    return response
 
 
 @router.post(
@@ -353,7 +377,9 @@ async def pass_turn(
     await db.flush()
     _sync_rtdb(room_id, gs_dict)
 
-    return _room_to_response(room)
+    response = _room_to_response(room)
+    response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
+    return response
 
 
 @router.post(
@@ -395,7 +421,9 @@ async def swap_tiles(
     await db.flush()
     _sync_rtdb(room_id, gs_dict)
 
-    return _room_to_response(room)
+    response = _room_to_response(room)
+    response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
+    return response
 
 
 @router.delete(
