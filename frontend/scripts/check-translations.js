@@ -1,50 +1,50 @@
 // scripts/check-translations.js
-// Vérifie la parité fr ↔ en du fichier translations.js
-// Usage : node scripts/check-translations.js
-// En CI : ajouter dans package.json → "check:i18n": "node scripts/check-translations.js"
+//
+// Vérifie la cohérence des traductions de src/i18n/translations.js :
+//   1. même jeu de clés dans chaque langue (FR = référence)
+//   2. aucune valeur vide
+//   3. mêmes variables {{interpolation}} d'une langue à l'autre
+//
+// Usage : npm run check:i18n        (code de sortie 1 en cas d'erreur → CI)
+//
+// Le module de traductions est importé tel quel (pas de regex) : le script
+// voit exactement ce que voit l'application.
 
-const path = require('path');
+import { translations } from '../src/i18n/translations.js';
 
-// Résolution du fichier source (ESM → extraction manuelle)
-const fs   = require('fs');
-const src  = fs.readFileSync(
-  path.resolve(__dirname, '../frontend/src/i18n/translations.js'),
-  'utf8'
-);
+const REF = 'fr';
+const langs = Object.keys(translations);
+const ref = translations[REF];
+const refKeys = Object.keys(ref);
 
-// Extraction des blocs fr: { ... } et en: { ... }
-function extractKeys(src, lang) {
-  const blockRe = new RegExp(`\\b${lang}\\s*:\\s*\\{([\\s\\S]*?)\\n  \\}`, 'm');
-  const block = src.match(blockRe)?.[1] ?? '';
-  const keyRe = /^\s{4}(\w+)\s*:/gm;
-  const keys = [];
-  let m;
-  while ((m = keyRe.exec(block)) !== null) keys.push(m[1]);
-  return keys;
+const vars = (s) => new Set(String(s).match(/\{\{\s*\w+\s*\}\}/g)?.map((v) => v.replace(/\s/g, '')) ?? []);
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+
+let errors = 0;
+const fail = (msg) => { console.error(`  ✗ ${msg}`); errors++; };
+
+for (const lang of langs) {
+  const dict = translations[lang];
+  const keys = Object.keys(dict);
+  console.log(`\n[${lang}] ${keys.length} clés`);
+
+  if (lang !== REF) {
+    refKeys.filter((k) => !(k in dict)).forEach((k) => fail(`manquante : ${k}`));
+    keys.filter((k) => !(k in ref)).forEach((k) => fail(`absente en ${REF} : ${k}`));
+  }
+
+  for (const k of keys) {
+    const v = dict[k];
+    if (v === '' || v == null) fail(`valeur vide : ${k}`);
+    if (lang !== REF && k in ref && typeof v === 'string' && typeof ref[k] === 'string'
+        && !sameSet(vars(v), vars(ref[k]))) {
+      fail(`variables différentes de ${REF} : ${k}  (${[...vars(ref[k])]} ≠ ${[...vars(v)]})`);
+    }
+  }
 }
 
-const frKeys = extractKeys(src, 'fr');
-const enKeys = extractKeys(src, 'en');
-
-const missingInEn = frKeys.filter(k => !enKeys.includes(k));
-const extraInEn   = enKeys.filter(k => !frKeys.includes(k));
-
-let hasError = false;
-
-if (missingInEn.length) {
-  console.error(`\n❌ ${missingInEn.length} clé(s) présente(s) en FR mais absente(s) en EN :\n`);
-  missingInEn.forEach(k => console.error(`   • ${k}`));
-  hasError = true;
-}
-
-if (extraInEn.length) {
-  console.warn(`\n⚠️  ${extraInEn.length} clé(s) présente(s) en EN mais absente(s) en FR :\n`);
-  extraInEn.forEach(k => console.warn(`   • ${k}`));
-}
-
-if (!hasError) {
-  console.log(`\n✅ Parité OK — ${frKeys.length} clés fr = ${enKeys.length} clés en\n`);
-  process.exit(0);
-} else {
+if (errors) {
+  console.error(`\n❌ ${errors} problème(s) de traduction.\n`);
   process.exit(1);
 }
+console.log(`\n✅ Traductions OK — ${langs.length} langues, ${refKeys.length} clés chacune.\n`);

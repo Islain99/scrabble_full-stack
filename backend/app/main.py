@@ -20,17 +20,17 @@ setup_logging()
 
 from app.core.config import get_settings
 from app.core.firebase import init_firebase
-from app.db.database import init_db, engine, Base
+from app.db import database as db
+from app.db.database import init_db, Base
 from app.auth.router import router as auth_router
 from app.users.router import router as users_router
 from app.leaderboard.router import router as leaderboard_router
 from app.multiplayer.router import router as multiplayer_router
 
-from alembic.config import Config
-from alembic import command
-
-alembic_cfg = Config("alembic.ini")
-command.upgrade(alembic_cfg, "head")
+# NB : les migrations Alembic sont lancées par la commande de démarrage
+# (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
+# Les lancer ici les exécutait deux fois en prod, plantait l'import sans DB
+# (tests, CI) et écrasait la config de logging via fileConfig().
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -66,10 +66,13 @@ async def lifespan(application: FastAPI):
     # 2. Base de données
     try:
         init_db()
-        if engine is not None:
+        # `db.engine` (et non un `engine` importé) : init_db() réassigne la
+        # globale du module, un nom importé resterait figé à None.
+        if db.engine is not None:
             if not settings.is_production:
-                async with engine.begin() as conn:
+                async with db.engine.begin() as conn:
                     from app.db import models  # noqa
+                    from app.multiplayer import models as _mp_models  # noqa — table multiplayer_games
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -89,8 +92,8 @@ async def lifespan(application: FastAPI):
 
     # ── Arrêt ──────────────────────────────────────────────────────
     try:
-        if engine is not None:
-            await engine.dispose()
+        if db.engine is not None:
+            await db.engine.dispose()
             logger.info("Pool de connexions DB fermé.")
     except Exception as exc:
         logger.warning("Erreur à la fermeture de la DB : %s", exc)

@@ -26,6 +26,14 @@ package-lock.json
 *.sw?
 
 *.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
 
 # Optional npm cache directory
 .npm

@@ -25,8 +25,9 @@ package-lock.json
 *.sln
 *.sw?
 
-# Environment variables
+# Environment variables (le modèle .env.example, lui, est versionné)
 *.env*
+!.env.example
 
 # Optional npm cache directory
 .npm

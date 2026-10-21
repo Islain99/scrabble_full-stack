@@ -317,8 +317,6 @@ export function useGameLogic({
     }
   }, [gameState, gameId, isAuthenticated, gameStartTime]);
 
-  console.log('useGameLogic: gameState: ', gameState, 'gameId: ', gameId, 'placements: ', placements, 'selectedTilesToSwap: ', selectedTilesToSwap);
-
   // ── API publique du hook ──────────────────────────────────────
   return {
     // État

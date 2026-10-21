@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"          # = runtime.txt (Railway)
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Installer les dépendances
+        run: pip install -r requirements-dev.txt
+
+      # Aucune DB ni Firebase requis : voir tests/conftest.py
+      - name: Pytest
+        run: pytest
+
+      # Vérifie que la chaîne de migrations se résout jusqu'à head (SQL généré
+      # hors ligne, sans base) : attrape un down_revision cassé avant Railway.
+      - name: Migrations Alembic (hors ligne)
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: alembic upgrade head --sql > /dev/null
+
+  frontend:
+    name: Frontend — i18n, build, lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # package-lock.json est ignoré par .gitignore → npm install
+      # (passer à `npm ci` + cache npm une fois le lockfile versionné)
+      - name: Installer les dépendances
+        run: npm install --no-audit --no-fund
+
+      - name: Parité des traductions
+        run: npm run check:i18n
+
+      - name: Build
+        env:
+          # Valeurs factices : le build n'a pas besoin des vraies clés
+          VITE_API_BASE_URL: http://localhost:8000
+          VITE_FIREBASE_API_KEY: ci
+          VITE_FIREBASE_AUTH_DOMAIN: ci.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ci
+          VITE_FIREBASE_DATABASE_URL: https://ci.firebaseio.com
+        run: npm run build
+
+      # Non bloquant tant que la dette de lint existante (react-hooks v7)
+      # n'est pas résorbée. Retirer `continue-on-error` ensuite.
+      - name: Lint (informatif)
+        continue-on-error: true
+        run: npm run lint

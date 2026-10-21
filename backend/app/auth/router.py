@@ -55,6 +55,10 @@ def _get_client_ip(request: Request) -> str:
 
 
 def _check_rate_limit(request: Request) -> None:
+    """
+    Dépendance FastAPI. Déclarée AVANT bearer_scheme et get_db dans les
+    routes : un appel bloqué n'ouvre ni vérification de token ni session DB.
+    """
     ip = _get_client_ip(request)
     if not _auth_limiter.is_allowed(ip):
         logger.warning("Rate limit atteint ip=%s", ip)
@@ -147,13 +151,11 @@ class LoginResponse(BaseModel):
 
 @router.post("/register", response_model=LoginResponse, status_code=status.HTTP_201_CREATED)
 async def register(
-    request: Request,
     payload: RegisterRequest,
+    _rl: None = Depends(_check_rate_limit),  # en premier : avant token et DB
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_rate_limit(request)
-
     try:
         decoded = verify_firebase_token(credentials.credentials)
     except Exception:
@@ -192,12 +194,10 @@ async def register(
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
-    request: Request,
+    _rl: None = Depends(_check_rate_limit),  # en premier : avant token et DB
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_rate_limit(request)
-
     try:
         decoded = verify_firebase_token(credentials.credentials)
     except Exception:

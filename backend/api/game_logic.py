@@ -417,6 +417,61 @@ class GameEngine:
     # Actions humaines
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _validate_placement_geometry(
+        board: Board,
+        placements: List[Tuple[int, int, str]],
+    ) -> Optional[str]:
+        """
+        Vérifie la forme du coup avant toute validation de mots.
+        Retourne un message d'erreur, ou None si le placement est légal :
+          - au moins une tuile, toutes dans le plateau, sans doublon de case ;
+          - toutes sur une même ligne ou une même colonne ;
+          - aucun trou : entre la première et la dernière tuile posée, chaque
+            case est soit posée maintenant, soit déjà occupée ;
+          - si le plateau n'est pas vide, au moins une tuile posée touche
+            (orthogonalement) une tuile déjà présente.
+        """
+        if not placements:
+            return "Placement invalide : aucune tuile posée."
+
+        positions = [(r, c) for r, c, _ in placements]
+        if any(not (0 <= r < 15 and 0 <= c < 15) for r, c in positions):
+            return "Placement invalide : case hors du plateau."
+        if len(set(positions)) != len(positions):
+            return "Placement invalide : deux tuiles sur la même case."
+
+        rows = {r for r, _ in positions}
+        cols = {c for _, c in positions}
+        if len(rows) > 1 and len(cols) > 1:
+            return "Placement invalide : les tuiles doivent être sur une même ligne ou colonne."
+
+        placed = set(positions)
+
+        def occupied(r: int, c: int) -> bool:
+            return (r, c) in placed or board.grid[r][c] is not None
+
+        if len(rows) == 1:
+            r = next(iter(rows))
+            gap = any(not occupied(r, c) for c in range(min(cols), max(cols) + 1))
+        else:
+            c = next(iter(cols))
+            gap = any(not occupied(r, c) for r in range(min(rows), max(rows) + 1))
+        if gap:
+            return "Placement invalide : les tuiles posées doivent former un seul mot continu."
+
+        board_empty = all(board.grid[r][c] is None for r in range(15) for c in range(15))
+        if not board_empty:
+            touches = any(
+                0 <= r + dr < 15 and 0 <= c + dc < 15 and board.grid[r + dr][c + dc] is not None
+                for r, c in positions
+                for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1))
+            )
+            if not touches:
+                return "Placement invalide : le mot doit toucher une tuile déjà sur le plateau."
+
+        return None
+
     def play_word(
         self,
         game_id: str,
@@ -432,13 +487,26 @@ class GameEngine:
             return (False, "Ce n'est pas le tour de ce joueur.")
 
         current_player = current_game.players[current_game.current_player_index]
+
+        error = self._validate_placement_geometry(current_game.board, placements)
+        if error:
+            return (False, error)
+
         temp_board = deepcopy(current_game.board)
         tiles_to_place: List[Tuple[int, int, Tile]] = []
 
         for r, c, l in placements:
             if temp_board.grid[r][c] is not None:
                 return (False, "Placement invalide : une case est déjà occupée.")
-            tile_to_place = next((t for t in current_player.rack if t.letter == l), None)
+            # Exclut les tuiles déjà utilisées dans ce coup : sans ça, poser deux
+            # fois la même lettre réutilisait la même tuile du chevalet.
+            tile_to_place = next(
+                (
+                    t for t in current_player.rack
+                    if t.letter == l and not any(t is used for _, _, used in tiles_to_place)
+                ),
+                None,
+            )
             if not tile_to_place:
                 return (False, f"Tuile '{l}' non trouvée dans le rack.")
             temp_board.grid[r][c] = tile_to_place

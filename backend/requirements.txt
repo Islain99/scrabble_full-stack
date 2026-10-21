@@ -1,32 +1,30 @@
-# Framework
-fastapi
-uvicorn[standard]
-pathlib
-numpy
+# Dépendances de PRODUCTION (Railway). Versions figées = builds reproductibles.
+# Dépendances de test : requirements-dev.txt
+#
+# Pour mettre à jour : changer une version, relancer `pytest`, puis committer.
 
-# Base de données
+# ── Framework ─────────────────────────────────────────────────────
+fastapi==0.133.1
+starlette==0.41.3
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+pydantic-settings==2.6.1
+
+# ── Base de données ───────────────────────────────────────────────
 sqlalchemy==2.0.36
-asyncpg==0.30.0 
+asyncpg==0.30.0
+greenlet==3.5.6          # requis par SQLAlchemy async (absent auparavant)
 alembic==1.14.0
-psycopg2-binary==2.9.10
 
-# Firebase Admin
+# ── Firebase Admin (auth + RTDB) ──────────────────────────────────
 firebase-admin==6.6.0
 
-# Auth & sécurité
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart
+# ── Utilitaires ───────────────────────────────────────────────────
+python-dotenv==1.0.1     # utilisé par alembic/env.py
 
-# Utilitaires
-pydantic
-pydantic-settings==2.6.1
-python-dotenv==1.0.1
-httpx==0.28.1
-
-# CORS & HTTP
-starlette==0.41.3
-
-# ── Tests ─────────────────────────────────────────────────────────
-pytest
-anyio
+# Retirés (aucun import dans le code) :
+#   pathlib          → backport Python 2, fait partie de la stdlib depuis 3.4
+#   numpy            → non utilisé, alourdit fortement le build
+#   python-jose, passlib[bcrypt] → restes de l'ancienne auth JWT (remplacée par Firebase)
+#   python-multipart → aucune route Form/File
+#   psycopg2-binary  → driver sync inutile, tout passe par asyncpg
