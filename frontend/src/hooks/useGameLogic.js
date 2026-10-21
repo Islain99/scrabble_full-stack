@@ -6,25 +6,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as gameService from '../api/gameService';
 import { saveGame } from '../api/authService';
-import { POINTS_LETTRES, BONUS_MAP } from '../data/constants';
-
-// ── Score preview (côté client, approximatif) ─────────────────────
-
-function calculatePreviewScore(placements) {
-  if (placements.length === 0) return 0;
-  let score = 0;
-  let wordMultiplier = 1;
-  placements.forEach(p => {
-    let letterScore = POINTS_LETTRES[p.letter] || 0;
-    const bonus = BONUS_MAP[`${p.r}-${p.c}`];
-    if (bonus === 'DL') letterScore *= 2;
-    if (bonus === 'TL') letterScore *= 3;
-    if (bonus === 'DM') wordMultiplier *= 2;
-    if (bonus === 'TM') wordMultiplier *= 3;
-    score += letterScore;
-  });
-  return score * wordMultiplier;
-}
+import { calculatePreviewScore } from '../utils/scoring';
 
 // ── Hook principal ────────────────────────────────────────────────
 
@@ -76,7 +58,10 @@ export function useGameLogic({
     [availableRackTiles, autoSortRack]
   );
 
-  const previewScore = useMemo(() => calculatePreviewScore(placements), [placements]);
+  const previewScore = useMemo(
+    () => calculatePreviewScore(placements, gameState?.board?.grid),
+    [placements, gameState]
+  );
   const isSwapMode   = selectedTilesToSwap.length > 0;
 
   // ── Tour IA automatique ───────────────────────────────────────

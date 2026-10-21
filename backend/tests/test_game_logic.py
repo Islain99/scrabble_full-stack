@@ -8,10 +8,10 @@
 #
 import pytest
 
-from api.game_logic import GameEngine, SAC_LETTRES
+from api.game_logic import BONUS, GameEngine, SAC_LETTRES
 from api.models import POINTS_LETTRES, GameState, GameStatus, Tile
 
-MOCK_DICTIONARY = ["TEST", "SCRABBLE", "HELLO", "WORLD", "ET", "TE", "ES"]
+MOCK_DICTIONARY = ["TEST", "TESTS", "SCRABBLE", "HELLO", "WORLD", "ET", "TE", "ES"]
 
 
 # ── Fixtures ──────────────────────────────────────────────────────
@@ -190,3 +190,52 @@ def test_same_letter_twice_needs_two_tiles(engine, game):
     assert ok is False
     assert "non trouvée" in msg
     assert len(game.players[0].rack) == 6           # chevalet intact
+
+
+# ── Calcul du score ───────────────────────────────────────────────
+# Valeurs FR : T = E = S = 1 point. "TEST" posé en (7,7)→(7,10) vaut 8
+# (case centrale = mot compte double).
+
+def _play_test_at_center(engine, game):
+    ok, msg = engine.play_word(game.game_id, 0, [(7, 7, "T"), (7, 8, "E"), (7, 9, "S"), (7, 10, "T")])
+    assert ok, msg
+    assert game.players[0].score == 8
+
+
+def test_extension_counts_existing_letters(engine, game):
+    """Prolonger TEST en TESTS : les 5 lettres comptent, pas seulement le S."""
+    _play_test_at_center(engine, game)
+    ok, msg = engine.play_word(game.game_id, 1, [(7, 11, "S")])
+    assert ok, msg
+    # T+E+S+T = 4 (déjà posées, sans bonus) + S sur lettre compte double (7,11) = 2
+    assert game.players[1].score == 6
+
+
+def test_cross_word_counts_existing_letter(engine, game):
+    """Un T sous le E de TEST forme ET : le E existant compte aussi."""
+    _play_test_at_center(engine, game)
+    ok, msg = engine.play_word(game.game_id, 1, [(8, 8, "T")])
+    assert ok, msg
+    # E (déjà posé) = 1 + T sur lettre compte double (8,8) = 2
+    assert game.players[1].score == 3
+
+
+def test_bonus_squares_already_used_do_not_count_again(engine, game):
+    """La case centrale (mot compte double) n'est plus doublée une fois occupée."""
+    _play_test_at_center(engine, game)
+    ok, msg = engine.play_word(game.game_id, 1, [(8, 7, "E")])  # T(7,7) + E → "TE"
+    assert ok, msg
+    assert game.players[1].score == 2
+
+
+def test_bonus_map_matches_official_board():
+    counts = {}
+    for kind in BONUS.values():
+        counts[kind] = counts.get(kind, 0) + 1
+    assert counts == {"TM": 8, "DM": 17, "TL": 12, "DL": 24}
+    # Plateau symétrique horizontalement, verticalement et en diagonale
+    for (r, c), kind in BONUS.items():
+        assert BONUS.get((c, r)) == kind
+        assert BONUS.get((14 - r, c)) == kind
+        assert BONUS.get((r, 14 - c)) == kind
+

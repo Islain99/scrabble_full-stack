@@ -30,25 +30,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, onValue, off } from 'firebase/database';
 import { rtdb } from '../firebase';
 import * as mp from '../api/multiplayerService';
-import { POINTS_LETTRES, BONUS_MAP } from '../data/constants';
-
-// ── Score preview local (identique à useGameLogic) ────────────────
-
-function calcPreview(placements) {
-  if (!placements.length) return 0;
-  let score = 0;
-  let wordMult = 1;
-  placements.forEach(p => {
-    let ls = POINTS_LETTRES[p.letter] || 0;
-    const bonus = BONUS_MAP[`${p.r}-${p.c}`];
-    if (bonus === 'DL') ls *= 2;
-    if (bonus === 'TL') ls *= 3;
-    if (bonus === 'DM') wordMult *= 2;
-    if (bonus === 'TM') wordMult *= 3;
-    score += ls;
-  });
-  return score * wordMult;
-}
+import { calculatePreviewScore } from '../utils/scoring';
 
 // ── Hook ──────────────────────────────────────────────────────────
 
@@ -90,7 +72,10 @@ export function useMultiplayerGame({
   const placedOriginals = placements.map(p => p.originalTile);
   const availableRackTiles = myRack.filter(t => !placedOriginals.includes(t));
 
-  const previewScore = useMemo(() => calcPreview(placements), [placements]);
+  const previewScore = useMemo(
+    () => calculatePreviewScore(placements, gameState?.board?.grid),
+    [placements, gameState]
+  );
 
   // ── Sync Firebase RTDB ────────────────────────────────────────
   const pollingRef      = useRef(null);

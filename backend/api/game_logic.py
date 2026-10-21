@@ -21,7 +21,11 @@ BONUS: Dict[Tuple[int, int], str] = {
     (5, 9): "TL", (5, 13): "TL", (9, 1): "TL", (9, 5): "TL",
     (9, 9): "TL", (9, 13): "TL", (13, 5): "TL", (13, 9): "TL",
     (0, 3): "DL", (0, 11): "DL", (2, 6): "DL", (2, 8): "DL",
-    (3, 0): "DL", (3, 7): "DL", (3, 14): "DL",
+    (3, 0): "DL", (3, 7): "DL", (3, 14): "DL", (6, 2): "DL",
+    (6, 6): "DL", (6, 8): "DL", (6, 12): "DL", (7, 3): "DL",
+    (7, 11): "DL", (8, 2): "DL", (8, 6): "DL", (8, 8): "DL",
+    (8, 12): "DL", (11, 0): "DL", (11, 7): "DL", (11, 14): "DL",
+    (12, 6): "DL", (12, 8): "DL", (14, 3): "DL", (14, 11): "DL",
 }
 
 SAC_LETTRES: List[str] = (
@@ -228,7 +232,6 @@ class GameEngine:
     def __init__(self, dictionary_path: str = "dictionnaire.txt"):
         self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
         self.active_games: Dict[str, GameState] = {}
-        self.current_word_placement: List[Tuple[int, int, str]] = []
         self.game_difficulty: Dict[str, str] = {}
  
         # ── Cache rack ──────────────────────────────────────────
@@ -308,45 +311,51 @@ class GameEngine:
     def _calculate_score(
         self,
         tiles_placement: List[Tuple[int, int, Tile]],
-        all_words: List[str],
+        temp_board: Board,
         use_bonuses: bool = True,
         bonus_filter: Optional[List[str]] = None,
     ) -> int:
         """
-        Calcule le score total du coup.
-        - use_bonuses=False  -> aucun bonus (Débutant/Facile)
-        - bonus_filter=[...] -> seuls ces types de bonus comptent (Moyen)
-        - bonus_filter=None  -> tous les bonus (Expert)
+        Calcule le score total du coup selon les règles officielles :
+          - chaque mot formé compte TOUTES ses lettres, y compris celles
+            déjà présentes sur le plateau ;
+          - les bonus de case (DL/TL/DM/TM) ne s'appliquent qu'aux cases
+            posées pendant ce coup ;
+          - +50 points si les 7 tuiles du chevalet sont posées (scrabble).
+
+        `temp_board` est le plateau AVEC les nouvelles tuiles posées.
+        - use_bonuses=False  -> aucun bonus (IA Débutant/Facile)
+        - bonus_filter=[...] -> seuls ces types de bonus comptent (IA Moyen)
+        - bonus_filter=None  -> tous les bonus
         """
+        new_cells = {(r, c) for r, c, _ in tiles_placement}
         total_score = 0
 
-        for _ in all_words:
+        for cells in self._get_formed_word_cells(list(new_cells), temp_board):
             word_score = 0
             word_multiplier = 1
 
-            for r, c, tile in tiles_placement:
-                raw_bonus = BONUS.get((r, c), None) if use_bonuses else None
-                bonus = raw_bonus if (bonus_filter is None or raw_bonus in bonus_filter) else None
-                letter_score = tile.score
-                is_new_tile = any(p[0] == r and p[1] == c for p in self.current_word_placement)
+            for r, c in cells:
+                letter_score = temp_board.grid[r][c].score
 
-                if is_new_tile:
+                if use_bonuses and (r, c) in new_cells:
+                    bonus = BONUS.get((r, c))
+                    if bonus_filter is not None and bonus not in bonus_filter:
+                        bonus = None
                     if bonus == "DL":
                         letter_score *= 2
                     elif bonus == "TL":
                         letter_score *= 3
-
-                word_score += letter_score
-
-                if is_new_tile:
-                    if bonus == "DM":
+                    elif bonus == "DM":
                         word_multiplier *= 2
                     elif bonus == "TM":
                         word_multiplier *= 3
 
+                word_score += letter_score
+
             total_score += word_score * word_multiplier
 
-        if len(self.current_word_placement) == 7:
+        if len(tiles_placement) == 7:
             total_score += 50
 
         return total_score
@@ -355,63 +364,62 @@ class GameEngine:
     # Détection des mots formés
     # ------------------------------------------------------------------
 
-    def _get_formed_words(self, placements: List[Tuple[int, int, str]], temp_board: Board) -> List[str]:
-        formed_words = set()
-        rows = {r for r, c, l in placements}
-        cols = {c for r, c, l in placements}
-        is_horizontal = len(rows) == 1
-        is_vertical = len(cols) == 1
-
-        if not (is_horizontal or is_vertical):
+    @staticmethod
+    def _get_formed_word_cells(
+        positions: List[Tuple[int, int]],
+        temp_board: Board,
+    ) -> List[List[Tuple[int, int]]]:
+        """
+        Retourne la liste des mots formés par le coup, chacun sous forme de
+        liste de cases (dans l'ordre de lecture). Un mot = au moins 2 lettres.
+        - le mot principal, dans l'axe des tuiles posées ;
+        - un mot perpendiculaire par tuile posée, s'il existe.
+        Avec une seule tuile, les deux axes sont examinés.
+        Les mots sont dédoublonnés par position, pas par texte : deux mots
+        identiques à des endroits différents comptent tous les deux.
+        """
+        if not positions:
+            return []
+        rows = {r for r, _ in positions}
+        cols = {c for _, c in positions}
+        if len(rows) > 1 and len(cols) > 1:
             return []
 
-        r_start, c_start, _ = placements[0]
+        def span(r: int, c: int, dr: int, dc: int) -> List[Tuple[int, int]]:
+            while 0 <= r - dr < 15 and 0 <= c - dc < 15 and temp_board.grid[r - dr][c - dc] is not None:
+                r, c = r - dr, c - dc
+            cells: List[Tuple[int, int]] = []
+            while 0 <= r < 15 and 0 <= c < 15 and temp_board.grid[r][c] is not None:
+                cells.append((r, c))
+                r, c = r + dr, c + dc
+            return cells
 
-        if is_horizontal:
-            r = r_start
-            c = c_start
-            while c > 0 and temp_board.grid[r][c - 1] is not None:
-                c -= 1
-            current_word = ""
-            while c < 15 and temp_board.grid[r][c] is not None:
-                current_word += temp_board.grid[r][c].letter
-                c += 1
-            if len(current_word) > 1:
-                formed_words.add(current_word)
+        r0, c0 = positions[0]
+        candidates: List[List[Tuple[int, int]]] = []
+        if len(rows) == 1:
+            candidates.append(span(r0, c0, 0, 1))      # axe horizontal
+        if len(cols) == 1:
+            candidates.append(span(r0, c0, 1, 0))      # axe vertical
+        if len(positions) > 1:
+            dr, dc = (1, 0) if len(rows) == 1 else (0, 1)
+            for r, c in positions:
+                candidates.append(span(r, c, dr, dc))
 
-        if is_vertical:
-            c = c_start
-            r = r_start
-            while r > 0 and temp_board.grid[r - 1][c] is not None:
-                r -= 1
-            current_word = ""
-            while r < 15 and temp_board.grid[r][c] is not None:
-                current_word += temp_board.grid[r][c].letter
-                r += 1
-            if len(current_word) > 1:
-                formed_words.add(current_word)
+        words: List[List[Tuple[int, int]]] = []
+        seen: Set[Tuple[Tuple[int, int], ...]] = set()
+        for cells in candidates:
+            key = tuple(cells)
+            if len(cells) > 1 and key not in seen:
+                seen.add(key)
+                words.append(cells)
+        return words
 
-        for r_new, c_new, _ in placements:
-            word_perpendicular = ""
-            r_temp, c_temp = r_new, c_new
-
-            if is_vertical:
-                while c_temp > 0 and temp_board.grid[r_new][c_temp - 1] is not None:
-                    c_temp -= 1
-                while c_temp < 15 and temp_board.grid[r_new][c_temp] is not None:
-                    word_perpendicular += temp_board.grid[r_new][c_temp].letter
-                    c_temp += 1
-            else:
-                while r_temp > 0 and temp_board.grid[r_temp - 1][c_new] is not None:
-                    r_temp -= 1
-                while r_temp < 15 and temp_board.grid[r_temp][c_new] is not None:
-                    word_perpendicular += temp_board.grid[r_temp][c_new].letter
-                    r_temp += 1
-
-            if len(word_perpendicular) > 1:
-                formed_words.add(word_perpendicular)
-
-        return list(formed_words)
+    def _get_formed_words(self, placements: List[Tuple[int, int, str]], temp_board: Board) -> List[str]:
+        positions = [(r, c) for r, c, _ in placements]
+        return [
+            "".join(temp_board.grid[r][c].letter for r, c in cells)
+            for cells in self._get_formed_word_cells(positions, temp_board)
+        ]
 
     # ------------------------------------------------------------------
     # Actions humaines
@@ -512,7 +520,6 @@ class GameEngine:
             temp_board.grid[r][c] = tile_to_place
             tiles_to_place.append((r, c, tile_to_place))
 
-        self.current_word_placement = placements
         formed_words = self._get_formed_words(placements, temp_board)
 
         if not formed_words:
@@ -526,7 +533,7 @@ class GameEngine:
             if not self.is_word_valid(word):
                 return (False, f"Mot invalide : {word}.")
 
-        score = self._calculate_score(tiles_to_place, formed_words)
+        score = self._calculate_score(tiles_to_place, temp_board)
         for r, c, tile in tiles_to_place:
             current_game.board.grid[r][c] = tile
             current_player.rack.remove(tile)
@@ -873,7 +880,6 @@ class GameEngine:
             tiles_to_place.append((r, c, tile))
 
         # Validation des mots formés
-        self.current_word_placement = placements
         formed_words = self._get_formed_words(placements, temp_board)
         if not formed_words:
             return None
@@ -882,7 +888,7 @@ class GameEngine:
             if not self.is_word_valid(w):
                 return None
 
-        score = self._calculate_score(tiles_to_place, formed_words, use_bonuses=use_bonuses, bonus_filter=bonus_filter)
+        score = self._calculate_score(tiles_to_place, temp_board, use_bonuses=use_bonuses, bonus_filter=bonus_filter)
         return (placements, score)
 
     def _find_best_move(
