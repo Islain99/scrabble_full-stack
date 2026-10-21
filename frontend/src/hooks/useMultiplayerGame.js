@@ -15,6 +15,13 @@
 //   myPlayerIndex ajouté aux dépendances du useEffect pour recréer le listener
 //   si le rôle change (ne devrait pas arriver en pratique, mais sûr).
 //
+// FIX B4 — Sélection d'échange par lettre (string) :
+//   Avant : selectedTilesToSwap = string[] (lettres). Avec deux tuiles identiques
+//           (ex : deux 'E'), impossible de les sélectionner indépendamment.
+//   Après : selectedTilesToSwap = number[] (indices de rack).
+//           toggleTileForSwap(index) bascule l'index dans le tableau.
+//           handleSwapTiles convertit les indices en lettres avant l'appel API.
+//
 // Usage :
 //   const mp = useMultiplayerGame({ roomId, currentUserId, hostUserId, addToast });
 //   mp.gameState / mp.isMyTurn / mp.handleDropTile / mp.handleValidateWord ...
@@ -219,7 +226,11 @@ export function useMultiplayerGame({
     if (!roomId || !isMyTurn || selectedTilesToSwap.length === 0) return;
     setIsLoading(true);
     try {
-      const room = await mp.swapTiles(roomId, selectedTilesToSwap);
+      // B4 : convertir les indices de rack en lettres avant l'appel API.
+      const lettersToSwap = selectedTilesToSwap
+        .map(idx => myRack[idx]?.letter)
+        .filter(Boolean);
+      const room = await mp.swapTiles(roomId, lettersToSwap);
       applyRoomState(room);
       setSelectedTilesToSwap([]);
       setPlacements([]);
@@ -230,9 +241,12 @@ export function useMultiplayerGame({
     }
   }, [roomId, isMyTurn, selectedTilesToSwap, applyRoomState, addToast]);
 
-  const toggleTileForSwap = useCallback((letter) => {
+  // B4 : index de rack au lieu de la lettre — deux tuiles identiques sélectionnables indépendamment.
+  const toggleTileForSwap = useCallback((rackIndex) => {
     setSelectedTilesToSwap(prev =>
-      prev.includes(letter) ? prev.filter(l => l !== letter) : [...prev, letter]
+      prev.includes(rackIndex)
+        ? prev.filter(i => i !== rackIndex)
+        : [...prev, rackIndex]
     );
   }, []);
 

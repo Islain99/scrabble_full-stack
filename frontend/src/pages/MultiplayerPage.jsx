@@ -5,13 +5,12 @@
 //   WAITING  → hôte attend l'adversaire (affiche room_id à partager)
 //   PLAYING  → plateau de jeu (réutilise Board, ScorePanel, etc.)
 //
-// FIX B1 : roomId est maintenant toujours passé au hook (plus de conditional
-//   phase === 'PLAYING' ? roomId : null). Pendant LOBBY, roomId est null —
-//   le hook le gère via `if (!roomId) return`. Pendant WAITING, le listener
-//   RTDB est actif et reçoit le push _sync_rtdb() dès que l'invité rejoint,
-//   ce qui déclenche la transition WAITING → PLAYING.
+// FIX B1 : roomId toujours passé au hook (plus de conditional phase === 'PLAYING').
+// FIX B4 : SimpleRack.selectedForSwap est maintenant un tableau d'indices (number[])
+//           au lieu de lettres (string[]). inSwap utilise selectedForSwap.includes(i).
+//           Le panneau d'échange passe l'index à toggleTileForSwap via onTileClick(tile, idx).
 //
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth }     from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast }    from '../hooks/useToast';
@@ -20,7 +19,7 @@ import * as mpService  from '../api/multiplayerService';
 
 import Board      from '../components/Board';
 import ScorePanel from '../components/ScorePanel';
-import {Toast}      from '../components/Toast';
+import { Toast }  from '../components/Toast';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Sous-composants ───────────────────────────────────────────────
@@ -52,38 +51,26 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', width: '100%', maxWidth: '600px' }}>
-
-        {/* Créer une salle */}
         <Card style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', lineHeight: 1 }}>🎲</div>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
               Créer une partie
             </div>
-            <MonoLabel size="xs" color="var(--text-muted)">
-              Partagez le code à votre adversaire
-            </MonoLabel>
+            <MonoLabel size="xs" color="var(--text-muted)">Partagez le code à votre adversaire</MonoLabel>
           </div>
-          <RetroButton
-            variant="primary"
-            onClick={onCreateRoom}
-            disabled={isLoading}
-            style={{ width: '100%' }}
-          >
+          <RetroButton variant="primary" onClick={onCreateRoom} disabled={isLoading} style={{ width: '100%' }}>
             {isLoading ? <Spinner size="sm" /> : 'Nouvelle partie'}
           </RetroButton>
         </Card>
 
-        {/* Rejoindre une salle */}
         <Card style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', lineHeight: 1 }}>🔗</div>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
               Rejoindre une partie
             </div>
-            <MonoLabel size="xs" color="var(--text-muted)">
-              Entrez le code partagé par votre ami
-            </MonoLabel>
+            <MonoLabel size="xs" color="var(--text-muted)">Entrez le code partagé par votre ami</MonoLabel>
           </div>
           <input
             value={code}
@@ -95,16 +82,10 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
               padding: '0.5rem 0.75rem',
               fontFamily: "'DM Mono', monospace", fontSize: '0.85rem',
               background: 'var(--bg-page)', border: '2px solid var(--border-primary)',
-              borderRadius: '4px', color: 'var(--text-primary)',
-              outline: 'none',
+              borderRadius: '4px', color: 'var(--text-primary)', outline: 'none',
             }}
           />
-          <RetroButton
-            variant="default"
-            onClick={handleJoin}
-            disabled={!code.trim() || joining}
-            style={{ width: '100%' }}
-          >
+          <RetroButton variant="default" onClick={handleJoin} disabled={!code.trim() || joining} style={{ width: '100%' }}>
             {joining ? <Spinner size="sm" /> : 'Rejoindre'}
           </RetroButton>
         </Card>
@@ -133,16 +114,9 @@ function WaitingScreen({ roomId, onCancel }) {
         <MonoLabel size="sm" color="var(--text-muted)">Partagez ce code à votre ami</MonoLabel>
       </div>
 
-      {/* Code à partager */}
       <Card style={{ padding: '1.5rem 2.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
         <MonoLabel size="xs" color="var(--text-muted)">CODE DE LA PARTIE</MonoLabel>
-        <div
-          style={{
-            fontFamily: "'DM Mono', monospace", fontSize: '1rem',
-            color: 'var(--gold)', letterSpacing: '0.1em',
-            wordBreak: 'break-all', maxWidth: '340px',
-          }}
-        >
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '1rem', color: 'var(--gold)', letterSpacing: '0.1em', wordBreak: 'break-all', maxWidth: '340px' }}>
           {roomId}
         </div>
         <RetroButton variant="default" onClick={copyCode} style={{ marginTop: '0.25rem' }}>
@@ -150,21 +124,25 @@ function WaitingScreen({ roomId, onCancel }) {
         </RetroButton>
       </Card>
 
-      <RetroButton variant="danger" onClick={onCancel}>
-        Annuler
-      </RetroButton>
+      <RetroButton variant="danger" onClick={onCancel}>Annuler</RetroButton>
     </div>
   );
 }
 
-// Rack simplifié (inline pour éviter une dépendance)
+// ── SimpleRack ────────────────────────────────────────────────────
+//
+// FIX B4 : selectedForSwap est maintenant un tableau d'indices (number[]).
+//   inSwap utilise selectedForSwap.includes(i) au lieu de selectedForSwap.includes(tile.letter).
+//   onTileClick reçoit (tile, i) — l'appelant décide quoi faire de l'index.
+//
 function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap = [], isSwapMode }) {
   const placed = placements.map(p => p.originalTile);
   return (
     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
       {tiles.map((tile, i) => {
         const isPlaced = placed.includes(tile);
-        const inSwap   = isSwapMode && selectedForSwap.includes(tile.letter);
+        // B4 : comparaison sur l'index, pas sur tile.letter
+        const inSwap   = isSwapMode && selectedForSwap.includes(i);
         return (
           <button
             key={i}
@@ -178,7 +156,6 @@ function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap 
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexDirection: 'column', gap: '1px',
               boxShadow: isPlaced ? 'none' : '2px 2px 0 rgba(0,0,0,0.3)',
-              transform: 'none',
               transition: 'opacity 0.15s',
             }}
           >
@@ -197,20 +174,22 @@ function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap 
   );
 }
 
+// ── PlayingScreen ─────────────────────────────────────────────────
+
 function PlayingScreen({ mp, user, roomId }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
 
-  const { gameState, placements, isMyTurn, availableRackTiles, previewScore,
+  const {
+    gameState, placements, isMyTurn, availableRackTiles, previewScore,
     handleDropTile, handleMoveTile, handleReturnTile,
     handleValidateWord, handlePassTurn, handleSwapTiles,
-    toggleTileForSwap, selectedTilesToSwap, isLoading } = mp;
+    toggleTileForSwap, selectedTilesToSwap, isLoading,
+  } = mp;
 
   if (!gameState) return (
-    <div style={{ padding: '3rem', textAlign: 'center' }}>
-      <Spinner size="lg" />
-    </div>
+    <div style={{ padding: '3rem', textAlign: 'center' }}><Spinner size="lg" /></div>
   );
 
   const currentPlayer = gameState.players[gameState.current_player_index];
@@ -224,13 +203,10 @@ function PlayingScreen({ mp, user, roomId }) {
 
   const handleValidate = async () => {
     setSelectedRackTile(null);
-    const { success, error } = await handleValidateWord();
-    if (!success && error) {
-      // toast déjà géré dans le hook
-    }
+    await handleValidateWord();
   };
 
-  // ── Écran fin de partie ───────────────────────────────────────
+  // Fin de partie
   if (isFinished) {
     const winner = gameState.winner_name;
     const isWinner = winner === gameState.players[mp.myPlayerIndex]?.name;
@@ -268,8 +244,7 @@ function PlayingScreen({ mp, user, roomId }) {
         padding: '0.6rem 1rem',
         background: isMyTurn ? 'var(--olive)' : 'var(--bg-card)',
         border: `2px solid ${isMyTurn ? 'var(--olive)' : 'var(--border-muted)'}`,
-        borderRadius: '6px',
-        transition: 'background 0.3s, border-color 0.3s',
+        borderRadius: '6px', transition: 'background 0.3s, border-color 0.3s',
       }}>
         <MonoLabel size="sm" color={isMyTurn ? '#fff' : 'var(--text-muted)'}>
           {isMyTurn ? '🟢 Votre tour' : `⏳ Tour de ${currentPlayer.name}…`}
@@ -279,14 +254,12 @@ function PlayingScreen({ mp, user, roomId }) {
         )}
       </div>
 
-      {/* Scores */}
       <ScorePanel
         players={gameState.players}
         currentPlayerId={currentPlayer.id}
         remainingTiles={(gameState.remaining_tiles ?? []).length}
       />
 
-      {/* Plateau */}
       <Board
         gameState={gameState}
         placements={placements}
@@ -296,7 +269,7 @@ function PlayingScreen({ mp, user, roomId }) {
         previewScore={previewScore}
       />
 
-      {/* Rack */}
+      {/* Chevalet */}
       <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
         <MonoLabel size="xs" color="var(--text-muted)">VOTRE CHEVALET</MonoLabel>
         <SimpleRack
@@ -313,7 +286,7 @@ function PlayingScreen({ mp, user, roomId }) {
         )}
       </Card>
 
-      {/* Barre d'actions */}
+      {/* Actions */}
       {isMyTurn && !showSwapPanel && (
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
           <RetroButton
@@ -324,11 +297,7 @@ function PlayingScreen({ mp, user, roomId }) {
           >
             {isLoading ? <Spinner size="sm" /> : `Valider (${placements.length})`}
           </RetroButton>
-          <RetroButton
-            variant="default"
-            onClick={() => setConfirmPass(true)}
-            disabled={placements.length > 0 || isLoading}
-          >
+          <RetroButton variant="default" onClick={() => setConfirmPass(true)} disabled={placements.length > 0 || isLoading}>
             Passer
           </RetroButton>
           <RetroButton
@@ -345,10 +314,11 @@ function PlayingScreen({ mp, user, roomId }) {
       {showSwapPanel && isMyTurn && (
         <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
           <MonoLabel size="sm" color="var(--text-primary)">Sélectionnez les lettres à remettre dans le sac</MonoLabel>
+          {/* B4 : onTileClick passe l'index à toggleTileForSwap */}
           <SimpleRack
             tiles={gameState.players[mp.myPlayerIndex]?.rack ?? []}
             placements={[]}
-            onTileClick={(tile) => toggleTileForSwap(tile.letter)}
+            onTileClick={(tile, idx) => toggleTileForSwap(idx)}
             selectedForSwap={selectedTilesToSwap}
             isSwapMode
           />
@@ -360,9 +330,7 @@ function PlayingScreen({ mp, user, roomId }) {
             >
               Échanger ({selectedTilesToSwap.length})
             </RetroButton>
-            <RetroButton variant="default" onClick={() => setShowSwapPanel(false)}>
-              Annuler
-            </RetroButton>
+            <RetroButton variant="default" onClick={() => setShowSwapPanel(false)}>Annuler</RetroButton>
           </div>
         </Card>
       )}
@@ -388,20 +356,16 @@ function PlayingScreen({ mp, user, roomId }) {
 // ── Page principale ───────────────────────────────────────────────
 
 export default function MultiplayerPage() {
-  const { user }              = useAuth();
+  const { user }                           = useAuth();
   const { toasts, dismissToast, addToast } = useToast();
 
-  // Phase : 'LOBBY' | 'WAITING' | 'PLAYING'
-  const [phase,        setPhase]        = useState('LOBBY');
-  const [roomId,       setRoomId]       = useState(null);
-  const [hostUserId,   setHostUserId]   = useState(null);
-  const [isCreating,   setIsCreating]   = useState(false);
+  const [phase,      setPhase]      = useState('LOBBY');
+  const [roomId,     setRoomId]     = useState(null);
+  const [hostUserId, setHostUserId] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  // FIX B1 : roomId est passé directement — plus de conditional phase === 'PLAYING'.
-  // Pendant LOBBY, roomId est null → le hook fait `if (!roomId) return` sans effet.
-  // Pendant WAITING, le listener RTDB est actif : quand l'invité rejoint, le backend
-  // appelle _sync_rtdb() → Firebase pousse l'état → onValue() se déclenche →
-  // mp.gameState devient non-null → l'effet ci-dessous transite vers PLAYING.
+  // FIX B1 : roomId toujours passé (pas de conditional phase === 'PLAYING').
+  // Pendant LOBBY, roomId est null — le hook fait `if (!roomId) return` sans effet.
   const mp = useMultiplayerGame({
     roomId,
     currentUserId: user?.id,
@@ -409,7 +373,7 @@ export default function MultiplayerPage() {
     addToast,
   });
 
-  // Passer en PLAYING quand la salle devient ACTIVE (invité a rejoint)
+  // Transition WAITING → PLAYING quand l'invité rejoint (RTDB pousse le game_state)
   React.useEffect(() => {
     if (phase === 'WAITING' && mp.gameState) {
       setPhase('PLAYING');
@@ -434,9 +398,6 @@ export default function MultiplayerPage() {
     try {
       const room = await mpService.joinRoom(code);
       setRoomId(code);
-      // L'invité est toujours le joueur 1 → hostUserId = l'autre
-      // On le déduit de current_user_id (hôte commence toujours)
-      // Le backend renvoie current_user_id = host_user_id
       setHostUserId(room.current_user_id);
       setPhase('PLAYING');
     } catch (err) {
@@ -455,28 +416,15 @@ export default function MultiplayerPage() {
 
   return (
     <div className="s-page">
-      {/* Toasts */}
       <div style={{ position: 'fixed', top: '70px', right: '16px', zIndex: 200, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {(toasts ?? []).map(t => (
           <Toast key={t.id} toast={t} onDismiss={dismissToast} />
         ))}
       </div>
 
-      {phase === 'LOBBY' && (
-        <LobbyScreen
-          onCreateRoom={handleCreateRoom}
-          onJoinRoom={handleJoinRoom}
-          isLoading={isCreating}
-        />
-      )}
-
-      {phase === 'WAITING' && (
-        <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />
-      )}
-
-      {phase === 'PLAYING' && (
-        <PlayingScreen mp={mp} user={user} roomId={roomId} />
-      )}
+      {phase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} />}
+      {phase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
+      {phase === 'PLAYING' && <PlayingScreen mp={mp} user={user} roomId={roomId} />}
     </div>
   );
 }
