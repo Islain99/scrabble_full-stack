@@ -7,7 +7,7 @@ import { useSettings } from '../context/SettingsContext';
  * GameHeader — barre sticky en haut de l'écran de jeu.
  * Affiche : titre, tour actuel, tuiles restantes, timer.
  */
-export default function GameHeader({ gameState, timerActive, timerResetRef, onTimerExpire }) {
+export default function GameHeader({ gameState, timerActive, timerResetRef, onTimerExpire, actions = null }) {
   const { settings } = useSettings();
 
   if (!gameState) return null;
@@ -17,7 +17,7 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
   const isAI          = currentPlayer?.is_ai;
 
   return (
-    <header style={{
+    <header className="game-header" style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -42,8 +42,8 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
         flexWrap: 'wrap',
         gap: '8px',
       }}>
-        {/* Logo compact */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+        {/* Logo compact (masqué sur téléphone : déjà dans la Navbar) */}
+        <div className="game-header-logo" style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
           <span style={{
             fontFamily: "'Playfair Display', Georgia, serif",
             fontSize: '1.5rem',
@@ -136,6 +136,9 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
             </span>
           </div>
         )}
+
+        {/* Actions supplémentaires (ex. bouton tutoriel sur téléphone) */}
+        {actions}
       </div>
 
       {/* Timer (si activé) */}

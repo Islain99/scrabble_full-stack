@@ -297,6 +297,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Bouton tutoriel : flottant sur ordinateur, dans l'en-tête de partie sur téléphone */
+.tutorial-btn--inline { display: none !important; }
+
 /* Case jouable quand une lettre est sélectionnée */
 .board-cell-pressable {
   cursor: pointer;
@@ -305,7 +308,18 @@ body {
 
 @media (max-width: 767px) {
   /* Barre de navigation : logo + actions sur une ligne, liens défilants dessous */
+  .tutorial-btn--floating { display: none !important; }
+  .tutorial-btn--inline   { display: flex !important; }
+
+  /* En-tête de partie : collé en haut de l'écran, sans le logo en double */
+  .game-header {
+    top: 0 !important;
+    padding: env(safe-area-inset-top) 12px 0 !important;
+  }
+  .game-header-logo { display: none !important; }
+
   .app-navbar {
+    position: static !important;
     flex-wrap: wrap !important;
     height: auto !important;
     padding: 8px 12px !important;

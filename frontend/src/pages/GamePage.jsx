@@ -261,6 +261,7 @@ React.useEffect(() => {
         timerActive={game.timerActive && !game.isAITurn}
         timerResetRef={game.timerResetRef}
         onTimerExpire={game.handleTimerExpire}
+        actions={<TutorialButton t={t} inline />}
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
