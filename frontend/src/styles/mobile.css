@@ -1,0 +1,493 @@
+/* ──────────────────────────────────────────────────────────────────
+   styles/mobile.css — mise en page téléphone (portrait et paysage)
+
+   Principe : sur téléphone, l'écran de jeu tient sur un seul écran,
+   sans défilement. Le plateau prend toute la place disponible et le
+   chevalet en bois est posé en bas, à portée de pouce, comme un vrai
+   chevalet tenu devant soi. En paysage, le plateau passe à gauche et
+   le chevalet à droite.
+   ────────────────────────────────────────────────────────────────── */
+
+:root {
+  --mnav-h: 48px;              /* hauteur de la barre de navigation mobile */
+  --m-gap: 8px;
+  --m-tap: 44px;               /* taille minimale d'une zone tactile */
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  :root { --mnav-h: 40px; --m-gap: 6px; }
+}
+
+/* ── Barre de navigation mobile ───────────────────────────────────── */
+
+.mnav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--mnav-h);
+  padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  box-sizing: content-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border-primary);
+}
+.mnav-logo {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.mnav-page {
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-left: 10px;
+}
+.mnav-toggle {
+  width: var(--m-tap);
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 2px solid var(--border-primary);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.mnav-toggle[aria-expanded="true"] { background: var(--text-primary); color: var(--bg-card); }
+
+.mnav-sheet {
+  position: fixed;
+  top: calc(var(--mnav-h) + env(safe-area-inset-top) + 2px);
+  left: 0;
+  right: 0;
+  z-index: 99;
+  max-height: calc(100dvh - var(--mnav-h) - env(safe-area-inset-top));
+  overflow-y: auto;
+  background: var(--bg-card);
+  border-bottom: 3px solid var(--border-primary);
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.12);
+  padding: 8px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left));
+}
+.mnav-backdrop { position: fixed; inset: 0; z-index: 98; background: rgba(30, 26, 18, 0.35); }
+
+.mnav-links { display: flex; flex-direction: column; }
+.mnav-link {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 4px;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-muted);
+}
+.mnav-link[aria-current="page"] { color: var(--text-primary); font-weight: 700; }
+.mnav-link[aria-current="page"]::before {
+  content: '';
+  width: 6px; height: 6px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.mnav-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.mnav-row-label {
+  flex-basis: 100%;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+.mnav-chip {
+  min-height: 40px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1.5px solid var(--border-muted);
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: none;
+}
+.mnav-chip[aria-pressed="true"] { border-color: var(--border-primary); background: var(--bg-page-alt); color: var(--text-primary); }
+.mnav-chip--primary { background: var(--olive); border-color: var(--olive-dk); color: var(--text-invert); }
+.mnav-chip--danger  { border-color: var(--brick); color: var(--brick); }
+
+/* ── Écran de jeu mobile ──────────────────────────────────────────── */
+
+.mg {
+  height: calc(100dvh - var(--mnav-h) - env(safe-area-inset-top) - 2px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top" "board" "dock";
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  background: var(--bg-page);
+  overflow: hidden;
+}
+.mg-top    { grid-area: top; }
+.mg-dock   { grid-area: dock; }
+.mg .mg-status--side { display: none; }
+
+/* Le plateau occupe le plus grand carré qui tient dans sa zone, avec la
+   ligne d'état juste dessous ; l'ensemble est centré verticalement. */
+.mg-board {
+  grid-area: board;
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: var(--m-gap);
+  min-height: 0;
+}
+.mg-board-inner { width: min(100cqw, calc(100cqh - 38px)); }
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .mg {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "board top"
+      "board status"
+      "board dock";
+  }
+  .mg-board {
+    width: calc(100dvh - var(--mnav-h) - env(safe-area-inset-top) - 2px);
+    height: 100%;
+    padding: var(--m-gap) 0 var(--m-gap) var(--m-gap);
+  }
+  .mg-board-inner { width: min(100cqw, 100cqh); }
+  .mg .mg-status--board { display: none; }
+  .mg .mg-status--side  { display: flex; grid-area: status; align-self: center; }
+}
+
+/* ── Bandeau des scores ───────────────────────────────────────────── */
+
+.mg-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px 10px 6px 8px;
+  border-bottom: 2px solid var(--border-primary);
+  background: var(--bg-card);
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .mg-strip { border-left: 2px solid var(--border-primary); padding: 6px 10px; }
+}
+.mg-player {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 10px 4px;
+  border-radius: 3px;
+  border: 1.5px solid transparent;
+  background: var(--bg-card-alt);
+  color: var(--text-secondary);
+}
+.mg-player[data-active="true"] {
+  background: var(--bg-invert);
+  border-color: var(--gold);
+  color: var(--text-invert);
+}
+.mg-player-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mg-player[data-active="true"] .mg-player-name { font-weight: 700; }
+.mg-player-score {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.15rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.mg-player[data-active="true"] .mg-player-score { color: var(--gold); }
+
+.mg-bag {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--bg-invert);
+  border: 1.5px solid var(--border-gold);
+}
+.mg-bag-count {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--gold);
+}
+.mg-bag-label { font-family: 'DM Mono', monospace; font-size: 0.55rem; color: var(--text-invert-muted); }
+
+.mg-timer { padding: 0 8px 4px; background: var(--bg-card); }
+
+/* ── Ligne d'état (aperçu du score, consignes) ────────────────────── */
+
+.mg-status {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 2px 12px;
+  text-align: center;
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+.mg-status-score {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: normal;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--gold-dk, var(--gold));
+}
+.mg-status-spinner {
+  width: 10px; height: 10px;
+  border: 2px solid var(--gold);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Chevalet + actions (le « dock ») ─────────────────────────────── */
+
+.mg-dock {
+  background: var(--rack-bg);
+  border-top: 3px solid var(--rack-border);
+  padding: 10px max(10px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .mg-dock {
+    border-top: none;
+    border-left: 3px solid var(--rack-border);
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+}
+
+.mg-rack {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+.mg-slot {
+  aspect-ratio: 1 / 1;
+  max-height: 56px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.25);
+}
+.mg-tile {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 4px;
+  background: var(--tile-bg);
+  border: 2px solid var(--tile-border);
+  box-shadow: 0 3px 0 var(--tile-shadow);
+  color: var(--tile-text);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.05rem, 5.4vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .mg-tile { font-size: clamp(1rem, 2.6vw, 1.5rem); }
+}
+.mg-tile[data-joker="true"] { background: var(--tile-joker-bg); border-color: var(--tile-joker-border); }
+.mg-tile-score {
+  position: absolute;
+  right: 3px;
+  bottom: 2px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.55rem;
+  font-weight: 500;
+  color: var(--tile-score);
+}
+/* Lettre sélectionnée : elle se soulève du chevalet */
+.mg-tile[aria-pressed="true"][data-mode="place"] {
+  transform: translateY(-7px);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), 0 8px 0 var(--tile-shadow);
+}
+/* Lettre choisie pour l'échange */
+.mg-tile[aria-pressed="true"][data-mode="swap"] {
+  background: var(--tile-sel-bg);
+  border-color: var(--tile-sel-border);
+  transform: translateY(-3px);
+}
+.mg-tile[aria-pressed="true"][data-mode="swap"]::after {
+  content: '✓';
+  position: absolute;
+  top: -7px; right: -7px;
+  width: 17px; height: 17px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--tobacco);
+  color: var(--text-invert);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.6rem;
+}
+.mg-tile:disabled { cursor: default; opacity: 0.55; }
+
+/* Barre d'actions */
+.mg-actions {
+  display: flex;
+  gap: 6px;
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+.mg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border-radius: 4px;
+  border: 2px solid var(--rack-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--rack-label-text, #F5EDD6);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62rem;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.mg-btn-icon { font-size: 1.05rem; line-height: 1; }
+.mg-btn:disabled { opacity: 0.38; cursor: default; }
+.mg-btn:not(:disabled):active { transform: translateY(1px); }
+
+.mg-btn--play {
+  flex: 1.9 1 0;
+  flex-direction: row;
+  gap: 8px;
+  background: var(--olive);
+  border-color: var(--olive-dk);
+  box-shadow: 0 3px 0 var(--olive-dk);
+  color: var(--text-invert);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.mg-btn--play .mg-btn-points {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--gold);
+}
+.mg-btn--danger { background: var(--brick); border-color: var(--brick); color: var(--bg-page); }
+.mg-btn--wide { flex: 1.9 1 0; flex-direction: row; gap: 8px; font-size: 0.78rem; }
+
+/* Menu « Plus » */
+.mg-more { position: relative; display: flex; flex: 1 1 0; min-width: 0; }
+.mg-more > .mg-btn { width: 100%; }
+.mg-more-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 50;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 2px solid var(--border-primary);
+  border-radius: 3px;
+  box-shadow: 4px 4px 0 var(--shadow-card);
+  overflow: hidden;
+}
+.mg-more-item {
+  min-height: 46px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border-muted);
+  text-align: left;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.mg-more-item:first-child { border-top: none; }
+.mg-more-item--danger { color: var(--brick); }
+
+/* Focus clavier visible partout */
+.mg-tile:focus-visible, .mg-btn:focus-visible, .mg-more-item:focus-visible,
+.mnav-toggle:focus-visible, .mnav-link:focus-visible, .mnav-chip:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-tile, .mg-btn { transition: none; }
+}
+
+/* ── Plateau en mode compact (téléphone) ──────────────────────────── */
+/* Les tailles de texte suivent la largeur du plateau (unités cqi). */
+.board--compact { container-type: inline-size; }
+.board--compact .bt-letter { font-size: clamp(0.55rem, 4.3cqi, 1.6rem) !important; }
+.board--compact .bt-score  { font-size: clamp(0.3rem, 1.75cqi, 0.7rem) !important; right: 1px !important; bottom: 0 !important; }
+.board--compact .bc-bonus  { font-size: clamp(0.3rem, 2.1cqi, 0.75rem) !important; letter-spacing: -0.04em !important; }
+
+/* ── Autres écrans sur téléphone ──────────────────────────────────── */
+@media (max-width: 767px), (max-height: 500px) and (orientation: landscape) {
+  /* Écrans de démarrage et de fin de partie */
+  .screen-center { padding: 16px !important; min-height: calc(100dvh - var(--mnav-h)) !important; }
+  .screen-card   { padding: 28px 20px !important; box-shadow: 5px 5px 0 var(--shadow-card) !important; }
+
+  /* La page multijoueur laisse toute la place à l'écran de jeu */
+  .s-page:has(.mg) { padding: 0; min-height: 0; }
+}

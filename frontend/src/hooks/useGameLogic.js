@@ -190,6 +190,9 @@ export function useGameLogic({
     setPlacements(prev => prev.filter(pl => !(pl.r === r && pl.c === c)));
   }, []);
 
+  /** Reprendre toutes les tuiles posées ce tour-ci. */
+  const handleClearPlacements = useCallback(() => setPlacements([]), []);
+
   const handleValidateWord = useCallback(async () => {
     if (!gameId || placements.length === 0) {
       addToast('Placez au moins une lettre sur le plateau.', 'warn');
@@ -351,6 +354,7 @@ export function useGameLogic({
     cancelJoker,
     handleMoveTile,
     handleReturnTile,
+    handleClearPlacements,
     handleValidateWord,
     handlePassTurn,
     handleShuffleRack,

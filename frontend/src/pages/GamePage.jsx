@@ -16,6 +16,11 @@ import { useTutorialContext, useTutorialRef } from '../context/TutorialContext';
 import TutorialOverlay       from '../components/TutorialOverlay';
 import TutorialButton        from '../components/TutorialButton';
 import JokerPicker           from '../components/JokerPicker';
+import TurnTimer             from '../components/TurnTimer';
+import { useIsMobile }       from '../hooks/useViewport';
+import {
+  MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, MoreMenu, StatusLine,
+} from '../components/mobile/MobileGame';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -104,6 +109,7 @@ export default function GamePage() {
   const { t, tp, language }        = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   const game = useGameLogic({ addToast });
+  const isMobile = useIsMobile();
 
   // Sélection « toucher une lettre, puis une case » (écrans tactiles)
   // La sélection est liée à l'état de partie courant : elle s'annule d'elle-même
@@ -159,8 +165,8 @@ React.useEffect(() => {
     };
 
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
-        <div style={{ background: 'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding: '3rem 2.5rem', maxWidth: '480px', width: '100%', boxShadow: '8px 8px 0 var(--shadow-card)', textAlign: 'center',}}>
+      <div className="screen-center" style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
+        <div className="screen-card" style={{ background: 'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding: '3rem 2.5rem', maxWidth: '480px', width: '100%', boxShadow: '8px 8px 0 var(--shadow-card)', textAlign: 'center',}}>
           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px',}}>
             {t('start_edition')}
           </div>
@@ -215,8 +221,8 @@ React.useEffect(() => {
     const won         = game.gameState.winner_name === humanPlayer?.name;
 
     return (
-      <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
-        <div style={{ background:   'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding:      '3rem', maxWidth:     '480px', width:        '100%', boxShadow:    '8px 8px 0 var(--shadow-card)', textAlign:    'center',}}>
+      <div className="screen-center" style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
+        <div className="screen-card" style={{ background:   'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding:      '3rem', maxWidth:     '480px', width:        '100%', boxShadow:    '8px 8px 0 var(--shadow-card)', textAlign:    'center',}}>
           <div style={{ fontSize: '3rem', marginBottom: '12px' }}>
             {won ? '🏆' : '🎩'}
           </div>
@@ -253,7 +259,140 @@ React.useEffect(() => {
     );
   }
 
-  // ── Écran de jeu ──────────────────────────────────────────────
+  // Valider le coup (avec confirmation si l'option est activée)
+  const handleValidate = async () => {
+    if (settings.confirmValidation && game.placements.length > 0) {
+      const n = game.placements.length;
+      const tile = tp('game_tile', game.placements.length);
+      if (!window.confirm(`${t('game_confirm_play')} (${n} ${tile}) ?`)) return;
+    }
+    await game.handleValidateWord();
+  };
+
+  // ── Écran de jeu : téléphone (portrait ou paysage) ────────────
+  if (isMobile) {
+    const players     = game.gameState.players;
+    const activeIndex = game.gameState.current_player_index;
+    const placed      = game.placements.length;
+    const showPoints  = settings.showScorePreview && placed > 0;
+    const busy        = game.isAITurn;
+
+    let statusText;
+    if (busy)                           statusText = t('mg_ai_thinking', { name: players[activeIndex]?.name ?? '' });
+    else if (game.isSwapMode)           statusText = tp('game_swap_count', game.selectedTilesToSwap.length);
+    else if (placed > 0)                statusText = tp('game_tile', placed);
+    else if (selectedRackIndex !== null) statusText = t('mg_tap_square');
+    else                                statusText = t('mg_tap_letter');
+
+    return (
+      <>
+        <Toast toasts={toasts} onDismiss={dismissToast} />
+        <JokerPicker open={!!game.pendingJoker} onPick={game.chooseJokerLetter} onCancel={game.cancelJoker} />
+        <TutorialOverlay t={t} />
+
+        <MobileGameLayout
+          top={
+            <ScoreStrip
+              players={players}
+              activeIndex={activeIndex}
+              bagCount={settings.showRemainingTiles ? (game.gameState.remaining_tiles?.length ?? 0) : null}
+              bagLabel={t('mg_bag')}
+              extra={<TutorialButton t={t} inline />}
+              below={settings.turnDuration > 0 ? (
+                <TurnTimer
+                  duration={settings.turnDuration}
+                  isActive={game.timerActive && !busy}
+                  onExpire={game.handleTimerExpire}
+                  resetRef={game.timerResetRef}
+                />
+              ) : null}
+            />
+          }
+          board={
+            <Board
+              compact
+              gameState={game.gameState}
+              placements={game.placements}
+              onDropTile={game.handleDropTile}
+              onMoveTile={game.handleMoveTile}
+              onReturnTile={game.handleReturnTile}
+              onCellPress={handleCellPress}
+              canPress={selectedRackIndex !== null && !game.isSwapMode}
+            />
+          }
+          status={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <StatusLine thinking={busy} points={showPoints ? game.previewScore : null} text={statusText} />
+            </span>
+          }
+          dock={
+            <>
+              <MobileRack
+                tiles={game.rackTilesForDisplay}
+                mode={game.isSwapMode ? 'swap' : 'place'}
+                disabled={busy}
+                isPressed={(tile, i) => game.isSwapMode
+                  ? game.selectedTilesToSwap.includes(tile.letter)
+                  : selectedRackIndex === i}
+                onPress={(tile, i) => game.isSwapMode
+                  ? game.toggleTileForSwap(tile.letter)
+                  : handleSelectRackTile(i)}
+                labelFor={tile => tile.letter === '*' ? t('mg_joker') : `${tile.letter}, ${tile.score}`}
+              />
+
+              <div className="mg-actions">
+                {game.isSwapMode ? (
+                  <>
+                    <ActionButton icon="✕" label={t('btn_cancel')} onClick={() => game.clearSwapMode()} />
+                    <ActionButton
+                      variant="wide"
+                      icon="⇄"
+                      label={`${t('btn_exchange')} (${game.selectedTilesToSwap.length})`}
+                      disabled={game.selectedTilesToSwap.length === 0}
+                      onClick={game.handleSwapTiles}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {placed > 0 ? (
+                      <ActionButton icon="↺" label={t('mg_recall')} onClick={game.handleClearPlacements} />
+                    ) : (
+                      <ActionButton icon="→" label={t('btn_pass')} disabled={busy} onClick={game.handlePassTurn} buttonRef={btnPassRef} />
+                    )}
+                    <ActionButton icon="⇅" label={t('mg_shuffle')} disabled={busy || placed > 0} onClick={game.handleShuffleRack} />
+                    <ActionButton icon="⇄" label={t('mg_swap')} disabled={busy || placed > 0} onClick={() => game.initSwapMode()} />
+                    <MoreMenu
+                      label={t('mg_more')}
+                      items={[
+                        { icon: '✕', label: t('game_abandon'), danger: true, onSelect: () => game.setShowAbandonModal(true) },
+                      ]}
+                    />
+                    <PlayButton
+                      label={t('mg_play')}
+                      points={showPoints ? game.previewScore : null}
+                      disabled={placed === 0 || busy}
+                      onClick={handleValidate}
+                      buttonRef={btnValidateRef}
+                    />
+                  </>
+                )}
+              </div>
+            </>
+          }
+        />
+
+        {game.showAbandonModal && (
+          <AbandonModal
+            onConfirm={game.handleAbandonConfirm}
+            onCancel={() => game.setShowAbandonModal(false)}
+            t={t}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── Écran de jeu : ordinateur et tablette ─────────────────────
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
 
@@ -262,7 +401,6 @@ React.useEffect(() => {
         timerActive={game.timerActive && !game.isAITurn}
         timerResetRef={game.timerResetRef}
         onTimerExpire={game.handleTimerExpire}
-        actions={<TutorialButton t={t} inline />}
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
@@ -342,14 +480,7 @@ React.useEffect(() => {
                     variant="primary"
                     fullWidth
                     disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
-                    onClick={async () => {
-                      if (settings.confirmValidation && game.placements.length > 0) {
-                        const n = game.placements.length;
-                        const tile = tp('game_tile', game.placements.length);
-                        if (!window.confirm(`${t('game_confirm_play')} (${n} ${tile}) ?`)) return;
-                      }
-                      await game.handleValidateWord();
-                    }}
+                    onClick={handleValidate}
                   >
                     ✓ {t('btn_validate')} ({game.placements.length})
                   </RetroButton>

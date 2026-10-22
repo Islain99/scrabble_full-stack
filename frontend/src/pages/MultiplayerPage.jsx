@@ -21,6 +21,10 @@ import Board      from '../components/Board';
 import ScorePanel from '../components/ScorePanel';
 import { Toast }  from '../components/Toast';
 import JokerPicker from '../components/JokerPicker';
+import { useIsMobile } from '../hooks/useViewport';
+import {
+  MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, StatusLine,
+} from '../components/mobile/MobileGame';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Sous-composants ───────────────────────────────────────────────
@@ -181,13 +185,15 @@ function PlayingScreen({ mp, user, roomId }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
+  const isMobile = useIsMobile();
+  const { t, tp } = useLanguage();
 
   const {
     gameState, placements, isMyTurn, availableRackTiles, previewScore,
     handleDropTile, handleMoveTile, handleReturnTile,
     handleValidateWord, handlePassTurn, handleSwapTiles,
     toggleTileForSwap, selectedTilesToSwap, isLoading,
-    pendingJoker, chooseJokerLetter, cancelJoker,
+    pendingJoker, chooseJokerLetter, cancelJoker, handleClearPlacements,
   } = mp;
 
   if (!gameState) return (
@@ -238,6 +244,114 @@ function PlayingScreen({ mp, user, roomId }) {
           Retour à l'accueil
         </RetroButton>
       </div>
+    );
+  }
+
+  // ── Téléphone (portrait ou paysage) ─────────────────────────────
+  if (isMobile) {
+    const placed = placements.length;
+    let statusText;
+    if (!isMyTurn)                   statusText = t('mg_waiting', { name: currentPlayer.name });
+    else if (showSwapPanel)          statusText = tp('game_swap_count', selectedTilesToSwap.length);
+    else if (confirmPass)            statusText = t('mg_pass_question');
+    else if (placed > 0)             statusText = tp('game_tile', placed);
+    else if (selectedRackTile)       statusText = t('mg_tap_square');
+    else                             statusText = t('mg_tap_letter');
+
+    return (
+      <>
+        <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
+        <MobileGameLayout
+          top={
+            <ScoreStrip
+              players={gameState.players}
+              activeIndex={gameState.current_player_index}
+              bagCount={(gameState.remaining_tiles ?? []).length}
+              bagLabel={t('mg_bag')}
+            />
+          }
+          board={
+            <Board
+              compact
+              gameState={gameState}
+              placements={placements}
+              onDropTile={handleDropTile}
+              onMoveTile={handleMoveTile}
+              onReturnTile={handleReturnTile}
+              onCellPress={handleCellPress}
+              canPress={!!selectedRackTile && isMyTurn}
+            />
+          }
+          status={
+            <StatusLine
+              thinking={!isMyTurn}
+              points={isMyTurn && placed > 0 ? previewScore : null}
+              text={statusText}
+            />
+          }
+          dock={
+            <>
+              <MobileRack
+                tiles={availableRackTiles}
+                mode={showSwapPanel ? 'swap' : 'place'}
+                disabled={!isMyTurn || isLoading}
+                isPressed={(tile, i) => showSwapPanel
+                  ? selectedTilesToSwap.includes(i)
+                  : selectedRackTile?.tile === tile}
+                onPress={(tile, i) => showSwapPanel
+                  ? toggleTileForSwap(i)
+                  : setSelectedRackTile(prev => (prev?.tile === tile ? null : { tile, index: i }))}
+                labelFor={tile => tile.letter === '*' ? t('mg_joker') : `${tile.letter}, ${tile.score}`}
+              />
+
+              <div className="mg-actions">
+                {showSwapPanel ? (
+                  <>
+                    <ActionButton icon="✕" label={t('btn_cancel')} onClick={() => setShowSwapPanel(false)} />
+                    <ActionButton
+                      variant="wide"
+                      icon="⇄"
+                      label={`${t('btn_exchange')} (${selectedTilesToSwap.length})`}
+                      disabled={selectedTilesToSwap.length === 0 || isLoading}
+                      onClick={() => { handleSwapTiles(); setShowSwapPanel(false); }}
+                    />
+                  </>
+                ) : confirmPass ? (
+                  <>
+                    <ActionButton icon="✕" label={t('btn_cancel')} onClick={() => setConfirmPass(false)} />
+                    <ActionButton
+                      variant="danger"
+                      icon="→"
+                      label={t('mg_pass_confirm')}
+                      onClick={() => { setConfirmPass(false); handlePassTurn(); }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {placed > 0 ? (
+                      <ActionButton icon="↺" label={t('mg_recall')} onClick={handleClearPlacements} />
+                    ) : (
+                      <ActionButton icon="→" label={t('btn_pass')} disabled={!isMyTurn || isLoading} onClick={() => setConfirmPass(true)} />
+                    )}
+                    <ActionButton
+                      icon="⇄"
+                      label={t('mg_swap')}
+                      disabled={!isMyTurn || isLoading || placed > 0}
+                      onClick={() => { setShowSwapPanel(true); setSelectedRackTile(null); }}
+                    />
+                    <PlayButton
+                      label={isLoading ? '…' : t('mg_play')}
+                      points={placed > 0 ? previewScore : null}
+                      disabled={placed === 0 || isLoading || !isMyTurn}
+                      onClick={handleValidate}
+                    />
+                  </>
+                )}
+              </div>
+            </>
+          }
+        />
+      </>
     );
   }
 

@@ -36,6 +36,23 @@ export const translations = {
     nav_register:    'Inscription',
     nav_logout:      'Déconnexion',
     nav_appearance:  'Apparence',
+    nav_menu:        'Menu',
+    nav_language:    'Langue',
+
+    // Écran de jeu sur téléphone
+    mg_bag:           'sac',
+    mg_ai_thinking:   '{{name}} réfléchit…',
+    mg_waiting:       'Au tour de {{name}}…',
+    mg_tap_letter:    'Touchez une lettre, puis une case',
+    mg_tap_square:    'Touchez une case libre pour poser la lettre',
+    mg_recall:        'Reprendre',
+    mg_swap:          'Échanger',
+    mg_shuffle:       'Mélanger',
+    mg_more:          'Plus',
+    mg_play:          'Jouer',
+    mg_joker:         'Joker',
+    mg_pass_question: 'Passer votre tour ?',
+    mg_pass_confirm:  'Passer mon tour',
     nav_currently:   'Actuellement',
 
     // ── Thème ─────────────────────────────────────────────────────
@@ -308,6 +325,23 @@ export const translations = {
     nav_register:    'Sign up',
     nav_logout:      'Log out',
     nav_appearance:  'Appearance',
+    nav_menu:        'Menu',
+    nav_language:    'Language',
+
+    // Game screen on phones
+    mg_bag:           'bag',
+    mg_ai_thinking:   '{{name}} is thinking…',
+    mg_waiting:       "{{name}}'s turn…",
+    mg_tap_letter:    'Tap a letter, then a square',
+    mg_tap_square:    'Tap an empty square to place it',
+    mg_recall:        'Recall',
+    mg_swap:          'Swap',
+    mg_shuffle:       'Shuffle',
+    mg_more:          'More',
+    mg_play:          'Play',
+    mg_joker:         'Blank',
+    mg_pass_question: 'Pass your turn?',
+    mg_pass_confirm:  'Pass my turn',
     nav_currently:   'Currently',
 
     // ── Theme ─────────────────────────────────────────────────────

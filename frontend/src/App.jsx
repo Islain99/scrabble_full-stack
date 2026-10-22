@@ -21,6 +21,7 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import MultiplayerPage   from './pages/MultiplayerPage';
 
 import './index.css';
+import './styles/mobile.css';
 import { TutorialProvider } from './context/TutorialContext';
 
 // ── Router hash-based ─────────────────────────────────────────────

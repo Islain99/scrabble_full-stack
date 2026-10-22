@@ -11,6 +11,15 @@ const BONUS_STYLES = {
   DEFAULT: { bg: null, label: '', text: '' },
 };
 
+// Plateau sur téléphone : bordure et ombre allégées, pas de rivets
+const COMPACT_BOARD_STYLE = {
+  maxWidth: '100%',
+  padding: '3px',
+  borderWidth: '2px',
+  borderRadius: '4px',
+  boxShadow: '3px 3px 0 var(--board-shadow)',
+};
+
 const getBonus = (r, c) => {
   if (r === 7 && c === 7) return 'START';
   if (([0,7,14].includes(r) && [0,7,14].includes(c)) && !(r===7&&c===7)) return 'TM';
@@ -20,7 +29,7 @@ const getBonus = (r, c) => {
   return 'DEFAULT';
 };
 
-const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, onCellPress, canPress = false }) => {
+const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, onCellPress, canPress = false, compact = false }) => {
   const [hoverCell, setHoverCell] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const boardRef       = useTutorialRef('board');
@@ -73,10 +82,11 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
   return (
     <div
       ref={boardRef}
-      style={{ width: '100%', maxWidth: 'min(100%, calc(100vh - 160px))', aspectRatio: '1/1', background: 'var(--board-bg)', borderRadius: '6px', padding: 'clamp(6px, 1.5%, 14px)', boxShadow: '6px 6px 0 var(--board-shadow)', border: '3px solid var(--board-border)', position: 'relative', userSelect: 'none', boxSizing: 'border-box', margin: '0 auto' }}
+      className={compact ? 'board board--compact' : 'board'}
+      style={{ width: '100%', maxWidth: 'min(100%, calc(100vh - 160px))', aspectRatio: '1/1', background: 'var(--board-bg)', borderRadius: '6px', padding: 'clamp(6px, 1.5%, 14px)', boxShadow: '6px 6px 0 var(--board-shadow)', border: '3px solid var(--board-border)', position: 'relative', userSelect: 'none', boxSizing: 'border-box', margin: '0 auto', ...(compact ? COMPACT_BOARD_STYLE : null) }}
       onDragEnd={handleBoardDragEnd}
     >
-      {[{ top:'5px',left:'5px'},{top:'5px',right:'5px'},{bottom:'5px',left:'5px'},{bottom:'5px',right:'5px'}].map((pos,i) => (
+      {!compact && [{ top:'5px',left:'5px'},{top:'5px',right:'5px'},{bottom:'5px',left:'5px'},{bottom:'5px',right:'5px'}].map((pos,i) => (
         <div key={i} style={{ position:'absolute', width:'16px', height:'16px', background:'var(--board-rivet)', borderRadius:'50%', boxShadow:'2px 2px 0 var(--board-shadow)', zIndex:2, ...pos }} />
       ))}
 
@@ -119,7 +129,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
                 <TileBoardCell tile={tile} isTemp={isTemp} r={r} c={c} onReturnTile={onReturnTile} onDragStart={handleBoardTileDragStart} />
               ) : (
                 bonus.label && (
-                  <span style={{ fontSize:'clamp(0.4rem,1.1vw,0.65rem)', fontWeight:700, color:bonus.text, fontFamily:"'DM Mono', monospace", textAlign:'center', lineHeight:1, letterSpacing:'-0.02em', pointerEvents:'none' }}>
+                  <span className="bc-bonus" style={{ fontSize:'clamp(0.4rem,1.1vw,0.65rem)', fontWeight:700, color:bonus.text, fontFamily:"'DM Mono', monospace", textAlign:'center', lineHeight:1, letterSpacing:'-0.02em', pointerEvents:'none' }}>
                     {bonus.label}
                   </span>
                 )
@@ -144,12 +154,12 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
         title="Cliquez pour récupérer — glissez pour déplacer"
         style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: isOver ? 'var(--tile-temp-shadow)' : 'var(--tile-temp-bg)', border:'2px solid var(--tile-temp-border)', boxShadow:'2px 2px 0 var(--tile-temp-shadow)', cursor:'grab', borderRadius:'2px', transition:'background 0.1s, transform 0.1s', transform: isOver ? 'scale(1.05)' : 'none' }}
       >
-        <span style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-temp-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1, pointerEvents:'none' }}>
+        <span className="bt-letter" style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-temp-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1, pointerEvents:'none' }}>
           {tile.letter === '*' ? '★' : tile.letter}
         </span>
         {tile.is_joker && <JokerMark />}
         {tile.score > 0 && (
-          <span style={{ position:'absolute', bottom:'2px', right:'3px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-temp-text)', fontFamily:"'DM Mono', monospace", lineHeight:1, pointerEvents:'none', opacity:0.8 }}>
+          <span className="bt-score" style={{ position:'absolute', bottom:'2px', right:'3px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-temp-text)', fontFamily:"'DM Mono', monospace", lineHeight:1, pointerEvents:'none', opacity:0.8 }}>
             {tile.score}
           </span>
         )}
@@ -164,12 +174,12 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
 
   return (
     <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: (tile.is_joker||tile.letter==='*')?'var(--tile-joker-bg)':'var(--tile-bg)', border:`2px solid ${(tile.is_joker||tile.letter==='*')?'var(--tile-joker-border)':'var(--tile-border)'}`, boxShadow:'2px 2px 0 var(--tile-shadow)', borderRadius:'2px' }}>
-      <span style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1 }}>
+      <span className="bt-letter" style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1 }}>
         {tile.letter === '*' ? '★' : tile.letter}
       </span>
       {tile.is_joker && <JokerMark />}
         {tile.score > 0 && (
-        <span style={{ position:'absolute', bottom:'2px', right:'3px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-score)', fontFamily:"'DM Mono', monospace", lineHeight:1 }}>
+        <span className="bt-score" style={{ position:'absolute', bottom:'2px', right:'3px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-score)', fontFamily:"'DM Mono', monospace", lineHeight:1 }}>
           {tile.score}
         </span>
       )}
@@ -181,6 +191,7 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
 const JokerMark = () => (
   <span
     aria-label="joker"
+    className="bt-score"
     style={{ position:'absolute', bottom:'1px', right:'2px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-score)', lineHeight:1, pointerEvents:'none' }}
   >
     ★

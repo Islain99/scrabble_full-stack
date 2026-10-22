@@ -1,5 +1,6 @@
 // src/components/Navbar.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useIsMobile } from '../hooks/useViewport';
 import { useAuth }     from '../context/AuthContext';
 import { useTheme }    from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -12,6 +13,7 @@ export default function Navbar() {
   const { preference, setTheme, THEMES, resolvedTheme } = useTheme();
   const { t, language, setLanguage }                    = useLanguage();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const isMobile = useIsMobile();
   const currentHash = window.location.hash || '#/';
 
   // Labels traduits (recalculés à chaque render, donc réactifs au changement de langue)
@@ -40,6 +42,27 @@ export default function Navbar() {
   };
 
   if (loading) return null;
+
+  if (isMobile) {
+    return (
+      <MobileNavbar
+        links={NAV_LINKS.filter(l => !l.authOnly || isAuthenticated)}
+        currentHash={currentHash}
+        languages={LANGUAGES}
+        language={language}
+        setLanguage={setLanguage}
+        themes={THEMES}
+        themeIcons={ThemeIcons}
+        themeLabels={ThemeLabels}
+        preference={preference}
+        setTheme={setTheme}
+        isAuthenticated={isAuthenticated}
+        user={user}
+        onLogout={handleLogout}
+        t={t}
+      />
+    );
+  }
 
   return (
     <nav className="app-navbar" style={{
@@ -305,3 +328,120 @@ export default function Navbar() {
     </nav>
   );
 }
+
+// ── Version téléphone ─────────────────────────────────────────────
+// Une seule ligne (logo + page courante + bouton menu). Le menu s'ouvre
+// en volet sous la barre : navigation, langue, apparence, compte.
+
+function MobileNavbar({
+  links, currentHash, languages, language, setLanguage,
+  themes, themeIcons, themeLabels, preference, setTheme,
+  isAuthenticated, user, onLogout, t,
+}) {
+  const [open, setOpen] = useState(false);
+  const current = links.find(l => l.hash === currentHash);
+
+  // Fermer le volet : changement de page ou touche Échap
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onHash = () => setOpen(false);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('hashchange', onHash);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('hashchange', onHash);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <nav className="mnav" aria-label="Navigation">
+        <div style={{ display: 'flex', alignItems: 'baseline', minWidth: 0 }}>
+          <a href="#/" className="mnav-logo">SCRABBLE</a>
+          {current && <span className="mnav-page">{current.label}</span>}
+        </div>
+        <button
+          type="button"
+          className="mnav-toggle"
+          aria-expanded={open}
+          aria-controls="mnav-sheet"
+          aria-label={t('nav_menu')}
+          onClick={() => setOpen(o => !o)}
+        >
+          {open ? '✕' : '☰'}
+        </button>
+      </nav>
+
+      {open && (
+        <>
+          <div className="mnav-backdrop" onClick={() => setOpen(false)} />
+          <div id="mnav-sheet" className="mnav-sheet">
+            <div className="mnav-links">
+              {links.map(link => (
+                <a
+                  key={link.hash}
+                  href={link.hash}
+                  className="mnav-link"
+                  aria-current={currentHash === link.hash ? 'page' : undefined}
+                  onClick={() => setOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            <div className="mnav-row" role="group" aria-label={t('nav_language')}>
+              <span className="mnav-row-label">{t('nav_language')}</span>
+              {languages.map(l => (
+                <button
+                  key={l.value}
+                  type="button"
+                  className="mnav-chip"
+                  aria-pressed={language === l.value}
+                  onClick={() => setLanguage(l.value)}
+                >
+                  <span aria-hidden="true">{l.emoji}</span>
+                  {l.value === 'fr' ? 'Français' : 'English'}
+                </button>
+              ))}
+            </div>
+
+            <div className="mnav-row" role="group" aria-label={t('nav_appearance')}>
+              <span className="mnav-row-label">{t('nav_appearance')}</span>
+              {themes.map(theme => (
+                <button
+                  key={theme}
+                  type="button"
+                  className="mnav-chip"
+                  aria-pressed={preference === theme}
+                  onClick={() => setTheme(theme)}
+                >
+                  <span aria-hidden="true">{themeIcons[theme]}</span>
+                  {themeLabels[theme]}
+                </button>
+              ))}
+            </div>
+
+            <div className="mnav-row">
+              {isAuthenticated ? (
+                <>
+                  <span className="mnav-row-label">{user?.display_name}</span>
+                  <button type="button" className="mnav-chip mnav-chip--danger" onClick={onLogout}>
+                    {t('nav_logout')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <a href="#/login" className="mnav-chip" onClick={() => setOpen(false)}>{t('nav_login')}</a>
+                  <a href="#/register" className="mnav-chip mnav-chip--primary" onClick={() => setOpen(false)}>{t('nav_register')}</a>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+

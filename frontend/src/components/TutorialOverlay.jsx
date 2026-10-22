@@ -217,11 +217,34 @@ function getViewportRect(ref) {
 }
 
 function getBubbleStyle(vRect, position) {
-  if (!vRect || position === 'center') {
-    return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: `${BUBBLE_W}px`, zIndex: 10001 };
-  }
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const width = Math.min(BUBBLE_W, vw - 24);
+
+  if (!vRect || position === 'center') {
+    return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: `${width}px`, maxHeight: `${vh - 24}px`, overflowY: 'auto', zIndex: 10001 };
+  }
+
+  // Téléphone : la bulle se range du côté opposé à l'élément montré,
+  // pour ne jamais le recouvrir.
+  if (vh < 500 && vw > vh) {
+    // Paysage : à gauche ou à droite
+    const onLeft = vRect.left + vRect.width / 2 > vw / 2;
+    return {
+      position: 'fixed', top: '50%', transform: 'translateY(-50%)',
+      ...(onLeft ? { left: '12px' } : { right: '12px' }),
+      width: `${width}px`, maxHeight: `${vh - 24}px`, overflowY: 'auto', zIndex: 10001,
+    };
+  }
+  if (vw < 768) {
+    // Portrait : en haut ou en bas
+    const onTop = vRect.top + vRect.height / 2 > vh / 2;
+    return {
+      position: 'fixed', left: '50%', transform: 'translateX(-50%)',
+      ...(onTop ? { top: '12px' } : { bottom: '12px' }),
+      width: `${width}px`, maxHeight: `${Math.round(vh * 0.55)}px`, overflowY: 'auto', zIndex: 10001,
+    };
+  }
   let top, left;
   switch (position) {
     case 'right': top = vRect.top + vRect.height / 2 - 140; left = vRect.right + PAD; break;
