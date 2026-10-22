@@ -103,6 +103,22 @@ export default function GamePage() {
   const { t, tp, language }        = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   const game = useGameLogic({ addToast });
+
+  // Sélection « toucher une lettre, puis une case » (écrans tactiles)
+  // La sélection est liée à l'état de partie courant : elle s'annule d'elle-même
+  // quand le plateau change (coup joué, tour de l'IA) ou en mode échange.
+  const [rackSelection, setRackSelection] = React.useState(null); // { index, state }
+  const selectedRackIndex =
+    rackSelection && rackSelection.state === game.gameState && !game.isSwapMode
+      ? rackSelection.index
+      : null;
+  const handleSelectRackTile = (index) =>
+    setRackSelection(selectedRackIndex === index ? null : { index, state: game.gameState });
+  const handleCellPress = (r, c) => {
+    if (selectedRackIndex === null) return;
+    game.handleDropTile(selectedRackIndex, r, c);
+    setRackSelection(null);
+  };
   const { notifyGameState } = useTutorialContext();
   const scorePreviewRef = useTutorialRef('score-preview');
   const btnValidateRef  = useTutorialRef('btn-validate');
@@ -252,7 +268,7 @@ React.useEffect(() => {
       <TutorialButton t={t} />
 
       <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box',}}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start',}}>
+        <div className="game-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start',}}>
 
           {/* ── Colonne gauche : plateau + rack ─────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -263,6 +279,8 @@ React.useEffect(() => {
                 onDropTile={game.handleDropTile}
                 onMoveTile={game.handleMoveTile}
                 onReturnTile={game.handleReturnTile}
+                onCellPress={handleCellPress}
+                canPress={selectedRackIndex !== null && !game.isSwapMode}
               />
             </div>
 
@@ -284,13 +302,15 @@ React.useEffect(() => {
                   playerId={game.activePlayerId}
                   onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
                   selectedTiles={game.selectedTilesToSwap}
+                  selectedIndex={selectedRackIndex}
+                  onSelectTile={handleSelectRackTile}
                 />
               </div>
             </div>
           </div>
 
           {/* ── Sidebar droite ──────────────────────────────── */}
-          <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', }}>
+          <aside className="game-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', }}>
             <div data-tutorial="score-panel">
               <ScorePanel
                 players={game.gameState.players}

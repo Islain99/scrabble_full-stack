@@ -42,7 +42,7 @@ export default function Navbar() {
   if (loading) return null;
 
   return (
-    <nav style={{
+    <nav className="app-navbar" style={{
       display:         'flex',
       alignItems:      'center',
       justifyContent:  'space-between',
@@ -68,7 +68,7 @@ export default function Navbar() {
       </a>
 
       {/* ── Nav links ──────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '4px', flex: 1, justifyContent: 'center' }}>
+      <div className="app-nav-links" style={{ display: 'flex', gap: '4px', flex: 1, justifyContent: 'center' }}>
         {NAV_LINKS.filter(l => !l.authOnly || isAuthenticated).map(link => (
           <a
             key={link.hash}
@@ -93,7 +93,7 @@ export default function Navbar() {
       </div>
 
       {/* ── Right zone ─────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+      <div className="app-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
 
         {/* ── Sélecteur de langue ────────────────────────── */}
         <div style={{ display: 'flex', gap: '4px' }}>

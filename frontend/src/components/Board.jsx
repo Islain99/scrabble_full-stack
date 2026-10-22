@@ -20,7 +20,7 @@ const getBonus = (r, c) => {
   return 'DEFAULT';
 };
 
-const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) => {
+const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, onCellPress, canPress = false }) => {
   const [hoverCell, setHoverCell] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const boardRef       = useTutorialRef('board');
@@ -84,6 +84,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
           const isPerm   = grid[r][c] !== null;
           const isHovered = hoverCell === cellKey;
           const isDraggingFrom = dragSource?.type==='board' && dragSource.fromR===r && dragSource.fromC===c;
+          const isPressable = canPress && !tile;
 
           let cellBg;
           if (tile)                      cellBg = 'transparent';
@@ -103,9 +104,11 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile }) 
               ref={cellRef}
               {...tutorialAttr}
               style={{ display:'flex', justifyContent:'center', alignItems:'center', backgroundColor:cellBg, borderRadius:'1px', transition:'background 0.08s', position:'relative', outline: isHovered&&!isPerm&&!isTemp?'2px solid rgba(200,168,48,0.8)':'none', outlineOffset:'-1px', opacity:isDraggingFrom?0.35:1, overflow:'hidden' }}
+              className={isPressable ? 'board-cell-pressable' : undefined}
               onDragOver={(e) => handleDragOver(e, r, c)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, r, c)}
+              onClick={!tile && onCellPress ? () => onCellPress(r, c) : undefined}
             >
               {tile ? (
                 <TileBoardCell tile={tile} isTemp={isTemp} r={r} c={c} onReturnTile={onReturnTile} onDragStart={handleBoardTileDragStart} />

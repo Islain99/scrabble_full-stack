@@ -197,7 +197,11 @@ function PlayingScreen({ mp, user, roomId }) {
 
   const handleCellPress = (r, c) => {
     if (!selectedRackTile || !isMyTurn) return;
-    handleDropTile(selectedRackTile.index, r, c);
+    // SimpleRack numérote le chevalet complet ; handleDropTile attend un index
+    // dans availableRackTiles (chevalet sans les tuiles déjà posées).
+    const index = availableRackTiles.indexOf(selectedRackTile.tile);
+    if (index === -1) return;
+    handleDropTile(index, r, c);
     setSelectedRackTile(null);
   };
 
@@ -266,7 +270,8 @@ function PlayingScreen({ mp, user, roomId }) {
         onDropTile={handleDropTile}
         onMoveTile={handleMoveTile}
         onReturnTile={handleReturnTile}
-        previewScore={previewScore}
+        onCellPress={handleCellPress}
+        canPress={!!selectedRackTile && isMyTurn}
       />
 
       {/* Chevalet */}

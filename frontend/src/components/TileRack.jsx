@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useTutorialRef } from '../context/TutorialContext';
 
-const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
+const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIndex = null, onSelectTile }) => {
   const isSwapMode = onTileClick !== undefined;
   const [draggingIndex, setDraggingIndex] = useState(null);
   const rackRef = useTutorialRef('tile-rack');
@@ -18,7 +18,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
   const handleDragEnd = () => setDraggingIndex(null);
 
   return (
-    <div ref={rackRef} style={{
+    <div ref={rackRef} className="tile-rack" style={{
       background: 'var(--rack-bg)',
       borderRadius: '6px',
       padding: '18px 20px 20px',
@@ -60,7 +60,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
         </span>
       ) : (
         tiles.map((tile, index) => {
-          const isSelected = selectedTiles.includes(tile.letter);
+          const isSelected = isSwapMode ? selectedTiles.includes(tile.letter) : selectedIndex === index;
           const isDragging = draggingIndex === index;
           return (
             <RackTile
@@ -69,6 +69,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
               isSwapMode={isSwapMode} isSelected={isSelected} isDragging={isDragging}
               onDragStart={handleDragStart} onDragEnd={handleDragEnd}
               onTileClick={onTileClick}
+              onSelectTile={onSelectTile}
             />
           );
         })
@@ -77,7 +78,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [] }) => {
   );
 };
 
-const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart, onDragEnd, onTileClick }) => {
+const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart, onDragEnd, onTileClick, onSelectTile }) => {
   const [isHover, setIsHover] = useState(false);
   const isJoker = tile.letter === '*';
 
@@ -90,10 +91,15 @@ const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart
       draggable={!isSwapMode}
       onDragStart={(e) => onDragStart(e, tile, index)}
       onDragEnd={onDragEnd}
-      onClick={isSwapMode ? () => onTileClick(tile.letter) : undefined}
+      className="rack-tile"
+      onClick={
+        isSwapMode ? () => onTileClick(tile.letter)
+        : onSelectTile ? () => onSelectTile(index)
+        : undefined
+      }
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
-      title={isSwapMode ? `Sélectionner ${tile.letter}` : `Glisser ${tile.letter} sur le plateau`}
+      title={isSwapMode ? `Sélectionner ${tile.letter}` : `Glisser ou toucher ${tile.letter}`}
       style={{
         width: '52px',
         height: '52px',

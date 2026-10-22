@@ -147,11 +147,12 @@ export function useGameLogic({
 
   /** Déposer une tuile du rack sur une case du plateau. */
   const handleDropTile = useCallback((rackIndex, r, c) => {
-    const tileToPlace = availableRackTiles[rackIndex];
+    // L'index vient du rack affiché (trié si autoSortRack) : on lit la même liste
+    const tileToPlace = rackTilesForDisplay[rackIndex];
     if (!tileToPlace) return;
     if (placements.some(pl => pl.r === r && pl.c === c)) return;
     setPlacements(prev => [...prev, { letter: tileToPlace.letter, r, c, originalTile: tileToPlace, rackIndex }]);
-  }, [availableRackTiles, placements]);
+  }, [rackTilesForDisplay, placements]);
 
   /** Déplacer une tuile temporaire d'une case à une autre. */
   const handleMoveTile = useCallback((fromR, fromC, toR, toC) => {
