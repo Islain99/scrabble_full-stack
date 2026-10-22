@@ -76,6 +76,7 @@ export const translations = {
     // ── Boutons génériques ────────────────────────────────────────
     btn_reset:         'Réinitialiser tous les paramètres',
     btn_cancel:        'Annuler',
+    joker_pick_title:  'Quelle lettre pour le joker ?',
     btn_confirm_reset: 'Réinitialiser',
     btn_validate:      'Valider',
     btn_pass:          'Passer',
@@ -347,6 +348,7 @@ export const translations = {
     // ── Generic buttons ───────────────────────────────────────────
     btn_reset:         'Reset all settings',
     btn_cancel:        'Cancel',
+    joker_pick_title:  'Which letter for the blank?',
     btn_confirm_reset: 'Reset',
     btn_validate:      'Submit',
     btn_pass:          'Pass',

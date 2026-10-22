@@ -425,6 +425,25 @@ class GameEngine:
     # Actions humaines
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Joker : convention de placement
+    # ------------------------------------------------------------------
+    # Dans une liste de placements (r, c, lettre) :
+    #   - lettre MAJUSCULE  → tuile normale du chevalet (ex. 'E')
+    #   - lettre minuscule  → joker '*' du chevalet joué comme cette lettre (ex. 'e')
+    # C'est la notation habituelle du Scrabble (les jokers en minuscules).
+
+    @staticmethod
+    def _is_joker_letter(letter: str) -> bool:
+        return len(letter) == 1 and "a" <= letter <= "z"
+
+    @staticmethod
+    def _board_tile_for(letter: str, rack_tile: Tile) -> Tile:
+        """Tuile telle qu'elle apparaît sur le plateau."""
+        if rack_tile.letter == "*":
+            return Tile(letter=letter.upper(), score=0, is_joker=True)
+        return rack_tile
+
     @staticmethod
     def _validate_placement_geometry(
         board: Board,
@@ -501,24 +520,36 @@ class GameEngine:
             return (False, error)
 
         temp_board = deepcopy(current_game.board)
-        tiles_to_place: List[Tuple[int, int, Tile]] = []
+        tiles_to_place: List[Tuple[int, int, Tile]] = []   # tuiles telles que posées
+        rack_tiles_used: List[Tile] = []                    # tuiles retirées du chevalet
 
         for r, c, l in placements:
             if temp_board.grid[r][c] is not None:
                 return (False, "Placement invalide : une case est déjà occupée.")
+
+            is_joker = self._is_joker_letter(l)
+            if not is_joker and not ("A" <= l <= "Z" and len(l) == 1):
+                return (False, "Placement invalide : choisissez la lettre représentée par le joker.")
+            rack_letter = "*" if is_joker else l
+
             # Exclut les tuiles déjà utilisées dans ce coup : sans ça, poser deux
             # fois la même lettre réutilisait la même tuile du chevalet.
-            tile_to_place = next(
+            rack_tile = next(
                 (
                     t for t in current_player.rack
-                    if t.letter == l and not any(t is used for _, _, used in tiles_to_place)
+                    if t.letter == rack_letter and not any(t is used for used in rack_tiles_used)
                 ),
                 None,
             )
-            if not tile_to_place:
+            if not rack_tile:
+                if is_joker:
+                    return (False, "Aucun joker disponible dans le rack.")
                 return (False, f"Tuile '{l}' non trouvée dans le rack.")
-            temp_board.grid[r][c] = tile_to_place
-            tiles_to_place.append((r, c, tile_to_place))
+
+            board_tile = self._board_tile_for(l, rack_tile)
+            temp_board.grid[r][c] = board_tile
+            tiles_to_place.append((r, c, board_tile))
+            rack_tiles_used.append(rack_tile)
 
         formed_words = self._get_formed_words(placements, temp_board)
 
@@ -536,7 +567,8 @@ class GameEngine:
         score = self._calculate_score(tiles_to_place, temp_board)
         for r, c, tile in tiles_to_place:
             current_game.board.grid[r][c] = tile
-            current_player.rack.remove(tile)
+        for rack_tile in rack_tiles_used:
+            current_player.rack.remove(rack_tile)
 
         current_player.score += score
         new_tiles = self._draw_tiles(current_game, len(placements))
@@ -842,13 +874,15 @@ class GameEngine:
             else:
                 # On doit utiliser une tuile du rack
                 tile = next((t for t in rack_copy if t.letter == letter), None)
+                played = letter
                 if tile is None:
-                    # Essayer avec un joker
+                    # Essayer avec un joker (noté en minuscule)
                     tile = next((t for t in rack_copy if t.letter == '*'), None)
                     if tile is None:
                         return None
+                    played = letter.lower()
                 rack_copy.remove(tile)
-                placements.append((r, c, letter))
+                placements.append((r, c, played))
 
         if not placements:
             return None  # Aucune tuile posée (mot entier déjà sur le plateau)
@@ -870,12 +904,12 @@ class GameEngine:
         rack_sim = list(rack)
 
         for r, c, letter in placements:
-            tile = next((t for t in rack_sim if t.letter == letter), None)
-            if tile is None:
-                tile = next((t for t in rack_sim if t.letter == '*'), None)
-            if tile is None:
+            rack_letter = "*" if self._is_joker_letter(letter) else letter
+            rack_tile = next((t for t in rack_sim if t.letter == rack_letter), None)
+            if rack_tile is None:
                 return None
-            rack_sim.remove(tile)
+            rack_sim.remove(rack_tile)
+            tile = self._board_tile_for(letter, rack_tile)
             temp_board.grid[r][c] = tile
             tiles_to_place.append((r, c, tile))
 

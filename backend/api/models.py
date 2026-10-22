@@ -20,9 +20,13 @@ class GameStatus(str, Enum):
 # Modèle pour une seule tuile
 class Tile(BaseModel):
     # La lettre (ex: 'A', 'Q', '*')
+    # Sur le plateau, un joker porte la lettre qu'il représente (ex: 'E')
+    # avec is_joker=True et score=0. Dans le chevalet, il vaut '*'.
     letter: str
     # La valeur en points
     score: int
+    # Joker posé sur le plateau
+    is_joker: bool = False
 
 # Modèle pour un joueur
 class Player(BaseModel):

@@ -239,3 +239,60 @@ def test_bonus_map_matches_official_board():
         assert BONUS.get((14 - r, c)) == kind
         assert BONUS.get((r, 14 - c)) == kind
 
+
+# ── Joker ─────────────────────────────────────────────────────────
+# Convention : lettre minuscule = joker joué comme cette lettre.
+
+def test_joker_played_as_letter(engine, game):
+    game.players[0].rack = _rack("TES*AAA")          # pas de second T : le joker le remplace
+    ok, msg = engine.play_word(game.game_id, 0, [(7, 7, "T"), (7, 8, "E"), (7, 9, "S"), (7, 10, "t")])
+    assert ok, msg
+    joker = game.board.grid[7][10]
+    assert joker.letter == "T" and joker.is_joker is True and joker.score == 0
+    # T(1)+E(1)+S(1)+joker(0) = 3, case centrale mot compte double → 6
+    assert game.players[0].score == 6
+    assert all(t.letter != "*" for t in game.players[0].rack[:3])  # le joker a quitté le chevalet
+
+
+def test_joker_letter_extends_existing_word(engine, game):
+    game.players[0].rack = _rack("TEST*AA")
+    ok, msg = engine.play_word(game.game_id, 0, [(7, 7, "T"), (7, 8, "E"), (7, 9, "S"), (7, 10, "t")])
+    assert ok, msg
+    game.players[1].rack = _rack("S*AEIOU")
+    # Bob prolonge TEST → TESTS avec son vrai S : le joker existant compte 0
+    ok, msg = engine.play_word(game.game_id, 1, [(7, 11, "S")])
+    assert ok, msg
+    # T+E+S+joker(0) = 3 + S sur lettre compte double (7,11) = 2 → 5
+    assert game.players[1].score == 5
+
+
+def test_joker_requires_joker_in_rack(engine, game):
+    game.players[0].rack = _rack("TESTAAA")          # aucun joker
+    ok, msg = engine.play_word(game.game_id, 0, [(7, 7, "T"), (7, 8, "E"), (7, 9, "S"), (7, 10, "t")])
+    assert ok is False
+    assert "joker" in msg.lower()
+
+
+def test_raw_joker_symbol_rejected(engine, game):
+    """Envoyer '*' sans choisir de lettre est refusé avec un message clair."""
+    game.players[0].rack = _rack("TES*AAA")
+    ok, msg = engine.play_word(game.game_id, 0, [(7, 7, "T"), (7, 8, "E"), (7, 9, "S"), (7, 10, "*")])
+    assert ok is False
+    assert "joker" in msg.lower()
+    assert len(game.players[0].rack) == 7
+
+
+def test_ai_can_use_joker(engine):
+    """Avec seulement T + joker, l'IA ne peut jouer qu'en utilisant le joker (ET / TE)."""
+    g = engine.start_new_game(["Alice", "HAL (IA)"], difficulty="hard")
+    ai = g.players[1]
+    ai.rack = _rack("T*")
+    g.current_player_index = 1
+    move = engine._find_best_move(g, ai, "hard")
+    assert move is not None
+    placements, _score = move
+    letters = [l for _, _, l in placements]
+    assert any(l.islower() for l in letters), letters
+    ok, msg = engine.play_word(g.game_id, ai.id, placements)
+    assert ok, msg
+

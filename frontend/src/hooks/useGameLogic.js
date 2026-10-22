@@ -29,6 +29,7 @@ export function useGameLogic({
   const [gameState, setGameState]                     = useState(null);
   const [gameId, setGameId]                           = useState(null);
   const [placements, setPlacements]                   = useState([]);
+  const [pendingJoker, setPendingJoker]               = useState(null); // { tile, r, c }
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [gameStartTime, setGameStartTime]             = useState(null);
   const [gameSaved, setGameSaved]                     = useState(false);
@@ -151,8 +152,30 @@ export function useGameLogic({
     const tileToPlace = rackTilesForDisplay[rackIndex];
     if (!tileToPlace) return;
     if (placements.some(pl => pl.r === r && pl.c === c)) return;
+    // Joker : on demande d'abord quelle lettre il représente (voir chooseJokerLetter)
+    if (tileToPlace.letter === '*') {
+      setPendingJoker({ tile: tileToPlace, r, c });
+      return;
+    }
     setPlacements(prev => [...prev, { letter: tileToPlace.letter, r, c, originalTile: tileToPlace, rackIndex }]);
   }, [rackTilesForDisplay, placements]);
+
+  /**
+   * Lettre choisie pour le joker en attente. Elle est envoyée à l'API en
+   * minuscule : c'est la convention du backend pour « joker joué comme ».
+   */
+  const chooseJokerLetter = useCallback((letter) => {
+    if (!pendingJoker) return;
+    const { tile, r, c } = pendingJoker;
+    setPendingJoker(null);
+    setPlacements(prev =>
+      prev.some(pl => (pl.r === r && pl.c === c) || pl.originalTile === tile)
+        ? prev
+        : [...prev, { letter: letter.toLowerCase(), r, c, originalTile: tile }]
+    );
+  }, [pendingJoker]);
+
+  const cancelJoker = useCallback(() => setPendingJoker(null), []);
 
   /** Déplacer une tuile temporaire d'une case à une autre. */
   const handleMoveTile = useCallback((fromR, fromC, toR, toC) => {
@@ -319,10 +342,13 @@ export function useGameLogic({
     rackTilesForDisplay,
     previewScore,
     timerResetRef,
+    pendingJoker,
 
     // Actions
     startGame,
     handleDropTile,
+    chooseJokerLetter,
+    cancelJoker,
     handleMoveTile,
     handleReturnTile,
     handleValidateWord,

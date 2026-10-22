@@ -52,6 +52,7 @@ export function useMultiplayerGame({
   const [gameState,  setGameState]  = useState(null);
   const [roomStatus, setRoomStatus] = useState('ACTIVE');
   const [placements, setPlacements] = useState([]);
+  const [pendingJoker, setPendingJoker] = useState(null); // { tile, r, c }
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [isLoading,  setIsLoading]  = useState(false);
 
@@ -147,13 +148,33 @@ export function useMultiplayerGame({
     const tile = availableRackTiles[rackIndex];
     if (!tile) return;
 
+    // Joker : on demande d'abord quelle lettre il représente
+    if (tile.letter === '*') {
+      setPendingJoker({ tile, r, c });
+      return;
+    }
+
     setPlacements(prev => [...prev, {
-      letter: tile.letter === '*' ? '?' : tile.letter,
+      letter: tile.letter,
       r, c,
       originalTile: tile,
       rackIndex,
     }]);
   }, [isMyTurn, gameState, placements, availableRackTiles]);
+
+  /** Lettre choisie pour le joker : envoyée en minuscule (convention backend). */
+  const chooseJokerLetter = useCallback((letter) => {
+    if (!pendingJoker) return;
+    const { tile, r, c } = pendingJoker;
+    setPendingJoker(null);
+    setPlacements(prev =>
+      prev.some(p => (p.r === r && p.c === c) || p.originalTile === tile)
+        ? prev
+        : [...prev, { letter: letter.toLowerCase(), r, c, originalTile: tile }]
+    );
+  }, [pendingJoker]);
+
+  const cancelJoker = useCallback(() => setPendingJoker(null), []);
 
   const handleMoveTile = useCallback((fromR, fromC, toR, toC) => {
     if (!gameState) return;
@@ -247,12 +268,15 @@ export function useMultiplayerGame({
     myPlayerIndex,
     availableRackTiles,
     previewScore,
+    pendingJoker,
 
     // Actions placement
     handleDropTile,
     handleMoveTile,
     handleReturnTile,
     handleClearPlacements,
+    chooseJokerLetter,
+    cancelJoker,
 
     // Actions réseau
     handleValidateWord,

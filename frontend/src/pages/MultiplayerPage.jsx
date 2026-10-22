@@ -20,6 +20,7 @@ import * as mpService  from '../api/multiplayerService';
 import Board      from '../components/Board';
 import ScorePanel from '../components/ScorePanel';
 import { Toast }  from '../components/Toast';
+import JokerPicker from '../components/JokerPicker';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
 // ── Sous-composants ───────────────────────────────────────────────
@@ -186,6 +187,7 @@ function PlayingScreen({ mp, user, roomId }) {
     handleDropTile, handleMoveTile, handleReturnTile,
     handleValidateWord, handlePassTurn, handleSwapTiles,
     toggleTileForSwap, selectedTilesToSwap, isLoading,
+    pendingJoker, chooseJokerLetter, cancelJoker,
   } = mp;
 
   if (!gameState) return (
@@ -263,6 +265,8 @@ function PlayingScreen({ mp, user, roomId }) {
         currentPlayerId={currentPlayer.id}
         remainingTiles={(gameState.remaining_tiles ?? []).length}
       />
+
+      <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
 
       <Board
         gameState={gameState}

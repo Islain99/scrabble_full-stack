@@ -15,6 +15,7 @@ import { Toast }   from '../components/Toast';
 import { useTutorialContext, useTutorialRef } from '../context/TutorialContext';
 import TutorialOverlay       from '../components/TutorialOverlay';
 import TutorialButton        from '../components/TutorialButton';
+import JokerPicker           from '../components/JokerPicker';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -265,6 +266,7 @@ React.useEffect(() => {
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
+      <JokerPicker open={!!game.pendingJoker} onPick={game.chooseJokerLetter} onCancel={game.cancelJoker} />
       <TutorialOverlay t={t} />
       <TutorialButton t={t} />
 

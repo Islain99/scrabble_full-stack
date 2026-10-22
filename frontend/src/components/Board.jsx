@@ -63,7 +63,12 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
   );
 
   const tempGrid = grid.map(row => [...row]);
-  placements.forEach(p => { tempGrid[p.r][p.c] = p.originalTile; });
+  placements.forEach(p => {
+    // Joker posé ce tour-ci : on affiche la lettre choisie (p.letter, en minuscule)
+    tempGrid[p.r][p.c] = p.originalTile?.letter === '*'
+      ? { letter: p.letter.toUpperCase(), score: 0, is_joker: true }
+      : p.originalTile;
+  });
 
   return (
     <div
@@ -142,6 +147,7 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
         <span style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-temp-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1, pointerEvents:'none' }}>
           {tile.letter === '*' ? '★' : tile.letter}
         </span>
+        {tile.is_joker && <JokerMark />}
         {tile.score > 0 && (
           <span style={{ position:'absolute', bottom:'2px', right:'3px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-temp-text)', fontFamily:"'DM Mono', monospace", lineHeight:1, pointerEvents:'none', opacity:0.8 }}>
             {tile.score}
@@ -157,11 +163,12 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
   }
 
   return (
-    <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: tile.letter==='*'?'var(--tile-joker-bg)':'var(--tile-bg)', border:`2px solid ${tile.letter==='*'?'var(--tile-joker-border)':'var(--tile-border)'}`, boxShadow:'2px 2px 0 var(--tile-shadow)', borderRadius:'2px' }}>
+    <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: (tile.is_joker||tile.letter==='*')?'var(--tile-joker-bg)':'var(--tile-bg)', border:`2px solid ${(tile.is_joker||tile.letter==='*')?'var(--tile-joker-border)':'var(--tile-border)'}`, boxShadow:'2px 2px 0 var(--tile-shadow)', borderRadius:'2px' }}>
       <span style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1 }}>
         {tile.letter === '*' ? '★' : tile.letter}
       </span>
-      {tile.score > 0 && (
+      {tile.is_joker && <JokerMark />}
+        {tile.score > 0 && (
         <span style={{ position:'absolute', bottom:'2px', right:'3px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-score)', fontFamily:"'DM Mono', monospace", lineHeight:1 }}>
           {tile.score}
         </span>
@@ -169,5 +176,15 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
     </div>
   );
 };
+
+// Petit ★ en coin : la tuile est un joker (0 point)
+const JokerMark = () => (
+  <span
+    aria-label="joker"
+    style={{ position:'absolute', bottom:'1px', right:'2px', fontSize:'clamp(0.35rem,0.8vw,0.5rem)', color:'var(--tile-score)', lineHeight:1, pointerEvents:'none' }}
+  >
+    ★
+  </span>
+);
 
 export default Board;
