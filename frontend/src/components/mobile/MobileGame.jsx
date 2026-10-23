@@ -18,6 +18,14 @@ const RACK_SIZE = 7;
 // ── Mise en page ────────────────────────────────────────────────────
 
 export function MobileGameLayout({ top, board, status, dock }) {
+  // L'écran de jeu tient sur un seul écran : on bloque le défilement de la
+  // page tant qu'il est affiché (classe retirée en quittant la partie).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('mg-lock');
+    return () => root.classList.remove('mg-lock');
+  }, []);
+
   // La ligne d'état est placée sous le plateau en portrait, et dans la
   // colonne de droite en paysage : le CSS affiche l'une ou l'autre.
   return (

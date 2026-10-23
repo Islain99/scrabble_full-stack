@@ -18,6 +18,24 @@
   :root { --mnav-h: 40px; --m-gap: 6px; }
 }
 
+/* ── Pas de défilement pendant une partie ─────────────────────────────
+   Classe posée sur <html> par MobileGameLayout. Sur mobile, 100vh est plus
+   haut que l'écran visible (barre d'adresse), ce qui rendait la page
+   défilable de quelques pixels ; on fige la page et on coupe aussi
+   l'effet rebond (iOS) et le « tirer pour actualiser » (Android). */
+html.mg-lock,
+html.mg-lock body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.mg-lock body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
 /* ── Barre de navigation mobile ───────────────────────────────────── */
 
 .mnav {
@@ -129,6 +147,7 @@
 /* ── Écran de jeu mobile ──────────────────────────────────────────── */
 
 .mg {
+  height: calc(100vh - var(--mnav-h) - env(safe-area-inset-top) - 2px);   /* navigateurs sans dvh */
   height: calc(100dvh - var(--mnav-h) - env(safe-area-inset-top) - 2px);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
