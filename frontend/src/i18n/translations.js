@@ -41,6 +41,7 @@ export const translations = {
 
     // Écran de jeu sur téléphone
     mg_bag:           'sac',
+    timer_remaining:  'Temps restant',
     mg_ai_thinking:   '{{name}} réfléchit…',
     mg_waiting:       'Au tour de {{name}}…',
     mg_tap_letter:    'Touchez une lettre, puis une case',
@@ -411,6 +412,7 @@ export const translations = {
 
     // Game screen on phones
     mg_bag:           'bag',
+    timer_remaining:  'Time left',
     mg_ai_thinking:   '{{name}} is thinking…',
     mg_waiting:       "{{name}}'s turn…",
     mg_tap_letter:    'Tap a letter, then a square',
@@ -768,4 +770,4 @@ export const translations = {
 export const LANGUAGES = [
   { value: 'fr', label: 'Français', emoji: '🇫🇷' },
   { value: 'en', label: 'English',  emoji: '🇬🇧' },
-];
+];

@@ -146,7 +146,7 @@ export default function Navbar() {
         <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowThemeMenu(v => !v)}
-            title={`${t('section_appearence')} : ${ThemeLabels[preference]}`}
+            title={`${t('section_appearance')} : ${ThemeLabels[preference]}`}
             style={{
               display:      'flex',
               alignItems:   'center',
@@ -164,7 +164,7 @@ export default function Navbar() {
             }}
           >
             <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>{ThemeIcons[preference]}</span>
-            <span>{ThemeLabels[preference]}</span>
+            <span className="app-nav-theme-label">{ThemeLabels[preference]}</span>
           </button>
 
           {/* Dropdown thème */}
@@ -262,7 +262,7 @@ export default function Navbar() {
               )}
             </div>
 
-            <span style={{
+            <span className="app-nav-username" style={{
               fontFamily: "'Playfair Display', serif", fontSize: '1rem', fontWeight: 700,
               color: 'var(--text-primary)', maxWidth: '140px',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
