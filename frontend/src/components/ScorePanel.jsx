@@ -4,7 +4,8 @@ import PropTypes from 'prop-types';
 import { useTutorialRef } from '../context/TutorialContext';
 import { useLanguage } from '../context/LanguageContext';
 
-const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
+// compact : version resserrée (écran de jeu ordinateur / tablette, où tout doit tenir sans défilement)
+const ScorePanel = ({ players, currentPlayerId, localUserId = null, compact = false }) => {
   const panelRef = useTutorialRef('score-panel');
   const { t } = useLanguage();
 
@@ -19,8 +20,8 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
   return (
     <div ref={panelRef} style={{ background: 'var(--bg-card)', border: '2px solid var(--border-primary)', borderRadius: '2px', overflow: 'hidden', boxShadow: '4px 4px 0 var(--shadow-card)', transition: 'background 0.25s, border-color 0.25s' }}>
       {/* Header */}
-      <div style={{ background: 'var(--bg-invert)', color: 'var(--text-invert)', padding: '10px 18px', display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+      <div style={{ background: 'var(--bg-invert)', color: 'var(--text-invert)', padding: compact ? '7px 14px' : '10px 18px', display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: compact ? '0.95rem' : '1.1rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
           {t('sp_title')}
         </span>
         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: 'var(--gold)', letterSpacing: '0.1em' }}>
@@ -29,7 +30,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
       </div>
 
       {/* Players */}
-      <div style={{ padding: '10px' }}>
+      <div style={{ padding: compact ? '8px' : '10px' }}>
         {players.map((player, idx) => {
           const isActive = player.id === currentPlayerId;
           const isLocal  = localUserId && player.userId === localUserId;
@@ -38,7 +39,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
             <div key={player.id} style={{
               display: 'flex',
               alignItems: 'center',
-              padding: '12px 14px',
+              padding: compact ? '7px 12px' : '12px 14px',
               marginBottom: idx < players.length - 1 ? '6px' : 0,
               background: isActive ? 'var(--bg-invert)' : 'var(--bg-card-alt)',
               borderRadius: '2px',
@@ -56,7 +57,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
                 )}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '1.6rem', fontWeight: 500, color: isActive ? 'var(--gold)' : 'var(--text-muted)', letterSpacing: '-0.02em' }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: compact ? '1.3rem' : '1.6rem', fontWeight: 500, color: isActive ? 'var(--gold)' : 'var(--text-muted)', letterSpacing: '-0.02em' }}>
                   {player.score}
                 </span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: isActive ? 'var(--border-gold-dk)' : 'var(--text-muted)', display: 'block', textAlign: 'right', letterSpacing: '0.05em' }}>
@@ -68,9 +69,9 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
         })}
       </div>
 
-      <div style={{ borderTop: '1px solid var(--border-gold)', padding: '8px 14px', fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center' }}>
+      {!compact && <div style={{ borderTop: '1px solid var(--border-gold)', padding: '8px 14px', fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center' }}>
         {t('sp_active_player')}
-      </div>
+      </div>}
     </div>
   );
 };
@@ -84,6 +85,7 @@ ScorePanel.propTypes = {
   })).isRequired,
   currentPlayerId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
   localUserId: PropTypes.string,
+  compact: PropTypes.bool,
 };
 
-export default ScorePanel;
+export default ScorePanel;

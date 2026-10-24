@@ -27,6 +27,7 @@ const MultiplayerPage = lazy(() => import('./pages/MultiplayerPage'));
 
 import './index.css';
 import './styles/mobile.css';
+import './styles/desktop.css';
 import { TutorialProvider } from './context/TutorialContext';
 
 // ── Router hash-based ─────────────────────────────────────────────

@@ -1,5 +1,6 @@
 // src/components/TurnTimer.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * TurnTimer — barre de progression + compte à rebours.
@@ -13,6 +14,7 @@ import React, { useState, useEffect, useRef } from 'react';
 export default function TurnTimer({ duration, isActive, onExpire, resetRef }) {
   const [remaining, setRemaining] = useState(duration);
   const firedRef = useRef(false);   // onExpire déjà appelé pour ce tour ?
+  const { t } = useLanguage();
 
   // Nouvelle durée (réglage modifié) : on repart du début. Ajuster l'état
   // pendant le rendu évite un rendu supplémentaire avec l'ancienne valeur.
@@ -84,7 +86,7 @@ export default function TurnTimer({ duration, isActive, onExpire, resetRef }) {
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
         }}>
-          Temps restant
+          {t('timer_remaining')}
         </span>
         <span style={{
           fontFamily: "'DM Mono', monospace",

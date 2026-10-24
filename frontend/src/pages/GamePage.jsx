@@ -24,8 +24,21 @@ import {
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
-function ScorePreview({ score, count, t, tp}) {
+function ScorePreview({ score, count, t, tp, compact = false }) {
   if (count === 0) return null;
+
+  // Version sur une ligne (écran de jeu ordinateur / tablette)
+  if (compact) {
+    return (
+      <div className="dg-preview-card">
+        <div className="dg-preview-text">
+          <span className="dg-preview-label">{t('game_score_preview')}</span>
+          <span className="dg-preview-count">{tp('game_tile', count)}</span>
+        </div>
+        <span className="dg-preview-score">+{score}</span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: 'var(--bg-card)', border: '2px solid var(--gold)', borderRadius: '2px', padding: '10px 16px', textAlign: 'center', boxShadow: '3px 3px 0 var(--gold)',}}>
@@ -40,6 +53,19 @@ function ScorePreview({ score, count, t, tp}) {
       </div>
     </div>
   );
+}
+
+// ── DesktopGameLayout ─────────────────────────────────────────────
+// Conteneur de l'écran de jeu ordinateur / tablette : la page ne défile
+// plus pendant la partie (classe retirée en quittant l'écran).
+
+function DesktopGameLayout({ children }) {
+  React.useEffect(() => {
+    const html = document.documentElement;
+    html.classList.add('dg-lock');
+    return () => html.classList.remove('dg-lock');
+  }, []);
+  return <div className="dg">{children}</div>;
 }
 
 // ── Legend ────────────────────────────────────────────────────────
@@ -390,172 +416,171 @@ export default function GamePage() {
   }
 
   // ── Écran de jeu : ordinateur et tablette ─────────────────────
+  // Tout tient dans la fenêtre, sans défilement (styles/desktop.css) :
+  //   - paysage : plateau + chevalet à gauche, scores et actions à droite ;
+  //   - portrait (tablette verticale) : plateau en haut, scores et actions dessous.
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
+    <DesktopGameLayout>
 
       <GameHeader
         gameState={game.gameState}
         timerActive={game.timerActive && !game.isAITurn}
         timerResetRef={game.timerResetRef}
         onTimerExpire={game.handleTimerExpire}
+        actions={<TutorialButton t={t} inline />}
       />
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
       <JokerPicker open={!!game.pendingJoker} onPick={game.chooseJokerLetter} onCancel={game.cancelJoker} />
       <TutorialOverlay t={t} />
-      <TutorialButton t={t} />
 
-      <div style={{ padding: 'clamp(0.75rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 2rem)', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box',}}>
-        <div className="game-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) clamp(260px, 22vw, 340px)', gap: 'clamp(1rem, 2vw, 2rem)', alignItems: 'start',}}>
+      <div className="dg-main">
 
-          {/* ── Colonne gauche : plateau + rack ─────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div data-tutorial="board" style={{ width: '100%' }}>
-              <Board
-                gameState={game.gameState}
-                placements={game.placements}
-                onDropTile={game.handleDropTile}
-                onMoveTile={game.handleMoveTile}
-                onReturnTile={game.handleReturnTile}
-                onCellPress={handleCellPress}
-                canPress={selectedRackIndex !== null && !game.isSwapMode}
-              />
-            </div>
-
-            <div ref={legendRef}>
-              <Legend t={t} />
-            </div>
-
-            <div style={{ marginTop: '4px' }}>
-              {/* Instruction contextuelle */}
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '12px', }}>
-                {game.isSwapMode
-                  ? tp('game_swap_count', game.selectedTilesToSwap.length)
-                  : t('game_drag_hint')}
-              </div>
-
-              <div data-tutorial="tile-rack">
-                <TileRack
-                  tiles={game.rackTilesForDisplay}
-                  playerId={game.activePlayerId}
-                  onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
-                  selectedTiles={game.selectedTilesToSwap}
-                  selectedIndex={selectedRackIndex}
-                  onSelectTile={handleSelectRackTile}
-                />
-              </div>
-            </div>
+        {/* ── Plateau + chevalet ────────────────────────────── */}
+        <div className="dg-play">
+          <div className="dg-board" data-tutorial="board">
+            <Board
+              fit
+              gameState={game.gameState}
+              placements={game.placements}
+              onDropTile={game.handleDropTile}
+              onMoveTile={game.handleMoveTile}
+              onReturnTile={game.handleReturnTile}
+              onCellPress={handleCellPress}
+              canPress={selectedRackIndex !== null && !game.isSwapMode}
+            />
           </div>
 
-          {/* ── Sidebar droite ──────────────────────────────── */}
-          <aside className="game-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', }}>
-            <div data-tutorial="score-panel">
-              <ScorePanel
-                players={game.gameState.players}
-                currentPlayerId={game.activePlayerId}
-                remainingTiles={game.gameState.remaining_tiles?.length ?? 0}
+          <div className="dg-below">
+            <div className="dg-rack" data-tutorial="tile-rack">
+              <TileRack
+                tiles={game.rackTilesForDisplay}
+                playerId={game.activePlayerId}
+                onTileClick={game.isSwapMode ? game.toggleTileForSwap : undefined}
+                selectedTiles={game.selectedTilesToSwap}
+                selectedIndex={selectedRackIndex}
+                onSelectTile={handleSelectRackTile}
               />
             </div>
+          </div>
+        </div>
 
-            <div ref={scorePreviewRef} data-tutorial="score-preview">
-              {settings.showScorePreview && (
-                <ScorePreview
-                  score={game.previewScore}
-                  count={game.placements.length}
-                  t={t}
-                  tp={tp}
-                />
-              )}
-            </div>
+        {/* ── Consigne + légende (sous la colonne de droite, ou sous le chevalet en portrait) ── */}
+        <div className="dg-info">
+          <div className="dg-hint">
+            {game.isSwapMode
+              ? tp('game_swap_count', game.selectedTilesToSwap.length)
+              : t('game_drag_hint')}
+          </div>
+          <div ref={legendRef} className="dg-legend">
+            <Legend t={t} />
+          </div>
+        </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {/* ── Scores et actions ─────────────────────────────── */}
+        <aside className="game-sidebar dg-side">
+          <div className="dg-scores" data-tutorial="score-panel">
+            <ScorePanel
+              compact
+              players={game.gameState.players}
+              currentPlayerId={game.activePlayerId}
+              remainingTiles={game.gameState.remaining_tiles?.length ?? 0}
+            />
+          </div>
 
-              {/* Valider */}
-                <span ref={btnValidateRef} data-tutorial="btn-validate" style={{ display: 'contents' }}>
-                  <RetroButton
-                    variant="primary"
-                    fullWidth
-                    disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
-                    onClick={handleValidate}
-                  >
-                    ✓ {t('btn_validate')} ({game.placements.length})
-                  </RetroButton>
-                </span>
+          <div ref={scorePreviewRef} className="dg-preview" data-tutorial="score-preview">
+            {settings.showScorePreview && (
+              <ScorePreview
+                compact
+                score={game.previewScore}
+                count={game.placements.length}
+                t={t}
+                tp={tp}
+              />
+            )}
+          </div>
 
-              {/* Passer */}
-              <span ref={btnPassRef} data-tutorial="btn-pass" style={{ display: 'contents' }}>
-                <RetroButton
-                  variant="default"
-                  fullWidth
-                  disabled={game.placements.length > 0 || game.isAITurn || game.isSwapMode}
-                  onClick={game.handlePassTurn}
-                >
-                  → {t('btn_pass')}
-                </RetroButton>
-              </span>
+          <div className="dg-actions">
+            {/* Valider */}
+            <span ref={btnValidateRef} data-tutorial="btn-validate" style={{ display: 'contents' }}>
+              <RetroButton
+                variant="primary"
+                fullWidth
+                style={{ gridColumn: '1 / -1' }}
+                disabled={game.placements.length === 0 || game.isAITurn || game.isSwapMode}
+                onClick={handleValidate}
+              >
+                ✓ {t('btn_validate')} ({game.placements.length})
+              </RetroButton>
+            </span>
 
-              {/* Mélanger */}
+            {/* Passer */}
+            <span ref={btnPassRef} data-tutorial="btn-pass" style={{ display: 'contents' }}>
               <RetroButton
                 variant="default"
                 fullWidth
-                disabled={game.placements.length > 0 || game.isAITurn}
-                onClick={game.handleShuffleRack}
+                disabled={game.placements.length > 0 || game.isAITurn || game.isSwapMode}
+                onClick={game.handlePassTurn}
               >
-                ⇅ {t('game_shuffle')}
+                → {t('btn_pass')}
               </RetroButton>
+            </span>
 
-              {/* Mode échange */}
-              <div style={{ borderTop: '1px solid var(--border-muted)', paddingTop: '10px', }}>
-                {game.isSwapMode ? (
-                  <>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '8px',}}>
-                      {t('game_swap_hint')}
-                    </div>
-                    <RetroButton
-                      variant="danger"
-                      fullWidth
-                      disabled={game.selectedTilesToSwap.length === 0 || game.placements.length > 0}
-                      onClick={game.handleSwapTiles}
-                    >
-                      {t('btn_exchange')} ({game.selectedTilesToSwap.length})
-                    </RetroButton>
-                    <div style={{ marginTop: '8px' }}>
-                      <RetroButton
-                        variant="default"
-                        fullWidth
-                        onClick={() => game.clearSwapMode()}
-                      >
-                        {t('game_swap_cancel')}
-                      </RetroButton>
-                    </div>
-                  </>
-                ) : (
+            {/* Mélanger */}
+            <RetroButton
+              variant="default"
+              fullWidth
+              disabled={game.placements.length > 0 || game.isAITurn}
+              onClick={game.handleShuffleRack}
+            >
+              ⇅ {t('game_shuffle')}
+            </RetroButton>
+
+            {/* Mode échange */}
+            <div className={game.isSwapMode ? 'dg-swap dg-swap--open' : 'dg-swap'}>
+              {game.isSwapMode ? (
+                <>
+                  <div className="dg-swap-hint">{t('game_swap_hint')}</div>
                   <RetroButton
-                    variant="tobacco"
+                    variant="danger"
                     fullWidth
-                    disabled={game.isAITurn || game.placements.length > 0}
-                    onClick={() => game.initSwapMode()}
+                    disabled={game.selectedTilesToSwap.length === 0 || game.placements.length > 0}
+                    onClick={game.handleSwapTiles}
                   >
-                    ⇄ {t('game_swap_mode')}
+                    {t('btn_exchange')} ({game.selectedTilesToSwap.length})
                   </RetroButton>
-                )}
-              </div>
-
-              {/* Abandonner */}
-              <div style={{ borderTop:  '1px solid rgba(139,32,32,0.2)', paddingTop: '14px', marginTop:  '4px',}}>
+                  <RetroButton
+                    variant="default"
+                    fullWidth
+                    onClick={() => game.clearSwapMode()}
+                  >
+                    {t('game_swap_cancel')}
+                  </RetroButton>
+                </>
+              ) : (
                 <RetroButton
-                  variant="danger"
+                  variant="tobacco"
                   fullWidth
-                  onClick={() => game.setShowAbandonModal(true)}
+                  disabled={game.isAITurn || game.placements.length > 0}
+                  onClick={() => game.initSwapMode()}
                 >
-                  ✕ {t('game_abandon')}
+                  ⇄ {t('game_swap_mode')}
                 </RetroButton>
-              </div>
-
+              )}
             </div>
-          </aside>
-        </div>
+
+            {/* Abandonner */}
+            <div className="dg-resign">
+              <RetroButton
+                variant="danger"
+                fullWidth
+                onClick={() => game.setShowAbandonModal(true)}
+              >
+                ✕ {t('game_abandon')}
+              </RetroButton>
+            </div>
+          </div>
+        </aside>
       </div>
 
       {/* Modal abandon */}
@@ -566,6 +591,6 @@ export default function GamePage() {
           t={t}
         />
       )}
-    </div>
+    </DesktopGameLayout>
   );
 }
