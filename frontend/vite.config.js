@@ -4,6 +4,22 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        // Les bibliothèques changent rarement : dans leurs propres fichiers,
+        // le navigateur les garde en cache quand seul le code de l'app change.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react';
+          // Socle Firebase utilisé dès le démarrage (connexion). Database et
+          // Storage restent dans les morceaux des pages qui les chargent.
+          if (/node_modules\/(firebase\/(app|auth)|@firebase\/(app|auth|util|component|logger))\//.test(id)) return 'firebase';
+          return undefined;
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

@@ -26,9 +26,8 @@
 //   const mp = useMultiplayerGame({ roomId, currentUserId, hostUserId, addToast });
 //   mp.gameState / mp.isMyTurn / mp.handleDropTile / mp.handleValidateWord ...
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ref, onValue, off } from 'firebase/database';
-import { rtdb } from '../firebase';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getRtdb } from '../firebase';
 import * as mp from '../api/multiplayerService';
 import { calculatePreviewScore } from '../utils/scoring';
 import { useLanguage } from '../context/LanguageContext';
@@ -81,9 +80,6 @@ export function useMultiplayerGame({
   );
 
   // ── Sync Firebase RTDB ────────────────────────────────────────
-  const pollingRef      = useRef(null);
-  const rtdbListenerRef = useRef(null);
-
   const applyRoomState = useCallback((roomData) => {
     if (!roomData) return;
     if (roomData.game_state) setGameState(roomData.game_state);
@@ -100,41 +96,43 @@ export function useMultiplayerGame({
       ? `/games/${roomId}/for_host`
       : `/games/${roomId}/for_guest`;
 
-    // Tentative RTDB
-    try {
-      if (rtdb) {
-        const gameRef = ref(rtdb, rtdbSubPath);
-        const unsubscribe = onValue(gameRef, (snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            setGameState(data);
-          }
-        });
-        rtdbListenerRef.current = () => off(gameRef);
-        return () => {
-          unsubscribe();
-          rtdbListenerRef.current = null;
-        };
-      }
-    } catch (err) {
-      console.warn('[MP] RTDB indisponible, fallback polling REST :', err.message);
-    }
+    let cancelled   = false;
+    let unsubscribe = null;
+    let pollTimer   = null;
 
-    // Fallback : polling REST toutes les 5 s
+    // Repli : polling REST toutes les 5 s si la base temps réel est indisponible.
     // GET /rooms/{roomId} retourne aussi un game_state masqué (rack adverse caché).
-    const poll = async () => {
-      try {
-        const room = await mp.getRoom(roomId);
-        applyRoomState(room);
-      } catch {
-        // silencieux — ne pas spammer les toasts
-      }
+    const startPolling = () => {
+      const poll = async () => {
+        try {
+          const room = await mp.getRoom(roomId);
+          if (!cancelled) applyRoomState(room);
+        } catch {
+          // silencieux — ne pas spammer les toasts
+        }
+      };
+      poll();
+      pollTimer = setInterval(poll, 5000);
     };
-    poll();
-    pollingRef.current = setInterval(poll, 5000);
+
+    // Base temps réel, chargée à la demande (voir firebase.js)
+    getRtdb()
+      .then(({ db, ref, onValue }) => {
+        if (cancelled) return;
+        unsubscribe = onValue(ref(db, rtdbSubPath), (snapshot) => {
+          const data = snapshot.val();
+          if (data) setGameState(data);
+        });
+      })
+      .catch((err) => {
+        console.warn('[MP] RTDB indisponible, repli sur le polling REST :', err?.message);
+        if (!cancelled) startPolling();
+      });
 
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      cancelled = true;
+      unsubscribe?.();
+      if (pollTimer) clearInterval(pollTimer);
     };
   }, [roomId, myPlayerIndex, applyRoomState]);
   //            ↑ myPlayerIndex ajouté : recrée le listener si le rôle change
