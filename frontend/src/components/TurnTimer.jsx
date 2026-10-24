@@ -1,5 +1,5 @@
 // src/components/TurnTimer.jsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * TurnTimer — barre de progression + compte à rebours.
@@ -12,45 +12,42 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
  */
 export default function TurnTimer({ duration, isActive, onExpire, resetRef }) {
   const [remaining, setRemaining] = useState(duration);
-  const intervalRef = useRef(null);
-  const hasExpiredRef = useRef(false);
+  const firedRef = useRef(false);   // onExpire déjà appelé pour ce tour ?
 
-  // Reset quand duration change (nouveau tour)
-  useEffect(() => {
+  // Nouvelle durée (réglage modifié) : on repart du début. Ajuster l'état
+  // pendant le rendu évite un rendu supplémentaire avec l'ancienne valeur.
+  const [prevDuration, setPrevDuration] = useState(duration);
+  if (duration !== prevDuration) {
+    setPrevDuration(duration);
     setRemaining(duration);
-    hasExpiredRef.current = false;
-  }, [duration]);
+  }
 
-  // Exposer resetTimer via ref
+  // Exposer resetTimer via ref (appelé par le parent à chaque nouveau tour)
   useEffect(() => {
     if (resetRef) {
-      resetRef.current = () => {
-        setRemaining(duration);
-        hasExpiredRef.current = false;
-      };
+      resetRef.current = () => setRemaining(duration);
     }
   }, [resetRef, duration]);
 
-  // Tick
+  // Tick : une seconde de moins tant que le minuteur tourne
+  const running = isActive && duration > 0 && remaining > 0;
   useEffect(() => {
-    if (!isActive || duration === 0 || remaining <= 0) return;
+    if (!running) return;
+    const id = setInterval(() => setRemaining(prev => Math.max(0, prev - 1)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
-    intervalRef.current = setInterval(() => {
-      setRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          if (!hasExpiredRef.current) {
-            hasExpiredRef.current = true;
-            onExpire?.();
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(intervalRef.current);
-  }, [isActive, duration, remaining, onExpire]);
+  // Temps écoulé : prévenir le parent une seule fois par tour
+  useEffect(() => {
+    if (remaining > 0) {
+      firedRef.current = false;
+      return;
+    }
+    if (duration > 0 && isActive && !firedRef.current) {
+      firedRef.current = true;
+      onExpire?.();
+    }
+  }, [remaining, duration, isActive, onExpire]);
 
   // Ne rien afficher si illimité
   if (duration === 0) return null;
@@ -121,4 +118,4 @@ export default function TurnTimer({ duration, isActive, onExpire, resetRef }) {
       </div>
     </div>
   );
-}
+}

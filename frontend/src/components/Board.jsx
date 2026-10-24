@@ -1,5 +1,5 @@
 // src/components/Board.jsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useTutorialRef } from '../context/TutorialContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -38,8 +38,11 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
   const { t } = useLanguage();
 
   const grid = gameState?.board?.grid ?? null;
-  const tempMap = {};
-  if (grid && placements) placements.forEach(p => { tempMap[`${p.r}-${p.c}`] = p; });
+  const tempMap = useMemo(() => {
+    const map = {};
+    if (grid && placements) placements.forEach(p => { map[`${p.r}-${p.c}`] = p; });
+    return map;
+  }, [grid, placements]);
 
   const handleDragOver = useCallback((e, r, c) => {
     e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setHoverCell(`${r}-${c}`);
@@ -201,4 +204,4 @@ const JokerMark = () => (
   </span>
 );
 
-export default Board;
+export default Board;

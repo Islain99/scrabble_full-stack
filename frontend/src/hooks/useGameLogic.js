@@ -35,6 +35,7 @@ export function useGameLogic({
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [gameStartTime, setGameStartTime]             = useState(null);
   const [gameSaved, setGameSaved]                     = useState(false);
+  const [gameDifficulty, setGameDifficulty]           = useState('medium');   // pour l'historique
   const [timerActive, setTimerActive]                 = useState(false);
   const [isLoading, setIsLoading]                     = useState(false);
   const [showAbandonModal, setShowAbandonModal]       = useState(false);
@@ -90,7 +91,7 @@ export function useGameLogic({
     }, 1500);
 
     return () => clearTimeout(delay);
-  }, [gameState, gameId, t, tp]);
+  }, [gameState, gameId, addToast, t, tp]);
 
   // ── Sauvegarde auto en fin de partie ─────────────────────────
   useEffect(() => {
@@ -107,7 +108,7 @@ export function useGameLogic({
       user_score:       Number(humanPlayer.score)  || 0,
       ai_name:          String(aiPlayer.name)      || 'HAL 9000',
       ai_score:         Number(aiPlayer.score)     || 0,
-      ai_difficulty:    'medium',
+      ai_difficulty:    gameDifficulty,
       won:              gameState.winner_name === humanPlayer.name,
       duration_seconds: duration !== null ? Number(duration) : null,
       turns_count:      Number(gameState.passes_count) || 0,
@@ -126,7 +127,7 @@ export function useGameLogic({
     };
 
     doSave();
-  }, [gameState?.status, gameState?.winner_name, isAuthenticated, gameSaved]);
+  }, [gameState, gameId, gameStartTime, gameDifficulty, isAuthenticated, gameSaved]);
 
   // ── Actions ───────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ export function useGameLogic({
     try {
       const playerName = isAuthenticated && user?.display_name ? user.display_name : t('player_default');
       const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)'], difficulty);
+      setGameDifficulty(difficulty);
       setGameState(initialGame);
       setGameId(initialGame.game_id);
       setPlacements([]);
@@ -305,7 +307,7 @@ export function useGameLogic({
             user_score:       Number(humanPlayer?.score) || 0,
             ai_name:          String(aiPlayer?.name)     || 'HAL 9000',
             ai_score:         Number(aiPlayer?.score)    || 0,
-            ai_difficulty:    'medium',
+            ai_difficulty:    gameDifficulty,
             won:              false,
             duration_seconds: gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : null,
             turns_count:      Number(gameState.passes_count) || 0,
@@ -334,7 +336,7 @@ export function useGameLogic({
       setGameStartTime(null);
       setGameSaved(false);
     }
-  }, [gameState, gameId, isAuthenticated, gameStartTime]);
+  }, [gameState, gameId, gameDifficulty, isAuthenticated, gameStartTime]);
 
   // ── API publique du hook ──────────────────────────────────────
   return {
@@ -373,4 +375,4 @@ export function useGameLogic({
     initSwapMode,
     clearSwapMode,
   };
-}
+}

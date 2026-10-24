@@ -105,8 +105,8 @@ function AbandonModal({ onConfirm, onCancel, t }) {
 
 export default function GamePage() {
   const { isAuthenticated }    = useAuth();
-  const { settings }           = useSettings();
-  const { t, tp, language }        = useLanguage();
+  const { settings, DIFFICULTY_META } = useSettings();
+  const { t, tp }              = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   const game = useGameLogic({ addToast });
   const isMobile = useIsMobile();
@@ -136,29 +136,26 @@ export default function GamePage() {
   const validatedTurnsRef = React.useRef(0);
   const prevPlayerIndexRef = React.useRef(null);
 
-React.useEffect(() => {
-  const { gameState, placements } = game;
+  const tutoGameState   = game.gameState;
+  const tutoPlacedCount = game.placements.length;
+  React.useEffect(() => {
+    if (!tutoGameState || !tutoGameState.players?.length) return;
 
-  // ✅ Guard simple — pas de JSX, juste un return vide
-  if (!gameState || !gameState.players?.length) return;
+    const idx = tutoGameState.current_player_index;
+    if (prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== idx) {
+      validatedTurnsRef.current += 1;
+    }
+    prevPlayerIndexRef.current = idx;
 
-  const idx = gameState.current_player_index;
-  if (prevPlayerIndexRef.current !== null && prevPlayerIndexRef.current !== idx) {
-    validatedTurnsRef.current += 1;
-  }
-  prevPlayerIndexRef.current = idx;
-
-  notifyGameState({
-    placementsCount: placements.length,
-    validatedTurns:  validatedTurnsRef.current,
-  });
-}, [game.gameState, game.placements.length, notifyGameState]);
+    notifyGameState({
+      placementsCount: tutoPlacedCount,
+      validatedTurns:  validatedTurnsRef.current,
+    });
+  }, [tutoGameState, tutoPlacedCount, notifyGameState]);
   
   // ── Écran de démarrage ────────────────────────────────────────
   if (!game.gameState || game.gameState.status === 'SETUP') {
-    const { DIFFICULTY_META } = useSettings ? settings : {};
-    // Import local pour éviter un hook conditionnel
-    const meta = (settings._DIFFICULTY_META ?? {})[settings.difficulty] ?? {
+    const meta = DIFFICULTY_META?.[settings.difficulty] ?? {
       label: settings.difficulty,
       emoji: '🎮',
       desc:  '',
@@ -571,4 +568,4 @@ React.useEffect(() => {
       )}
     </div>
   );
-}
+}

@@ -118,6 +118,36 @@ const SectionTitle = ({ emoji, label }) => (
 
 // ── Page principale ───────────────────────────────────────────────
 
+// Badge d'état de synchronisation des préférences (défini hors de la page :
+// un composant créé pendant le rendu serait recréé, et remonté, à chaque fois)
+function SyncBadge({ syncing, lastSynced, label }) {
+  return (
+    <div style={{
+      display:    'inline-flex',
+      alignItems: 'center',
+      gap:        '6px',
+      marginTop:  '8px',
+      padding:    '4px 10px',
+      background: syncing
+        ? 'var(--bg-card-alt)'
+        : lastSynced
+          ? 'rgba(94,107,58,0.12)'
+          : 'var(--bg-card-alt)',
+      border: `1px solid ${
+        syncing   ? 'var(--border-muted)' :
+        lastSynced ? 'var(--olive)'       :
+                     'var(--border-muted)'
+      }`,
+      borderRadius: '2px',
+    }}>
+      {syncing && <Spinner size={10} />}
+      <MonoLabel color={lastSynced && !syncing ? 'var(--olive)' : 'var(--text-muted)'}>
+        {label}
+      </MonoLabel>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const {
     settings, update, reset,
@@ -170,32 +200,6 @@ export default function SettingsPage() {
         ? t('sync_not_synced')
         : t('sync_guest');
 
-  const SyncBadge = () => (
-    <div style={{
-      display:    'inline-flex',
-      alignItems: 'center',
-      gap:        '6px',
-      marginTop:  '8px',
-      padding:    '4px 10px',
-      background: syncing
-        ? 'var(--bg-card-alt)'
-        : lastSynced
-          ? 'rgba(94,107,58,0.12)'
-          : 'var(--bg-card-alt)',
-      border: `1px solid ${
-        syncing   ? 'var(--border-muted)' :
-        lastSynced ? 'var(--olive)'       :
-                     'var(--border-muted)'
-      }`,
-      borderRadius: '2px',
-    }}>
-      {syncing && <Spinner size={10} />}
-      <MonoLabel color={lastSynced && !syncing ? 'var(--olive)' : 'var(--text-muted)'}>
-        {syncLabel}
-      </MonoLabel>
-    </div>
-  );
-
   // ── Render ────────────────────────────────────────────────────
 
   return (
@@ -206,7 +210,7 @@ export default function SettingsPage() {
           title={t('settings_title')}
           subtitle={t('settings_subtitle')}
         >
-          <SyncBadge />
+          <SyncBadge syncing={syncing} lastSynced={lastSynced} label={syncLabel} />
         </PageHeader>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -407,4 +411,4 @@ export default function SettingsPage() {
       </div>
     </div>
   );
-}
+}

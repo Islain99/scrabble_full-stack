@@ -35,7 +35,7 @@ function ToastItem({ toast, onDismiss }) {
       setTimeout(() => onDismiss(toast.id), 300);
     }, style.duration);
     return () => clearTimeout(t);
-  }, [toast.id]);
+  }, [toast.id, onDismiss, style.duration]);
 
   return (
     <div
@@ -66,4 +66,4 @@ function ToastItem({ toast, onDismiss }) {
       <span style={{ opacity: 0.4, fontSize: '0.65rem', flexShrink: 0 }}>✕</span>
     </div>
   );
-}
+}

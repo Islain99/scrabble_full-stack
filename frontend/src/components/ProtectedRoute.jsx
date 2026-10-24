@@ -4,7 +4,7 @@
 //   - Nouveau prop `requireCompleteProfile` : si vrai et que user.profile_complete === false,
 //     redirige vers #/profile avec un message explicatif dans le state.
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -19,6 +19,17 @@ export default function ProtectedRoute({ children, requireCompleteProfile = fals
   const { isAuthenticated, loading, user } = useAuth();
   const { t } = useLanguage();
 
+  // Où rediriger, s'il le faut. La navigation se fait dans un effet :
+  // modifier window.location pendant le rendu est un effet de bord.
+  let redirectTo = null;
+  if (!loading) {
+    if (!isAuthenticated) redirectTo = '#/login';
+    else if (requireCompleteProfile && user && !user.profile_complete) redirectTo = '#/profile';
+  }
+  useEffect(() => {
+    if (redirectTo) window.location.hash = redirectTo;
+  }, [redirectTo]);
+
   // Spinner pendant le chargement Firebase
   if (loading) {
     return (
@@ -30,17 +41,8 @@ export default function ProtectedRoute({ children, requireCompleteProfile = fals
     );
   }
 
-  // Non connecté → login
-  if (!isAuthenticated) {
-    window.location.hash = '#/login';
-    return null;
-  }
-
-  // Connecté mais profil incomplet et profil requis → profil
-  if (requireCompleteProfile && user && !user.profile_complete) {
-    window.location.hash = '#/profile';
-    return null;
-  }
+  // Non connecté → login ; profil incomplet et requis → profil
+  if (redirectTo) return null;
 
   return children;
 }
@@ -71,4 +73,4 @@ const styles = {
     textTransform: 'uppercase',
     margin: 0,
   },
-};
+};

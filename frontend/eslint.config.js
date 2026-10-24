@@ -27,6 +27,22 @@ export default defineConfig([
     },
   },
   {
+    // Contextes : chaque fichier exporte son Provider ET le hook qui le lit
+    // (useAuth, useLanguage…). C'est le schéma React habituel ; seul effet :
+    // modifier un de ces fichiers recharge la page en dev au lieu d'un
+    // rechargement à chaud. Les autres exports restent interdits.
+    files: ['src/context/**/*.{js,jsx}'],
+    rules: {
+      'react-refresh/only-export-components': ['error', {
+        allowConstantExport: true,
+        allowExportNames: [
+          'useAuth', 'useLanguage', 'useSettings', 'useTheme',
+          'useTutorialContext', 'useTutorialRef',
+        ],
+      }],
+    },
+  },
+  {
     // Scripts Node (CI, outils) : globales Node, pas de règles React
     files: ['scripts/**/*.js'],
     languageOptions: { globals: globals.node },

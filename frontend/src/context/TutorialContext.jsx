@@ -43,39 +43,29 @@ export function TutorialProvider({ children, settings }) {
   // ── Refs ─────────────────────────────────────────────────────
   const refsMap    = useRef(new Map());
   const gameSnap   = useRef({ placementsCount: 0, validatedTurns: 0 });
-  const syncedRef  = useRef(false); // évite un double-write au montage
 
   // ── État ─────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep]     = useState(0);
 
-  // hasSeen : priorité serveur > localStorage
-  const [hasSeen, setHasSeen] = useState(() => {
+  // Tutoriel déjà vu ?
+  //  - localSeen : fermé sur cet appareil (localStorage, ou pendant la session)
+  //  - settings.tutorialSeen : préférence du compte, chargée par SettingsContext
+  // L'un OU l'autre suffit. Avant, la valeur par défaut du compte (false)
+  // écrasait le localStorage : un visiteur non connecté revoyait le tutoriel
+  // à chaque visite, même après l'avoir fermé.
+  const [localSeen, setLocalSeen] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
   });
+  const hasSeen = localSeen || settings?.tutorialSeen === true;
 
-  // Synchronisation depuis les préférences serveur (chargées de façon async par SettingsContext)
+  // Auto-open à la première visite. Le délai laisse aussi le temps aux
+  // préférences du compte d'arriver du serveur.
   useEffect(() => {
-    if (syncedRef.current) return;
-    if (settings?.tutorialSeen === true) {
-      setHasSeen(true);
-      syncedRef.current = true;
-    } else if (settings?.tutorialSeen === false && syncedRef.current === false) {
-      // Le serveur dit "pas encore vu" → on s'assure que hasSeen est false
-      // (cas : utilisateur sur un nouvel appareil, localStorage absent)
-      setHasSeen(false);
-      syncedRef.current = true;
-    }
-  }, [settings?.tutorialSeen]);
-
-  // Auto-open à la première visite (quand hasSeen est établi)
-  useEffect(() => {
-    if (!syncedRef.current) return; // attendre la résolution
-    if (!hasSeen) {
-      const t = setTimeout(() => setIsOpen(true), 800);
-      return () => clearTimeout(t);
-    }
-  }, [hasSeen, syncedRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (hasSeen) return;
+    const timer = setTimeout(() => setIsOpen(true), 800);
+    return () => clearTimeout(timer);
+  }, [hasSeen]);
 
   // ── Vérification des conditions ───────────────────────────────
   useEffect(() => {
@@ -99,7 +89,7 @@ export function TutorialProvider({ children, settings }) {
 
   const persistSeen = useCallback(async () => {
     // 1. localStorage (immédiat)
-    try { localStorage.setItem(STORAGE_KEY, '1'); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, '1'); } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
 
     // 2. Firebase via API (fire-and-forget, silencieux)
     if (isAuthenticated) {
@@ -121,7 +111,7 @@ export function TutorialProvider({ children, settings }) {
 
   const closeTutorial = useCallback(() => {
     setIsOpen(false);
-    setHasSeen(true);
+    setLocalSeen(true);
     persistSeen();
   }, [persistSeen]);
 
@@ -192,4 +182,4 @@ export function useTutorialRef(id) {
   }, [id, registerRef]);
 
   return ref;
-}
+}

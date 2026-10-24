@@ -47,8 +47,9 @@ const Stat = ({ value, highlight = false, isMe }) => (
 export default function LeaderboardPage() {
   const { user }            = useAuth();
   const { t }               = useLanguage();
-  const [data, setData]     = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Résultat de la dernière requête, étiqueté par ses filtres : on charge
+  // tant que le résultat affiché ne correspond pas aux filtres courants.
+  const [result, setResult] = useState(null);   // { key, data }
   const [period, setPeriod] = useState('all');
   const [sortBy, setSortBy] = useState('best_score');
 
@@ -72,12 +73,19 @@ export default function LeaderboardPage() {
     t('lb_col_avg'),
   ];
 
+  const queryKey = `${period}|${sortBy}`;
+  const loading  = result?.key !== queryKey;
+  const data     = result?.data ?? null;
+
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;   // ignore une réponse arrivée après un changement de filtre
     getLeaderboard({ period, sortBy })
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .then(d => { if (!cancelled) setResult({ key: `${period}|${sortBy}`, data: d }); })
+      .catch(err => {
+        console.error(err);
+        if (!cancelled) setResult({ key: `${period}|${sortBy}`, data: null });
+      });
+    return () => { cancelled = true; };
   }, [period, sortBy]);
 
   return (
@@ -243,4 +251,4 @@ export default function LeaderboardPage() {
       </div>
     </div>
   );
-}
+}

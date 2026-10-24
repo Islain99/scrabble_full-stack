@@ -12,7 +12,7 @@ function detectDefault() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && SUPPORTED.includes(stored)) return stored;
-  } catch {}
+  } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
   const nav = navigator.language?.slice(0, 2).toLowerCase();
   return SUPPORTED.includes(nav) ? nav : 'fr';
 }
@@ -21,7 +21,7 @@ export function LanguageProvider({ children }) {
   const [language, setLanguage] = useState(detectDefault);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, language); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, language); } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
   }, [language]);
 
   /**
@@ -67,4 +67,4 @@ export function useLanguage() {
   const ctx = useContext(LanguageContext);
   if (!ctx) throw new Error('useLanguage doit être utilisé dans <LanguageProvider>');
   return ctx;
-}
+}
