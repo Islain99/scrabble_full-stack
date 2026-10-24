@@ -14,7 +14,7 @@
 //        pour éviter les recalculs excessifs sur les animations fluides
 
 import React, {
-  useEffect, useState, useRef, useCallback, useMemo,
+  useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo, useId,
 } from 'react';
 import { useTutorialContext } from '../context/TutorialContext';
 
@@ -162,7 +162,9 @@ function IntroAnimation() {
 function useResizeObserver(active, elements, onResize) {
   const rafRef = useRef(null);
   const cbRef  = useRef(onResize);
-  cbRef.current = onResize; // toujours à jour sans re-créer l'observer
+  // Toujours le dernier callback, sans recréer l'observer (mis à jour après
+  // le rendu : écrire dans une ref pendant le rendu est interdit en React 19)
+  useLayoutEffect(() => { cbRef.current = onResize; });
 
   useEffect(() => {
     if (!active || elements.every(el => !el)) return;
@@ -274,8 +276,10 @@ export default function TutorialOverlay({ t }) {
 
   const dialogRef     = useRef(null);
   const triggerRef    = useRef(null);
-  const titleId       = useRef(`tuto-title-${Math.random().toString(36).slice(2)}`).current;
-  const descId        = useRef(`tuto-desc-${Math.random().toString(36).slice(2)}`).current;
+  // Identifiants stables et uniques pour aria-labelledby / aria-describedby
+  const uid           = useId();
+  const titleId       = `tuto-title-${uid}`;
+  const descId        = `tuto-desc-${uid}`;
 
   // ── Recalcul position ──────────────────────────────────────────
   const recalc = useCallback(() => {
@@ -300,11 +304,12 @@ export default function TutorialOverlay({ t }) {
 
   // ── Ouverture / changement d'étape ────────────────────────────
   useEffect(() => {
-    if (!isOpen) { setVisible(false); return; }
+    if (!isOpen) return;
 
     if (!triggerRef.current) triggerRef.current = document.activeElement;
 
-    recalc();
+    // Mesure de la cible à la frame suivante (le DOM de l'étape est en place)
+    const raf = requestAnimationFrame(recalc);
 
     if (current.target) {
       const el = getRef(current.target)?.current;
@@ -315,7 +320,13 @@ export default function TutorialOverlay({ t }) {
       setVisible(true);
       dialogRef.current?.focus();
     }, 50);
-    return () => clearTimeout(timer);
+    // À la fermeture (ou au changement d'étape), la bulle repart invisible
+    // pour rejouer son apparition.
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      setVisible(false);
+    };
   }, [isOpen, step, recalc, current.target, getRef]);
 
   // ── Restauration focus ────────────────────────────────────────
@@ -526,4 +537,4 @@ export default function TutorialOverlay({ t }) {
       `}</style>
     </>
   );
-}
+}

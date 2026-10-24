@@ -182,7 +182,7 @@ function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap 
 
 // ── PlayingScreen ─────────────────────────────────────────────────
 
-function PlayingScreen({ mp, user, roomId }) {
+function PlayingScreen({ mp }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
@@ -498,12 +498,8 @@ export default function MultiplayerPage() {
     addToast,
   });
 
-  // Transition WAITING → PLAYING quand l'invité rejoint (RTDB pousse le game_state)
-  React.useEffect(() => {
-    if (phase === 'WAITING' && mp.gameState) {
-      setPhase('PLAYING');
-    }
-  }, [mp.gameState, phase]);
+  // Passage WAITING → PLAYING dès que l'invité rejoint (RTDB pousse le game_state)
+  const currentPhase = phase === 'WAITING' && mp.gameState ? 'PLAYING' : phase;
 
   const handleCreateRoom = useCallback(async () => {
     setIsCreating(true);
@@ -547,9 +543,9 @@ export default function MultiplayerPage() {
         ))}
       </div>
 
-      {phase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} />}
-      {phase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
-      {phase === 'PLAYING' && <PlayingScreen mp={mp} user={user} roomId={roomId} />}
+      {currentPhase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} />}
+      {currentPhase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
+      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} />}
     </div>
   );
-}
+}

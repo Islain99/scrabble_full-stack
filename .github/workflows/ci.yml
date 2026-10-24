@@ -72,8 +72,7 @@ jobs:
           VITE_FIREBASE_DATABASE_URL: https://ci.firebaseio.com
         run: npm run build
 
-      # Non bloquant tant que la dette de lint existante (react-hooks v7)
-      # n'est pas résorbée. Retirer `continue-on-error` ensuite.
-      - name: Lint (informatif)
-        continue-on-error: true
+      # Bloquant : aucune erreur ni aucun avertissement toléré.
+      # Placé avant le build pour échouer vite.
+      - name: Lint
         run: npm run lint

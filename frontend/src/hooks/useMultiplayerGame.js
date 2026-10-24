@@ -126,7 +126,7 @@ export function useMultiplayerGame({
       try {
         const room = await mp.getRoom(roomId);
         applyRoomState(room);
-      } catch (e) {
+      } catch {
         // silencieux — ne pas spammer les toasts
       }
     };
@@ -247,7 +247,7 @@ export function useMultiplayerGame({
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, isMyTurn, selectedTilesToSwap, applyRoomState, addToast, t]);
+  }, [roomId, isMyTurn, selectedTilesToSwap, myRack, applyRoomState, addToast, t]);
 
   // B4 : index de rack au lieu de la lettre — deux tuiles identiques sélectionnables indépendamment.
   const toggleTileForSwap = useCallback((rackIndex) => {
@@ -286,4 +286,4 @@ export function useMultiplayerGame({
     handleSwapTiles,
     toggleTileForSwap,
   };
-}
+}

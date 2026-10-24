@@ -22,7 +22,7 @@ export const useSettings = () => {
 
 // ── Constantes ────────────────────────────────────────────────────
 
-export const DEFAULTS = {
+const DEFAULTS = {
   difficulty:         'medium',
   turnDuration:       0,
   showScorePreview:   true,
@@ -36,7 +36,7 @@ export const DEFAULTS = {
   tutorialSeen:       false,
 };
 
-export const TURN_OPTIONS = [
+const TURN_OPTIONS = [
   { value: 0,   label: 'Illimité',  short: '∞'    },
   { value: 60,  label: '1 minute',  short: '1 min' },
   { value: 120, label: '2 minutes', short: '2 min' },
@@ -44,7 +44,7 @@ export const TURN_OPTIONS = [
   { value: 300, label: '5 minutes', short: '5 min' },
 ];
 
-export const DIFFICULTY_META = {
+const DIFFICULTY_META = {
     beginner:   { label: 'Débutant',  emoji: '🐣', desc: "Mots très courts, beaucoup d'erreurs",     color: 'var(--text-muted)' },
     easy:       { label: 'Facile',    emoji: '🟢', desc: 'Mots courts, ignore les cases bonus',       color: 'var(--olive)'     },
     medium:     { label: 'Moyen',     emoji: '🟡', desc: 'Équilibré, utilise quelques bonus',          color: 'var(--gold)'      },
@@ -71,13 +71,13 @@ function loadFromStorage(uid) {
 function persistToStorage(uid, settings) {
   try {
     localStorage.setItem(storageKey(uid), JSON.stringify(settings));
-  } catch {}
+  } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
 }
 
 function clearGuestStorage() {
   try {
     localStorage.removeItem('scrabble-settings-guest');
-  } catch {}
+  } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
 }
 
 // ── Provider ──────────────────────────────────────────────────────
@@ -176,4 +176,4 @@ export function SettingsProvider({ children }) {
       {children}
     </SettingsContext.Provider>
   );
-}
+}

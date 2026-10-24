@@ -128,20 +128,22 @@ export default function ProfilePage() {
     age: '', country: '', bio: '', avatarUrl: '',
   });
 
-  // Hydrate le formulaire depuis user
-  useEffect(() => {
-    if (user) {
-      setForm({
-        displayName: user.display_name || '',
-        firstName:   user.first_name   || '',
-        lastName:    user.last_name    || '',
-        age:         user.age != null  ? String(user.age) : '',
-        country:     user.country      || '',
-        bio:         user.bio          || '',
-        avatarUrl:   user.avatar_url   || '',
-      });
-    }
-  }, [user]);
+  // Hydrate le formulaire quand le profil change (chargement, sauvegarde).
+  // Ajusté pendant le rendu plutôt que dans un effet : pas de rendu
+  // intermédiaire avec un formulaire vide.
+  const [hydratedFrom, setHydratedFrom] = useState(null);
+  if (user && user !== hydratedFrom) {
+    setHydratedFrom(user);
+    setForm({
+      displayName: user.display_name || '',
+      firstName:   user.first_name   || '',
+      lastName:    user.last_name    || '',
+      age:         user.age != null  ? String(user.age) : '',
+      country:     user.country      || '',
+      bio:         user.bio          || '',
+      avatarUrl:   user.avatar_url   || '',
+    });
+  }
 
   // Charge l'historique
   useEffect(() => {
@@ -569,4 +571,4 @@ export default function ProfilePage() {
       </div>
     </div>
   );
-}
+}
