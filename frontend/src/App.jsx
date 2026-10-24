@@ -3,22 +3,27 @@
 // Toute la logique de jeu est dans src/hooks/useGameLogic.js
 // Tout le rendu du jeu est dans src/pages/GamePage.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider }     from './context/AuthContext';
 import { ThemeProvider }    from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
-import { LanguageProvider } from './context/LanguageContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 
 import Navbar         from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// La page de jeu est l'accueil : chargée tout de suite.
 import GamePage       from './pages/GamePage';
-import ProfilePage    from './pages/ProfilePage';
-import SettingsPage   from './pages/SettingsPage';
-import LoginPage      from './pages/LoginPage';
-import RegisterPage   from './pages/RegisterPage';
-import LeaderboardPage from './pages/LeaderboardPage';
-import MultiplayerPage   from './pages/MultiplayerPage';
+
+// Les autres pages sont téléchargées seulement quand on les ouvre.
+// Le multijoueur emporte la base temps réel Firebase, le profil Firebase
+// Storage : ni l'un ni l'autre ne pèse plus sur le premier chargement.
+const ProfilePage     = lazy(() => import('./pages/ProfilePage'));
+const SettingsPage    = lazy(() => import('./pages/SettingsPage'));
+const LoginPage       = lazy(() => import('./pages/LoginPage'));
+const RegisterPage    = lazy(() => import('./pages/RegisterPage'));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
+const MultiplayerPage = lazy(() => import('./pages/MultiplayerPage'));
 
 import './index.css';
 import './styles/mobile.css';
@@ -34,6 +39,23 @@ function useHashRoute() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   return hash;
+}
+
+// Affiché le temps de télécharger une page (souvent imperceptible)
+function PageLoader() {
+  const { t } = useLanguage();
+  return (
+    <div
+      role="status"
+      style={{
+        minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Libre Baskerville', Georgia, serif", fontStyle: 'italic',
+        color: 'var(--text-muted)',
+      }}
+    >
+      {t('common_loading')}
+    </div>
+  );
 }
 
 function Router() {
@@ -60,7 +82,9 @@ function Router() {
   return (
     <div>
       <Navbar />
-      {renderPage()}
+      <Suspense fallback={<PageLoader />}>
+        {renderPage()}
+      </Suspense>
     </div>
   );
 }

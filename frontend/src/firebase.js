@@ -22,5 +22,20 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export default app;
 
-import { getDatabase } from 'firebase/database';
-export const rtdb = getDatabase(app);
+// ── Base temps réel (multijoueur seulement) ───────────────────────
+// Chargée à la première demande, pas au démarrage : le module Firebase
+// Database pèse ~125 ko et ne sert qu'au multijoueur.
+let rtdbPromise = null;
+
+/** @returns {Promise<{ db, ref, onValue }>} */
+export function getRtdb() {
+  if (!rtdbPromise) {
+    rtdbPromise = import('firebase/database')
+      .then(({ getDatabase, ref, onValue }) => ({ db: getDatabase(app), ref, onValue }))
+      .catch((err) => {
+        rtdbPromise = null;   // nouvel essai possible au prochain appel
+        throw err;
+      });
+  }
+  return rtdbPromise;
+}
