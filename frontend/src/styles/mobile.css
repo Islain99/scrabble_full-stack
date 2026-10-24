@@ -36,6 +36,15 @@ html.mg-lock body {
   width: 100%;
 }
 
+/* Pendant une partie sur téléphone, les notifications s'affichent en haut,
+   sur la barre de navigation, pour ne jamais cacher le chevalet ni les boutons. */
+html.mg-lock .toast-stack {
+  top: calc(env(safe-area-inset-top) + 6px);
+  bottom: auto !important;
+  width: calc(100% - 16px);
+  max-width: 480px;
+}
+
 /* ── Barre de navigation mobile ───────────────────────────────────── */
 
 .mnav {

@@ -49,23 +49,23 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '3rem 1rem' }}>
       <div style={{ textAlign: 'center' }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2.2rem', fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>
-          Multijoueur
+          {t('nav_multiplayer')}
         </h1>
         <div className="s-gold-bar" style={{ margin: '10px auto' }} />
-        <MonoLabel size="sm" color="var(--text-muted)">Jouez contre un ami en temps réel</MonoLabel>
+        <MonoLabel size="sm" color="var(--text-muted)">{t('mp_subtitle')}</MonoLabel>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', width: '100%', maxWidth: '600px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', width: '100%', maxWidth: '600px' }}>
         <Card style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', lineHeight: 1 }}>🎲</div>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
-              Créer une partie
+              {t('mp_create_title')}
             </div>
-            <MonoLabel size="xs" color="var(--text-muted)">Partagez le code à votre adversaire</MonoLabel>
+            <MonoLabel size="xs" color="var(--text-muted)">{t('mp_create_desc')}</MonoLabel>
           </div>
           <RetroButton variant="primary" onClick={onCreateRoom} disabled={isLoading} style={{ width: '100%' }}>
-            {isLoading ? <Spinner size="sm" /> : 'Nouvelle partie'}
+            {isLoading ? <Spinner size="sm" /> : t('mp_create_btn')}
           </RetroButton>
         </Card>
 
@@ -73,15 +73,15 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
           <div style={{ fontSize: '2.5rem', lineHeight: 1 }}>🔗</div>
           <div>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
-              Rejoindre une partie
+              {t('mp_join_title')}
             </div>
-            <MonoLabel size="xs" color="var(--text-muted)">Entrez le code partagé par votre ami</MonoLabel>
+            <MonoLabel size="xs" color="var(--text-muted)">{t('mp_join_desc')}</MonoLabel>
           </div>
           <input
             value={code}
             onChange={e => setCode(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            placeholder="Code de la partie…"
+            placeholder={t('mp_join_ph')}
             style={{
               width: '100%', boxSizing: 'border-box',
               padding: '0.5rem 0.75rem',
@@ -91,7 +91,7 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
             }}
           />
           <RetroButton variant="default" onClick={handleJoin} disabled={!code.trim() || joining} style={{ width: '100%' }}>
-            {joining ? <Spinner size="sm" /> : 'Rejoindre'}
+            {joining ? <Spinner size="sm" /> : t('mp_join_btn')}
           </RetroButton>
         </Card>
       </div>
@@ -100,6 +100,7 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
 }
 
 function WaitingScreen({ roomId, onCancel }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   const copyCode = () => {
@@ -114,22 +115,22 @@ function WaitingScreen({ roomId, onCancel }) {
       <Spinner size="lg" />
       <div>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-          En attente d'un adversaire…
+          {t('mp_waiting_title')}
         </div>
-        <MonoLabel size="sm" color="var(--text-muted)">Partagez ce code à votre ami</MonoLabel>
+        <MonoLabel size="sm" color="var(--text-muted)">{t('mp_waiting_desc')}</MonoLabel>
       </div>
 
       <Card style={{ padding: '1.5rem 2.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-        <MonoLabel size="xs" color="var(--text-muted)">CODE DE LA PARTIE</MonoLabel>
+        <MonoLabel size="xs" color="var(--text-muted)">{t('mp_code_label')}</MonoLabel>
         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '1rem', color: 'var(--gold)', letterSpacing: '0.1em', wordBreak: 'break-all', maxWidth: '340px' }}>
           {roomId}
         </div>
         <RetroButton variant="default" onClick={copyCode} style={{ marginTop: '0.25rem' }}>
-          {copied ? '✓ Copié !' : '📋 Copier'}
+          {copied ? `✓ ${t('mp_copied')}` : t('mp_copy')}
         </RetroButton>
       </Card>
 
-      <RetroButton variant="danger" onClick={onCancel}>Annuler</RetroButton>
+      <RetroButton variant="danger" onClick={onCancel}>{t('btn_cancel')}</RetroButton>
     </div>
   );
 }
@@ -226,7 +227,7 @@ function PlayingScreen({ mp, user, roomId }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '3rem 1rem', textAlign: 'center' }}>
         <div style={{ fontSize: '3rem' }}>{isWinner ? '🏆' : '😔'}</div>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-          {isWinner ? 'Victoire !' : 'Défaite'}
+          {isWinner ? t('game_win_title') : t('game_lose_title')}
         </div>
         <div style={{ display: 'flex', gap: '2rem' }}>
           {gameState.players.map((p, i) => (
@@ -241,7 +242,7 @@ function PlayingScreen({ mp, user, roomId }) {
           ))}
         </div>
         <RetroButton variant="primary" onClick={() => { window.location.hash = '#/'; }}>
-          Retour à l'accueil
+          {t('mp_back_home')}
         </RetroButton>
       </div>
     );
@@ -367,10 +368,10 @@ function PlayingScreen({ mp, user, roomId }) {
         borderRadius: '6px', transition: 'background 0.3s, border-color 0.3s',
       }}>
         <MonoLabel size="sm" color={isMyTurn ? '#fff' : 'var(--text-muted)'}>
-          {isMyTurn ? '🟢 Votre tour' : `⏳ Tour de ${currentPlayer.name}…`}
+          {isMyTurn ? `🟢 ${t('mp_your_turn')}` : `⏳ ${t('mg_waiting', { name: currentPlayer.name })}`}
         </MonoLabel>
         {previewScore > 0 && isMyTurn && (
-          <MonoLabel size="sm" color="#fff">+{previewScore} pts</MonoLabel>
+          <MonoLabel size="sm" color="#fff">+{previewScore} {t('common_pts')}</MonoLabel>
         )}
       </div>
 
@@ -394,7 +395,7 @@ function PlayingScreen({ mp, user, roomId }) {
 
       {/* Chevalet */}
       <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-        <MonoLabel size="xs" color="var(--text-muted)">VOTRE CHEVALET</MonoLabel>
+        <MonoLabel size="xs" color="var(--text-muted)">{t('mp_your_rack')}</MonoLabel>
         <SimpleRack
           tiles={gameState.players[mp.myPlayerIndex]?.rack ?? []}
           placements={placements}
@@ -404,7 +405,7 @@ function PlayingScreen({ mp, user, roomId }) {
         />
         {selectedRackTile && (
           <MonoLabel size="xs" color="var(--gold)">
-            « {selectedRackTile.tile.letter} » sélectionnée — cliquez une case vide
+            {t('mp_selected_letter', { letter: selectedRackTile.tile.letter === '*' ? '★' : selectedRackTile.tile.letter })}
           </MonoLabel>
         )}
       </Card>
@@ -418,10 +419,10 @@ function PlayingScreen({ mp, user, roomId }) {
             disabled={placements.length === 0 || isLoading}
             style={{ flex: 1 }}
           >
-            {isLoading ? <Spinner size="sm" /> : `Valider (${placements.length})`}
+            {isLoading ? <Spinner size="sm" /> : `${t('btn_validate')} (${placements.length})`}
           </RetroButton>
           <RetroButton variant="default" onClick={() => setConfirmPass(true)} disabled={placements.length > 0 || isLoading}>
-            Passer
+            {t('btn_pass')}
           </RetroButton>
           <RetroButton
             variant="tobacco"
@@ -436,7 +437,7 @@ function PlayingScreen({ mp, user, roomId }) {
       {/* Panneau échange */}
       {showSwapPanel && isMyTurn && (
         <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-          <MonoLabel size="sm" color="var(--text-primary)">Sélectionnez les lettres à remettre dans le sac</MonoLabel>
+          <MonoLabel size="sm" color="var(--text-primary)">{t('mp_swap_hint')}</MonoLabel>
           {/* B4 : onTileClick passe l'index à toggleTileForSwap */}
           <SimpleRack
             tiles={gameState.players[mp.myPlayerIndex]?.rack ?? []}
@@ -451,9 +452,9 @@ function PlayingScreen({ mp, user, roomId }) {
               onClick={() => { handleSwapTiles(); setShowSwapPanel(false); }}
               disabled={selectedTilesToSwap.length === 0 || isLoading}
             >
-              Échanger ({selectedTilesToSwap.length})
+              {t('btn_exchange')} ({selectedTilesToSwap.length})
             </RetroButton>
-            <RetroButton variant="default" onClick={() => setShowSwapPanel(false)}>Annuler</RetroButton>
+            <RetroButton variant="default" onClick={() => setShowSwapPanel(false)}>{t('btn_cancel')}</RetroButton>
           </div>
         </Card>
       )}
@@ -462,12 +463,12 @@ function PlayingScreen({ mp, user, roomId }) {
       {confirmPass && (
         <Card style={{ padding: '1.25rem', textAlign: 'center', border: '2px solid var(--border-primary)' }}>
           <div style={{ marginBottom: '1rem', fontFamily: "'Playfair Display', serif", color: 'var(--text-primary)' }}>
-            Confirmez-vous le passage de tour ?
+            {t('mg_pass_question')}
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-            <RetroButton variant="default" onClick={() => setConfirmPass(false)}>Annuler</RetroButton>
+            <RetroButton variant="default" onClick={() => setConfirmPass(false)}>{t('btn_cancel')}</RetroButton>
             <RetroButton variant="danger" onClick={() => { setConfirmPass(false); handlePassTurn(); }}>
-              Passer le tour
+              {t('mg_pass_confirm')}
             </RetroButton>
           </div>
         </Card>
@@ -481,6 +482,7 @@ function PlayingScreen({ mp, user, roomId }) {
 export default function MultiplayerPage() {
   const { user }                           = useAuth();
   const { toasts, dismissToast, addToast } = useToast();
+  const { t } = useLanguage();
 
   const [phase,      setPhase]      = useState('LOBBY');
   const [roomId,     setRoomId]     = useState(null);
@@ -511,11 +513,11 @@ export default function MultiplayerPage() {
       setHostUserId(user?.id);
       setPhase('WAITING');
     } catch (err) {
-      addToast(err?.response?.data?.detail || 'Impossible de créer la salle.', 'error');
+      addToast(err?.response?.data?.detail || t('mp_create_error'), 'error');
     } finally {
       setIsCreating(false);
     }
-  }, [user, addToast]);
+  }, [user, addToast, t]);
 
   const handleJoinRoom = useCallback(async (code) => {
     try {
@@ -524,9 +526,9 @@ export default function MultiplayerPage() {
       setHostUserId(room.current_user_id);
       setPhase('PLAYING');
     } catch (err) {
-      addToast(err?.response?.data?.detail || 'Code invalide ou salle introuvable.', 'error');
+      addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
     }
-  }, [addToast]);
+  }, [addToast, t]);
 
   const handleCancelRoom = useCallback(async () => {
     if (roomId) {
@@ -550,4 +552,4 @@ export default function MultiplayerPage() {
       {phase === 'PLAYING' && <PlayingScreen mp={mp} user={user} roomId={roomId} />}
     </div>
   );
-}
+}

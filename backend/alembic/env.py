@@ -12,6 +12,7 @@ load_dotenv()
 from app.db.database import Base
 from app.db import models  # noqa — enregistre les modèles pour l'autogenerate
 from app.multiplayer import models as _mp_models  # noqa — MultiplayerGame
+from app.solo import models as _solo_models  # noqa — SoloGame
 
 config = context.config
 
@@ -66,4 +67,4 @@ def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    run_migrations_online()

@@ -73,6 +73,7 @@ async def lifespan(application: FastAPI):
                 async with db.engine.begin() as conn:
                     from app.db import models  # noqa
                     from app.multiplayer import models as _mp_models  # noqa — table multiplayer_games
+                    from app.solo import models as _solo_models  # noqa — table solo_games
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -87,10 +88,22 @@ async def lifespan(application: FastAPI):
         logger.warning("Dictionnaire non chargé : %s", exc)
         application.state.game_engine = None
 
+    # 4. Nettoyage périodique des parties (mémoire + base) — app/solo/store.py
+    from app.solo.store import solo_store
+    cleanup_task = asyncio.create_task(
+        solo_store.run_cleanup_loop(lambda: getattr(application.state, "game_engine", None))
+    )
+
     logger.info("Application prête.")
     yield
 
     # ── Arrêt ──────────────────────────────────────────────────────
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+
     try:
         if db.engine is not None:
             await db.engine.dispose()
@@ -165,4 +178,4 @@ async def health():
 
 @app.get("/", tags=["Système"])
 async def root():
-    return {"message": "Scrabble API v2.1 — Firebase Auth + PostgreSQL"}
+    return {"message": "Scrabble API v2.1 — Firebase Auth + PostgreSQL"}

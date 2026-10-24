@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as gameService from '../api/gameService';
 import { saveGame } from '../api/authService';
 import { calculatePreviewScore } from '../utils/scoring';
+import { useLanguage } from '../context/LanguageContext';
 
 // ── Hook principal ────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ export function useGameLogic({
   autoSortRack = false,
   addToast = () => {},
 } = {}) {
+  const { t, tp } = useLanguage();
 
   // ── State ─────────────────────────────────────────────────────
   const [gameState, setGameState]                     = useState(null);
@@ -73,17 +75,22 @@ export function useGameLogic({
 
     const delay = setTimeout(async () => {
       try {
-        const { gameState: updated, message } = await gameService.aiPlayTurn(gameId);
+        const { gameState: updated, message, move } = await gameService.aiPlayTurn(gameId);
         setGameState(updated);
-        if (message) addToast(message, 'info');
+        // Message composé dans la langue du joueur ; repli sur celui du serveur
+        const name = currentPlayer.name;
+        if (move?.kind === 'play')      addToast(t('ai_move_play', { name, word: move.word, score: move.score }), 'info');
+        else if (move?.kind === 'swap') addToast(tp('ai_move_swap', move.count, { name }), 'info');
+        else if (move?.kind === 'pass') addToast(t('ai_move_pass', { name }), 'info');
+        else if (message)               addToast(message, 'info');
       } catch (e) {
         console.error('Erreur IA:', e?.response?.data?.detail);
-        addToast('L\'IA a rencontré une erreur. Tour passé.', 'warn');
+        addToast(t('toast_ai_error'), 'warn');
       }
     }, 1500);
 
     return () => clearTimeout(delay);
-  }, [gameState, gameId]);
+  }, [gameState, gameId, t, tp]);
 
   // ── Sauvegarde auto en fin de partie ─────────────────────────
   useEffect(() => {
@@ -129,7 +136,7 @@ export function useGameLogic({
   const startGame = useCallback(async (difficulty = 'medium') => {
     setIsLoading(true);
     try {
-      const playerName = isAuthenticated && user?.display_name ? user.display_name : 'Joueur';
+      const playerName = isAuthenticated && user?.display_name ? user.display_name : t('player_default');
       const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)'], difficulty);
       setGameState(initialGame);
       setGameId(initialGame.game_id);
@@ -140,11 +147,11 @@ export function useGameLogic({
       setTimerActive(true);
     } catch (e) {
       console.error('Erreur démarrage:', e);
-      addToast('Impossible de démarrer la partie. Vérifiez votre connexion.', 'error');
+      addToast(t('toast_start_error'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user, addToast]);
+  }, [isAuthenticated, user, addToast, t]);
 
   /** Déposer une tuile du rack sur une case du plateau. */
   const handleDropTile = useCallback((rackIndex, r, c) => {
@@ -195,7 +202,7 @@ export function useGameLogic({
 
   const handleValidateWord = useCallback(async () => {
     if (!gameId || placements.length === 0) {
-      addToast('Placez au moins une lettre sur le plateau.', 'warn');
+      addToast(t('toast_place_first'), 'warn');
       return;
     }
     setSelectedTilesToSwap([]);
@@ -205,47 +212,47 @@ export function useGameLogic({
       setGameState(result);
       // Bonus bingo : 7 tuiles posées d'un coup
       if (placements.length === 7) {
-        addToast('🎉 Bingo ! 7 lettres posées — bonus 50 pts !', 'success');
+        addToast(t('toast_bingo'), 'success');
       }
       setPlacements([]);
       if (result.status !== 'FINISHED') {
         timerResetRef.current?.();
       }
     } catch (error) {
-      const detail = error.response?.data?.detail || 'Mot invalide ou placement illégal.';
+      const detail = error.response?.data?.detail || t('toast_word_invalid');
       addToast(detail, 'error');
       setPlacements([]);
     }
-  }, [gameId, placements, activePlayerId, addToast]);
+  }, [gameId, placements, activePlayerId, addToast, t]);
 
   const handlePassTurn = useCallback(async () => {
     if (!gameId) return;
     try {
       const updated = await gameService.passTurn(gameId, activePlayerId);
       setGameState(updated);
-      addToast('Tour passé.', 'info');
+      addToast(t('toast_passed'), 'info');
     } catch (error) {
-      const detail = error.response?.data?.detail || 'Impossible de passer le tour.';
+      const detail = error.response?.data?.detail || t('toast_pass_error');
       addToast(detail, 'error');
     }
-  }, [gameId, activePlayerId, addToast]);
+  }, [gameId, activePlayerId, addToast, t]);
 
   const handleShuffleRack = useCallback(async () => {
     if (!gameId) return;
     try {
       const updated = await gameService.shuffleRack(gameId, activePlayerId);
       setGameState(updated);
-      addToast('Rack mélangé.', 'success');
+      addToast(t('toast_shuffled'), 'success');
     } catch (error) {
-      const detail = error.response?.data?.detail || 'Impossible de mélanger le rack.';
+      const detail = error.response?.data?.detail || t('toast_shuffle_error');
       addToast(detail, 'error');
     }
-  }, [gameId, activePlayerId, addToast]);
+  }, [gameId, activePlayerId, addToast, t]);
 
   const handleSwapTiles = useCallback(async () => {
     const realTiles = selectedTilesToSwap.filter(l => l !== '__placeholder__');
     if (!gameId || realTiles.length === 0) {
-      addToast('Sélectionnez les lettres à échanger.', 'warn');
+      addToast(t('toast_swap_select'), 'warn');
       return;
     }
     setPlacements([]);
@@ -253,19 +260,19 @@ export function useGameLogic({
       const updated = await gameService.swapTiles(gameId, activePlayerId, realTiles);
       setGameState(updated);
       setSelectedTilesToSwap([]);
-      addToast(`${realTiles.length} lettre(s) échangée(s).`, 'success');
+      addToast(tp('toast_swapped', realTiles.length), 'success');
     } catch (error) {
-      const detail = error.response?.data?.detail || 'Échange impossible.';
+      const detail = error.response?.data?.detail || t('toast_swap_error');
       addToast(detail, 'error');
     }
-  }, [gameId, activePlayerId, selectedTilesToSwap, addToast]);
+  }, [gameId, activePlayerId, selectedTilesToSwap, addToast, t, tp]);
 
   /** Expiration du timer → passe le tour automatiquement. */
   const handleTimerExpire = useCallback(async () => {
     if (!gameId || isAITurn) return;
     setPlacements([]);
     setSelectedTilesToSwap([]);
-    addToast('Temps écoulé — tour passé automatiquement.', 'warn');
+    addToast(t('toast_time_up'), 'warn');
     try {
       const updated = await gameService.passTurn(gameId, activePlayerId);
       setGameState(updated);
@@ -273,7 +280,7 @@ export function useGameLogic({
     } catch (e) {
       console.error('Auto-pass échoué:', e);
     }
-  }, [gameId, activePlayerId, isAITurn, addToast]);
+  }, [gameId, activePlayerId, isAITurn, addToast, t]);
 
   const toggleTileForSwap = useCallback((letter) => {
     setSelectedTilesToSwap(prev =>
@@ -366,4 +373,4 @@ export function useGameLogic({
     initSwapMode,
     clearSwapMode,
   };
-}
+}

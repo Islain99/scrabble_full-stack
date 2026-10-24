@@ -31,6 +31,7 @@ import { ref, onValue, off } from 'firebase/database';
 import { rtdb } from '../firebase';
 import * as mp from '../api/multiplayerService';
 import { calculatePreviewScore } from '../utils/scoring';
+import { useLanguage } from '../context/LanguageContext';
 
 // ── Hook ──────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ export function useMultiplayerGame({
   hostUserId,
   addToast = () => {},
 } = {}) {
+  const { t } = useLanguage();
 
   const [gameState,  setGameState]  = useState(null);
   const [roomStatus, setRoomStatus] = useState('ACTIVE');
@@ -206,13 +208,13 @@ export function useMultiplayerGame({
       setPlacements([]);
       return { success: true, error: null };
     } catch (err) {
-      const msg = err?.response?.data?.detail || 'Mot invalide.';
+      const msg = err?.response?.data?.detail || t('toast_word_invalid');
       addToast(msg, 'error');
       return { success: false, error: msg };
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, placements, isMyTurn, applyRoomState, addToast]);
+  }, [roomId, placements, isMyTurn, applyRoomState, addToast, t]);
 
   const handlePassTurn = useCallback(async () => {
     if (!roomId || !isMyTurn) return;
@@ -222,11 +224,11 @@ export function useMultiplayerGame({
       applyRoomState(room);
       setPlacements([]);
     } catch (err) {
-      addToast(err?.response?.data?.detail || 'Erreur réseau.', 'error');
+      addToast(err?.response?.data?.detail || t('toast_network_error'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, isMyTurn, applyRoomState, addToast]);
+  }, [roomId, isMyTurn, applyRoomState, addToast, t]);
 
   const handleSwapTiles = useCallback(async () => {
     if (!roomId || !isMyTurn || selectedTilesToSwap.length === 0) return;
@@ -241,11 +243,11 @@ export function useMultiplayerGame({
       setSelectedTilesToSwap([]);
       setPlacements([]);
     } catch (err) {
-      addToast(err?.response?.data?.detail || 'Échange impossible.', 'error');
+      addToast(err?.response?.data?.detail || t('toast_swap_error'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, isMyTurn, selectedTilesToSwap, applyRoomState, addToast]);
+  }, [roomId, isMyTurn, selectedTilesToSwap, applyRoomState, addToast, t]);
 
   // B4 : index de rack au lieu de la lettre — deux tuiles identiques sélectionnables indépendamment.
   const toggleTileForSwap = useCallback((rackIndex) => {
@@ -284,4 +286,4 @@ export function useMultiplayerGame({
     handleSwapTiles,
     toggleTileForSwap,
   };
-}
+}

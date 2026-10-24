@@ -10,7 +10,7 @@ const TOAST_STYLES = {
 
 export function Toast({ toasts, onDismiss }) {
   return (
-    <div style={{
+    <div className="toast-stack" style={{
       position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
       zIndex: 300, display: 'flex', flexDirection: 'column', gap: '8px',
       alignItems: 'center', pointerEvents: 'none',
@@ -66,4 +66,4 @@ function ToastItem({ toast, onDismiss }) {
       <span style={{ opacity: 0.4, fontSize: '0.65rem', flexShrink: 0 }}>✕</span>
     </div>
   );
-}
+}

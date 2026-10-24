@@ -2,14 +2,16 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { useTutorialRef } from '../context/TutorialContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
   const panelRef = useTutorialRef('score-panel');
+  const { t } = useLanguage();
 
   if (!players || players.length === 0) {
     return (
       <div style={{ padding: '1.2rem', border: '2px solid var(--tobacco)', borderRadius: '2px', color: 'var(--text-muted)', textAlign: 'center', fontFamily: "'Libre Baskerville', serif", fontStyle: 'italic', fontSize: '1rem' }}>
-        Aucun joueur n'a démarré.
+        {t('sp_empty')}
       </div>
     );
   }
@@ -19,10 +21,10 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
       {/* Header */}
       <div style={{ background: 'var(--bg-invert)', color: 'var(--text-invert)', padding: '10px 18px', display: 'flex', alignItems: 'baseline', gap: '12px' }}>
         <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-          Scores
+          {t('sp_title')}
         </span>
         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: 'var(--gold)', letterSpacing: '0.1em' }}>
-          EN COURS
+          {t('sp_in_progress')}
         </span>
       </div>
 
@@ -50,7 +52,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
                   {player.name}
                 </span>
                 {isLocal && (
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--tobacco)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>vous</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: 'var(--tobacco)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t('sp_you')}</span>
                 )}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -58,7 +60,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
                   {player.score}
                 </span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: isActive ? 'var(--border-gold-dk)' : 'var(--text-muted)', display: 'block', textAlign: 'right', letterSpacing: '0.05em' }}>
-                  pts
+                  {t('common_pts')}
                 </span>
               </div>
             </div>
@@ -67,7 +69,7 @@ const ScorePanel = ({ players, currentPlayerId, localUserId = null }) => {
       </div>
 
       <div style={{ borderTop: '1px solid var(--border-gold)', padding: '8px 14px', fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center' }}>
-        ● joueur actif
+        {t('sp_active_player')}
       </div>
     </div>
   );
@@ -84,4 +86,4 @@ ScorePanel.propTypes = {
   localUserId: PropTypes.string,
 };
 
-export default ScorePanel;
+export default ScorePanel;

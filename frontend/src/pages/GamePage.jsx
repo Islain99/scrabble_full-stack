@@ -36,7 +36,7 @@ function ScorePreview({ score, count, t, tp}) {
         +{score}
       </div>
       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px',}}>
-        {tp('game_tile', count)};
+        {tp('game_tile', count)}
       </div>
     </div>
   );
@@ -571,4 +571,4 @@ React.useEffect(() => {
       )}
     </div>
   );
-}
+}

@@ -233,6 +233,9 @@ class GameEngine:
         self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
         self.active_games: Dict[str, GameState] = {}
         self.game_difficulty: Dict[str, str] = {}
+        # Dernier coup de l'IA par partie, sous forme structurée (lu une fois
+        # par la route /game/ai/play pour que le client l'affiche dans sa langue)
+        self.last_ai_move: Dict[str, dict] = {}
  
         # ── Cache rack ──────────────────────────────────────────
         # Clé : (rack_letters_tuple_triée, min_len, max_len)
@@ -252,6 +255,17 @@ class GameEngine:
 
     def get_difficulty(self, game_id: str) -> str:
         return self.game_difficulty.get(game_id, AIDifficulty.MEDIUM)
+
+    def restore_game(self, game: GameState, difficulty: str) -> None:
+        """Remet en mémoire une partie rechargée depuis la base (app/solo/store.py)."""
+        self.active_games[game.game_id] = game
+        self.game_difficulty[game.game_id] = difficulty if difficulty in AI_CONFIG else AIDifficulty.MEDIUM
+
+    def forget_game(self, game_id: str) -> None:
+        """Retire une partie de la mémoire (terminée, ou inactive et déjà sauvegardée)."""
+        self.active_games.pop(game_id, None)
+        self.game_difficulty.pop(game_id, None)
+        self.last_ai_move.pop(game_id, None)
 
     def _load_dictionary(self, path: str) -> Set[str]:
         try:
@@ -1152,9 +1166,11 @@ class GameEngine:
             success, message = self.play_word(game_id, ai_player_id, placements)
             if success:
                 label = config["label"]
-                word_played = "".join(letter for _, _, letter in placements)
+                word_played = self._main_word_on_board(current_game.board, placements)
+                self.last_ai_move[game_id] = {"kind": "play", "word": word_played, "score": score}
                 return (True, f"L'IA ({label}) joue «\u202f{word_played}\u202f» pour {score} pts.")
             # Cas rare : validation finale refusée
+            self.last_ai_move[game_id] = {"kind": "pass"}
             return self.pass_turn(game_id, ai_player_id)
  
         # ── Repli : échange ou passe ─────────────────────────────
@@ -1173,9 +1189,25 @@ class GameEngine:
                 success, message = self.swap_tiles(game_id, ai_player_id, letters)
                 if success:
                     label = config["label"]
+                    self.last_ai_move[game_id] = {"kind": "swap", "count": len(letters)}
                     return (True, f"L'IA ({label}) échange {n_swap} lettre(s).")
  
+        self.last_ai_move[game_id] = {"kind": "pass"}
         return self.pass_turn(game_id, ai_player_id)
+
+    def _main_word_on_board(self, board: Board, placements: List[Tuple[int, int, str]]) -> str:
+        """
+        Mot principal formé par un coup, lu sur le plateau (lettres déjà posées
+        comprises). Les jokers sont rendus en minuscules, comme au Scrabble.
+        """
+        positions = [(r, c) for r, c, _ in placements]
+        words = self._get_formed_word_cells(positions, board)
+        if not words:
+            return "".join(l for _, _, l in placements)
+        return "".join(
+            board.grid[r][c].letter.lower() if board.grid[r][c].is_joker else board.grid[r][c].letter
+            for r, c in words[0]
+        )
 
     def _invalidate_rack_cache(self, player: "Player") -> None:
         """
@@ -1333,4 +1365,4 @@ class GameEngine:
  
         return best_result
 
-# Fin du fichier: backend/game_logic.py
+# Fin du fichier: backend/game_logic.py

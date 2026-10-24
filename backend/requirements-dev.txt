@@ -5,3 +5,4 @@
 pytest==9.1.1
 anyio==4.15.1
 httpx==0.28.1
+aiosqlite==0.21.0      # base SQLite en mémoire pour les tests de persistance

@@ -10,6 +10,7 @@ import {
   updateProfile as firebaseUpdateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
+import { useLanguage } from './LanguageContext';
 import {
   loginUser,
   registerUser,
@@ -28,7 +29,9 @@ export function AuthProvider({ children }) {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [dbUser, setDbUser]             = useState(null);
   const [loading, setLoading]           = useState(true);
+  // Code d'erreur Firebase ; le message est traduit à l'affichage (voir `error` plus bas)
   const [error, setError]               = useState(null);
+  const { t } = useLanguage();
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -66,11 +69,10 @@ export function AuthProvider({ children }) {
       setDbUser(profile);
       return profile;
     } catch (err) {
-      const msg = firebaseErrorMessage(err.code);
-      setError(msg);
-      throw new Error(msg);
+      setError(err.code ?? 'unknown');
+      throw new Error(firebaseErrorMessage(err.code, t));
     }
-  }, []);
+  }, [t]);
 
   const signInWithEmail = useCallback(async (email, password) => {
     setError(null);
@@ -80,11 +82,10 @@ export function AuthProvider({ children }) {
       setDbUser(profile);
       return profile;
     } catch (err) {
-      const msg = firebaseErrorMessage(err.code);
-      setError(msg);
-      throw new Error(msg);
+      setError(err.code ?? 'unknown');
+      throw new Error(firebaseErrorMessage(err.code, t));
     }
-  }, []);
+  }, [t]);
 
   const signInWithGoogle = useCallback(async () => {
     setError(null);
@@ -95,11 +96,10 @@ export function AuthProvider({ children }) {
       return { profile, isNew: is_new_user };
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user') return null;
-      const msg = firebaseErrorMessage(err.code);
-      setError(msg);
-      throw new Error(msg);
+      setError(err.code ?? 'unknown');
+      throw new Error(firebaseErrorMessage(err.code, t));
     }
-  }, []);
+  }, [t]);
 
   const logout = useCallback(async () => {
     await signOut(auth);
@@ -112,11 +112,10 @@ export function AuthProvider({ children }) {
     try {
       await sendPasswordResetEmail(auth, email);
     } catch (err) {
-      const msg = firebaseErrorMessage(err.code);
-      setError(msg);
-      throw new Error(msg);
+      setError(err.code ?? 'unknown');
+      throw new Error(firebaseErrorMessage(err.code, t));
     }
-  }, []);
+  }, [t]);
 
   /**
    * Met à jour le profil complet.
@@ -148,7 +147,7 @@ export function AuthProvider({ children }) {
     firebaseUser,
     user: dbUser,
     loading,
-    error,
+    error: error ? firebaseErrorMessage(error, t) : null,
     isAuthenticated: !!dbUser,
     signUpWithEmail,
     signInWithEmail,
@@ -167,19 +166,21 @@ export function AuthProvider({ children }) {
   );
 }
 
-function firebaseErrorMessage(code) {
-  const messages = {
-    'auth/email-already-in-use':   'Cette adresse email est déjà utilisée.',
-    'auth/invalid-email':          'Adresse email invalide.',
-    'auth/weak-password':          'Mot de passe trop faible (6 caractères minimum).',
-    'auth/user-not-found':         'Aucun compte avec cet email.',
-    'auth/wrong-password':         'Mot de passe incorrect.',
-    'auth/invalid-credential':     'Email ou mot de passe incorrect.',
-    'auth/too-many-requests':      'Trop de tentatives. Réessayez dans quelques minutes.',
-    'auth/network-request-failed': 'Erreur réseau. Vérifiez votre connexion.',
-    'auth/popup-blocked':          'Popup bloquée. Autorisez les popups pour Google.',
-    'auth/account-exists-with-different-credential':
-                                   'Un compte existe déjà avec cet email (autre méthode).',
-  };
-  return messages[code] || `Erreur d'authentification (${code}).`;
+// Code d'erreur Firebase → clé de traduction
+const FIREBASE_ERROR_KEYS = {
+  'auth/email-already-in-use':   'auth_err_email_in_use',
+  'auth/invalid-email':          'auth_err_invalid_email',
+  'auth/weak-password':          'auth_err_weak_password',
+  'auth/user-not-found':         'auth_err_user_not_found',
+  'auth/wrong-password':         'auth_err_wrong_password',
+  'auth/invalid-credential':     'auth_err_invalid_credential',
+  'auth/too-many-requests':      'auth_err_too_many',
+  'auth/network-request-failed': 'auth_err_network',
+  'auth/popup-blocked':          'auth_err_popup_blocked',
+  'auth/account-exists-with-different-credential': 'auth_err_exists_other',
+};
+
+function firebaseErrorMessage(code, t) {
+  const key = FIREBASE_ERROR_KEYS[code];
+  return key ? t(key) : t('auth_err_generic', { code: code ?? 'unknown' });
 }

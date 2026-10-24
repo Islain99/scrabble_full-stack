@@ -296,3 +296,16 @@ def test_ai_can_use_joker(engine):
     ok, msg = engine.play_word(g.game_id, ai.id, placements)
     assert ok, msg
 
+
+
+def test_ai_move_is_reported_structured(engine):
+    """Le coup de l'IA est exposé sous forme structurée (mot complet, points)."""
+    g = engine.start_new_game(["Alice", "HAL (IA)"], difficulty="hard")
+    g.players[1].rack = _rack("TEST")
+    g.current_player_index = 1
+    ok, _ = engine.ai_play_turn(g.game_id, 1)
+    assert ok
+    move = engine.last_ai_move[g.game_id]
+    assert move["kind"] == "play"
+    assert move["word"] in MOCK_DICTIONARY
+    assert move["score"] == g.players[1].score
