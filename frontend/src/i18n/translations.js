@@ -53,6 +53,87 @@ export const translations = {
     mg_joker:         'Joker',
     mg_pass_question: 'Passer votre tour ?',
     mg_pass_confirm:  'Passer mon tour',
+
+    // Commun
+    common_loading:   'Chargement…',
+    common_pts:       'pts',
+    player_default:   'Joueur',
+    nav_multiplayer:  'Multijoueur',
+
+    // En-tête de partie et panneau des scores
+    hdr_turn:          'Tour de {{name}}',
+    sp_title:          'Scores',
+    sp_in_progress:    'en cours',
+    sp_you:            'vous',
+    sp_active_player:  '● joueur actif',
+    sp_empty:          "Aucun joueur n'a démarré.",
+
+    // Chevalet et plateau
+    rack_label:            'Rack — Joueur {{n}}',
+    rack_tap_to_select:    'Cliquer pour sélectionner',
+    rack_empty:            'Rack vide',
+    rack_select_letter:    'Sélectionner {{letter}}',
+    rack_drag_letter:      'Glisser ou toucher {{letter}}',
+    board_loading:         'Chargement du plateau…',
+    board_temp_tile_title: 'Cliquez pour récupérer, glissez pour déplacer',
+
+    // Coups de l'IA
+    ai_move_play:       '{{name}} joue « {{word}} » pour {{score}} pts.',
+    ai_move_swap_one:   '{{name}} échange {{count}} lettre.',
+    ai_move_swap_other: '{{name}} échange {{count}} lettres.',
+    ai_move_pass:       '{{name}} passe son tour.',
+
+    // Notifications
+    toast_ai_error:       "L'IA a rencontré une erreur. Tour passé.",
+    toast_start_error:    'Impossible de démarrer la partie. Vérifiez votre connexion.',
+    toast_place_first:    'Placez au moins une lettre sur le plateau.',
+    toast_bingo:          'Scrabble ! 7 lettres posées : 50 points de bonus.',
+    toast_word_invalid:   'Mot invalide ou placement illégal.',
+    toast_passed:         'Tour passé.',
+    toast_pass_error:     'Impossible de passer le tour.',
+    toast_shuffled:       'Rack mélangé.',
+    toast_shuffle_error:  'Impossible de mélanger le rack.',
+    toast_swap_select:    'Sélectionnez les lettres à échanger.',
+    toast_swapped_one:    '{{count}} lettre échangée.',
+    toast_swapped_other:  '{{count}} lettres échangées.',
+    toast_swap_error:     'Échange impossible.',
+    toast_time_up:        'Temps écoulé : tour passé automatiquement.',
+    toast_network_error:  'Erreur réseau.',
+
+    // Multijoueur
+    mp_subtitle:        'Jouez contre un ami en temps réel',
+    mp_create_title:    'Créer une partie',
+    mp_create_desc:     'Partagez le code à votre adversaire',
+    mp_create_btn:      'Nouvelle partie',
+    mp_join_title:      'Rejoindre une partie',
+    mp_join_desc:       'Entrez le code partagé par votre ami',
+    mp_join_ph:         'Code de la partie…',
+    mp_join_btn:        'Rejoindre',
+    mp_waiting_title:   "En attente d'un adversaire…",
+    mp_waiting_desc:    'Partagez ce code à votre ami',
+    mp_code_label:      'Code de la partie',
+    mp_copy:            'Copier',
+    mp_copied:          'Copié !',
+    mp_back_home:       "Retour à l'accueil",
+    mp_your_turn:       'Votre tour',
+    mp_your_rack:       'Votre chevalet',
+    mp_selected_letter: '« {{letter}} » sélectionnée : touchez une case vide',
+    mp_swap_hint:       'Sélectionnez les lettres à remettre dans le sac',
+    mp_create_error:    'Impossible de créer la salle.',
+    mp_join_error:      'Code invalide ou salle introuvable.',
+
+    // Erreurs de connexion (Firebase)
+    auth_err_email_in_use:     'Cette adresse email est déjà utilisée.',
+    auth_err_invalid_email:    'Adresse email invalide.',
+    auth_err_weak_password:    'Mot de passe trop faible (6 caractères minimum).',
+    auth_err_user_not_found:   'Aucun compte avec cet email.',
+    auth_err_wrong_password:   'Mot de passe incorrect.',
+    auth_err_invalid_credential: 'Email ou mot de passe incorrect.',
+    auth_err_too_many:         'Trop de tentatives. Réessayez dans quelques minutes.',
+    auth_err_network:          'Erreur réseau. Vérifiez votre connexion.',
+    auth_err_popup_blocked:    'Fenêtre bloquée. Autorisez les fenêtres pop-up pour Google.',
+    auth_err_exists_other:     'Un compte existe déjà avec cet email (autre méthode de connexion).',
+    auth_err_generic:          "Erreur d'authentification ({{code}}).",
     nav_currently:   'Actuellement',
 
     // ── Thème ─────────────────────────────────────────────────────
@@ -342,6 +423,87 @@ export const translations = {
     mg_joker:         'Blank',
     mg_pass_question: 'Pass your turn?',
     mg_pass_confirm:  'Pass my turn',
+
+    // Common
+    common_loading:   'Loading…',
+    common_pts:       'pts',
+    player_default:   'Player',
+    nav_multiplayer:  'Multiplayer',
+
+    // Game header and score panel
+    hdr_turn:          "{{name}}'s turn",
+    sp_title:          'Scores',
+    sp_in_progress:    'in progress',
+    sp_you:            'you',
+    sp_active_player:  '● active player',
+    sp_empty:          'No player has started yet.',
+
+    // Rack and board
+    rack_label:            'Rack — Player {{n}}',
+    rack_tap_to_select:    'Click to select',
+    rack_empty:            'Empty rack',
+    rack_select_letter:    'Select {{letter}}',
+    rack_drag_letter:      'Drag or tap {{letter}}',
+    board_loading:         'Loading the board…',
+    board_temp_tile_title: 'Click to take back, drag to move',
+
+    // AI moves
+    ai_move_play:       '{{name}} plays "{{word}}" for {{score}} pts.',
+    ai_move_swap_one:   '{{name}} exchanges {{count}} letter.',
+    ai_move_swap_other: '{{name}} exchanges {{count}} letters.',
+    ai_move_pass:       '{{name}} passes.',
+
+    // Notifications
+    toast_ai_error:       'The AI ran into an error. Turn passed.',
+    toast_start_error:    "Couldn't start the game. Check your connection.",
+    toast_place_first:    'Place at least one letter on the board.',
+    toast_bingo:          'Bingo! All 7 letters played: 50-point bonus.',
+    toast_word_invalid:   'Invalid word or illegal placement.',
+    toast_passed:         'Turn passed.',
+    toast_pass_error:     "Couldn't pass the turn.",
+    toast_shuffled:       'Rack shuffled.',
+    toast_shuffle_error:  "Couldn't shuffle the rack.",
+    toast_swap_select:    'Select the letters to exchange.',
+    toast_swapped_one:    '{{count}} letter exchanged.',
+    toast_swapped_other:  '{{count}} letters exchanged.',
+    toast_swap_error:     "Couldn't exchange the letters.",
+    toast_time_up:        "Time's up: turn passed automatically.",
+    toast_network_error:  'Network error.',
+
+    // Multiplayer
+    mp_subtitle:        'Play against a friend in real time',
+    mp_create_title:    'Create a game',
+    mp_create_desc:     'Share the code with your opponent',
+    mp_create_btn:      'New game',
+    mp_join_title:      'Join a game',
+    mp_join_desc:       'Enter the code your friend shared',
+    mp_join_ph:         'Game code…',
+    mp_join_btn:        'Join',
+    mp_waiting_title:   'Waiting for an opponent…',
+    mp_waiting_desc:    'Share this code with your friend',
+    mp_code_label:      'Game code',
+    mp_copy:            'Copy',
+    mp_copied:          'Copied!',
+    mp_back_home:       'Back to home',
+    mp_your_turn:       'Your turn',
+    mp_your_rack:       'Your rack',
+    mp_selected_letter: '"{{letter}}" selected: tap an empty square',
+    mp_swap_hint:       'Select the letters to put back in the bag',
+    mp_create_error:    "Couldn't create the room.",
+    mp_join_error:      'Invalid code or room not found.',
+
+    // Sign-in errors (Firebase)
+    auth_err_email_in_use:     'This email address is already in use.',
+    auth_err_invalid_email:    'Invalid email address.',
+    auth_err_weak_password:    'Password too weak (6 characters minimum).',
+    auth_err_user_not_found:   'No account with this email.',
+    auth_err_wrong_password:   'Wrong password.',
+    auth_err_invalid_credential: 'Wrong email or password.',
+    auth_err_too_many:         'Too many attempts. Try again in a few minutes.',
+    auth_err_network:          'Network error. Check your connection.',
+    auth_err_popup_blocked:    'Pop-up blocked. Allow pop-ups for Google sign-in.',
+    auth_err_exists_other:     'An account already exists with this email (different sign-in method).',
+    auth_err_generic:          'Sign-in error ({{code}}).',
     nav_currently:   'Currently',
 
     // ── Theme ─────────────────────────────────────────────────────
@@ -606,4 +768,4 @@ export const translations = {
 export const LANGUAGES = [
   { value: 'fr', label: 'Français', emoji: '🇫🇷' },
   { value: 'en', label: 'English',  emoji: '🇬🇧' },
-];
+];

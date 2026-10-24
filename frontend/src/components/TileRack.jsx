@@ -1,11 +1,13 @@
 // src/components/TileRack.jsx
 import React, { useState } from 'react';
 import { useTutorialRef } from '../context/TutorialContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIndex = null, onSelectTile }) => {
   const isSwapMode = onTileClick !== undefined;
   const [draggingIndex, setDraggingIndex] = useState(null);
   const rackRef = useTutorialRef('tile-rack');
+  const { t } = useLanguage();
 
   const handleDragStart = (e, tile, index) => {
     if (isSwapMode) { e.preventDefault(); return; }
@@ -51,12 +53,12 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIn
         boxShadow: '2px 2px 0 var(--rack-shadow)',
         pointerEvents: 'none',
       }}>
-        {isSwapMode ? 'Cliquer pour sélectionner' : `Rack — Joueur ${playerId + 1}`}
+        {isSwapMode ? t('rack_tap_to_select') : t('rack_label', { n: playerId + 1 })}
       </div>
 
       {tiles.length === 0 ? (
         <span style={{ color: 'var(--text-muted)', fontFamily: "'Libre Baskerville', serif", fontSize: '1rem', fontStyle: 'italic', opacity: 0.5 }}>
-          Rack vide
+          {t('rack_empty')}
         </span>
       ) : (
         tiles.map((tile, index) => {
@@ -79,6 +81,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIn
 };
 
 const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart, onDragEnd, onTileClick, onSelectTile }) => {
+  const { t } = useLanguage();
   const [isHover, setIsHover] = useState(false);
   const isJoker = tile.letter === '*';
 
@@ -99,7 +102,7 @@ const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart
       }
       onMouseEnter={() => setIsHover(true)}
       onMouseLeave={() => setIsHover(false)}
-      title={isSwapMode ? `Sélectionner ${tile.letter}` : `Glisser ou toucher ${tile.letter}`}
+      title={isSwapMode ? t('rack_select_letter', { letter: tile.letter }) : t('rack_drag_letter', { letter: tile.letter })}
       style={{
         width: '52px',
         height: '52px',
@@ -141,4 +144,4 @@ const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart
   );
 };
 
-export default TileRack;
+export default TileRack;

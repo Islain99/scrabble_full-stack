@@ -1,6 +1,7 @@
 // src/components/Board.jsx
 import React, { useState, useCallback } from 'react';
 import { useTutorialRef } from '../context/TutorialContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const BONUS_STYLES = {
   TM:      { bg: 'var(--bonus-tm)',    label: '3M', text: 'var(--bonus-tm-text)' },
@@ -34,6 +35,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
   const [dragSource, setDragSource] = useState(null);
   const boardRef       = useTutorialRef('board');
   const boardCenterRef = useTutorialRef('board-center');
+  const { t } = useLanguage();
 
   const grid = gameState?.board?.grid ?? null;
   const tempMap = {};
@@ -67,7 +69,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
 
   if (!gameState || !grid) return (
     <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.4rem', color: 'var(--olive)', padding: '3rem', textAlign: 'center' }}>
-      Chargement du plateau...
+      {t('board_loading')}
     </div>
   );
 
@@ -143,6 +145,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
 };
 
 const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
+  const { t } = useLanguage();
   const [isOver, setIsOver] = useState(false);
 
   if (isTemp) {
@@ -151,7 +154,7 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
         draggable onDragStart={(e) => onDragStart(e, r, c)}
         onClick={() => onReturnTile(r, c)}
         onMouseEnter={() => setIsOver(true)} onMouseLeave={() => setIsOver(false)}
-        title="Cliquez pour récupérer — glissez pour déplacer"
+        title={t('board_temp_tile_title')}
         style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: isOver ? 'var(--tile-temp-shadow)' : 'var(--tile-temp-bg)', border:'2px solid var(--tile-temp-border)', boxShadow:'2px 2px 0 var(--tile-temp-shadow)', cursor:'grab', borderRadius:'2px', transition:'background 0.1s, transform 0.1s', transform: isOver ? 'scale(1.05)' : 'none' }}
       >
         <span className="bt-letter" style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-temp-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1, pointerEvents:'none' }}>
@@ -198,4 +201,4 @@ const JokerMark = () => (
   </span>
 );
 
-export default Board;
+export default Board;

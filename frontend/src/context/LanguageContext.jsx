@@ -45,14 +45,15 @@ export function LanguageProvider({ children }) {
   }, [language]);
 
   /**
-   * tp(key, count)
+   * tp(key, count, vars?)
    * Cherche `key_one` si count === 1, sinon `key_other`.
+   * `vars` ajoute d'autres variables : tp('ai_move_swap', 3, { name: 'HAL' }).
    * Supporte aussi l'interpolation : tp('game_tiles', 3) → "3 tuiles"
    * si translations.fr = { game_tiles_one: "{{count}} tuile", game_tiles_other: "{{count}} tuiles" }
    */
-  const tp = useCallback((key, count) => {
+  const tp = useCallback((key, count, vars) => {
     const suffix = count === 1 ? '_one' : '_other';
-    return t(key + suffix, { count });
+    return t(key + suffix, { ...vars, count });
   }, [t]);
 
   return (
@@ -66,4 +67,4 @@ export function useLanguage() {
   const ctx = useContext(LanguageContext);
   if (!ctx) throw new Error('useLanguage doit être utilisé dans <LanguageProvider>');
   return ctx;
-}
+}

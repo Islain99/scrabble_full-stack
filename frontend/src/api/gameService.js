@@ -55,6 +55,8 @@ export const aiPlayTurn = async (gameId) => {
     return {
         gameState: response.data.game_state,
         message:   response.data.message ?? null,
+        // { kind: 'play', word, score } | { kind: 'swap', count } | { kind: 'pass' }
+        move:      response.data.move ?? null,
     };
 };
 
@@ -69,4 +71,4 @@ export const abandonGame = async (gameId, playerId) => {
     );
     // Retourne le GameState final (status FINISHED, winner_name = IA)
     return response.data.game_state;
-};
+};

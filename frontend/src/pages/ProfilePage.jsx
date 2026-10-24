@@ -490,7 +490,7 @@ export default function ProfilePage() {
             <StatCard label={t('stat_best_score')}    value={user.best_score}                                       icon="⭐" />
             <StatCard label={t('stat_avg_score')}     value={Math.round(user.average_score)}                        icon="📈" />
             <StatCard label={t('stat_best_word')}
-              value={user.best_word ? `${user.best_word} (${user.best_word_score} pts)` : '—'}                      icon="✏️" />
+              value={user.best_word ? `${user.best_word} (${user.best_word_score} ${t('common_pts')})` : '—'}                      icon="✏️" />
           </div>
         )}
 
@@ -569,4 +569,4 @@ export default function ProfilePage() {
       </div>
     </div>
   );
-}
+}

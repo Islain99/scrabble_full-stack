@@ -2,6 +2,7 @@
 import React from 'react';
 import TurnTimer from './TurnTimer';
 import { useSettings } from '../context/SettingsContext';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * GameHeader — barre sticky en haut de l'écran de jeu.
@@ -9,6 +10,7 @@ import { useSettings } from '../context/SettingsContext';
  */
 export default function GameHeader({ gameState, timerActive, timerResetRef, onTimerExpire, actions = null }) {
   const { settings } = useSettings();
+  const { t } = useLanguage();
 
   if (!gameState) return null;
 
@@ -87,7 +89,7 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
                 color: 'var(--gold)',
                 letterSpacing: '0.08em',
               }}>
-                {currentPlayer.name} réfléchit…
+                {t('mg_ai_thinking', { name: currentPlayer.name })}
               </span>
             </>
           ) : (
@@ -97,10 +99,17 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
               color: 'var(--text-muted)',
               letterSpacing: '0.06em',
             }}>
-              Tour de{' '}
-              <strong style={{ color: 'var(--tobacco)', fontWeight: 600 }}>
-                {currentPlayer.name}
-              </strong>
+              {/* « Tour de X » / « X's turn » : le nom est mis en valeur où qu'il tombe */}
+              {t('hdr_turn', { name: '\u0000' }).split('\u0000').map((part, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && (
+                    <strong style={{ color: 'var(--tobacco)', fontWeight: 600 }}>
+                      {currentPlayer.name}
+                    </strong>
+                  )}
+                  {part}
+                </React.Fragment>
+              ))}
             </span>
           )}
         </div>
@@ -123,7 +132,7 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
             }}>
-              Sac
+              {t('mg_bag')}
             </span>
             <span style={{
               fontFamily: "'Playfair Display', serif",
@@ -154,4 +163,4 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
       )}
     </header>
   );
-}
+}

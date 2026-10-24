@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * Protège une route.
@@ -16,13 +17,14 @@ import { useAuth } from '../context/AuthContext';
  */
 export default function ProtectedRoute({ children, requireCompleteProfile = false }) {
   const { isAuthenticated, loading, user } = useAuth();
+  const { t } = useLanguage();
 
   // Spinner pendant le chargement Firebase
   if (loading) {
     return (
       <div style={styles.center}>
         <div style={styles.spinner} />
-        <p style={styles.label}>Chargement...</p>
+        <p style={styles.label}>{t('common_loading')}</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -69,4 +71,4 @@ const styles = {
     textTransform: 'uppercase',
     margin: 0,
   },
-};
+};
