@@ -122,6 +122,13 @@ export const translations = {
     mp_swap_hint:       'Sélectionnez les lettres à remettre dans le sac',
     mp_create_error:    'Impossible de créer la salle.',
     mp_join_error:      'Code invalide ou salle introuvable.',
+    mp_resuming:        'Recherche de votre partie…',
+    mp_resign:          'Abandonner',
+    mp_resign_title:    'Abandonner la partie ?',
+    mp_resign_desc:     '{{name}} remportera la partie.',
+    mp_resign_confirm:  'Oui, abandonner',
+    mp_idle_claimable:  '{{name}} ne joue plus depuis {{min}} min.',
+    mp_claim_win:       'Réclamer la victoire',
 
     // Erreurs de connexion (Firebase)
     auth_err_email_in_use:     'Cette adresse email est déjà utilisée.',
@@ -493,6 +500,13 @@ export const translations = {
     mp_swap_hint:       'Select the letters to put back in the bag',
     mp_create_error:    "Couldn't create the room.",
     mp_join_error:      'Invalid code or room not found.',
+    mp_resuming:        'Looking for your game…',
+    mp_resign:          'Resign',
+    mp_resign_title:    'Resign the game?',
+    mp_resign_desc:     '{{name}} will win the game.',
+    mp_resign_confirm:  'Yes, resign',
+    mp_idle_claimable:  "{{name}} hasn't played for {{min}} min.",
+    mp_claim_win:       'Claim the win',
 
     // Sign-in errors (Firebase)
     auth_err_email_in_use:     'This email address is already in use.',
