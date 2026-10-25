@@ -309,3 +309,60 @@ def test_ai_move_is_reported_structured(engine):
     assert move["kind"] == "play"
     assert move["word"] in MOCK_DICTIONARY
     assert move["score"] == g.players[1].score
+
+
+# ── Fin de partie : décompte, gagnant, égalité ────────────────────
+
+def _end_by_passes(engine, game):
+    """Termine la partie par 6 passes successives."""
+    for _ in range(6):
+        current = game.players[game.current_player_index]
+        ok, _msg = engine.pass_turn(game.game_id, current.id)
+        assert ok
+    assert game.status == GameStatus.FINISHED
+
+
+def test_six_passes_subtract_every_rack(engine, game):
+    game.players[0].score, game.players[1].score = 30, 20
+    game.players[0].rack = _rack("KW")      # 10 + 10
+    game.players[1].rack = _rack("EA")      # 1 + 1
+    _end_by_passes(engine, game)
+    assert [p.score for p in game.players] == [10, 18]
+    assert game.winner_id == 1 and game.winner_name == "Bob"
+    assert game.is_draw is False
+
+
+def test_player_who_goes_out_gets_the_leftover(engine, game):
+    """Avant : la prime additionnait les chevalets vides, donc valait 0."""
+    game.remaining_tiles = []
+    game.players[0].score, game.players[1].score = 40, 45
+    game.players[0].rack = []
+    game.players[1].rack = _rack("KZ")      # 10 + 10
+    game.status = GameStatus.FINISHED
+    winner = engine._finalize_scores(game)
+    assert [p.score for p in game.players] == [60, 25]
+    assert winner.id == 0 and game.winner_id == 0
+
+
+def test_tie_is_a_draw(engine, game):
+    game.players[0].score = game.players[1].score = 25
+    game.players[0].rack = _rack("EA")
+    game.players[1].rack = _rack("SI")
+    _end_by_passes(engine, game)
+    assert game.is_draw is True
+    assert game.winner_id is None and game.winner_name is None
+
+
+def test_winner_is_identified_by_id_not_name(engine):
+    g = engine.start_new_game(["Alex", "Alex"])
+    g.players[0].score, g.players[1].score = 5, 30
+    g.players[0].rack = _rack("E")
+    g.players[1].rack = _rack("E")
+    _end_by_passes(engine, g)
+    assert g.winner_id == 1                 # le nom seul ne permet pas de les distinguer
+
+
+def test_abandon_records_winner_id(engine, game):
+    ok, _msg, final = engine.abandon_game(game.game_id, 0)
+    assert ok
+    assert final.winner_id == 1 and final.winner_name == "Bob" and final.is_draw is False

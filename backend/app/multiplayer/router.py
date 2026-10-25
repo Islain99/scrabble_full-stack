@@ -24,6 +24,11 @@
 #   R2 : pas d'abandon, pas de délai d'inactivité, aucun nettoyage.
 #        Fix : POST /rooms/{id}/resign, POST /rooms/{id}/claim-win (après
 #              CLAIM_AFTER sans coup du joueur au trait), app/multiplayer/cleanup.py.
+#   F1 : gagnant retrouvé par son nom → deux joueurs homonymes « gagnaient »
+#        tous les deux ; égalité = victoire de l'hôte ; fin par passes sans
+#        winner_user_id ni scores finaux.
+#        Fix : _apply_result() — gagnant par winner_id (index), égalité =
+#              winner_user_id None, scores et statut à jour quelle que soit la fin.
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -219,6 +224,31 @@ def _current_user_id_from_state(game_state_dict: dict, room: MultiplayerGame) ->
     return room.host_user_id if idx == 0 else room.guest_user_id
 
 
+def _apply_result(room: MultiplayerGame, game_state) -> dict:
+    """
+    Reporte sur la salle l'état produit par le moteur après un coup, une passe
+    ou un échange : état, scores, joueur au trait, et — si la partie est
+    finie — statut, date de fin et gagnant (par identifiant, F1).
+    """
+    gs_dict = _game_state_to_dict(game_state)
+    room.game_state      = gs_dict
+    room.host_score      = game_state.players[0].score
+    room.guest_score     = game_state.players[1].score if len(game_state.players) > 1 else None
+    room.current_user_id = _current_user_id_from_state(gs_dict, room)
+    room.updated_at      = _utcnow()
+
+    if game_state.status.value == "FINISHED":
+        room.status          = RoomStatus.FINISHED
+        room.finished_at     = room.updated_at
+        room.current_user_id = None
+        if game_state.is_draw or game_state.winner_id is None:
+            room.winner_user_id = None                  # égalité
+        else:
+            winner_idx = next(i for i, p in enumerate(game_state.players) if p.id == game_state.winner_id)
+            room.winner_user_id = room.host_user_id if winner_idx == 0 else room.guest_user_id
+    return gs_dict
+
+
 def _finish_by_forfeit(room: MultiplayerGame, winner_user_id: int, now: Optional[datetime] = None) -> dict:
     """
     Termine une partie en cours au profit de winner_user_id (abandon, joueur
@@ -228,6 +258,8 @@ def _finish_by_forfeit(room: MultiplayerGame, winner_user_id: int, now: Optional
     winner_idx = 0 if winner_user_id == room.host_user_id else 1
     gs_dict["status"] = "FINISHED"
     gs_dict["winner_name"] = gs_dict["players"][winner_idx]["name"]
+    gs_dict["winner_id"] = gs_dict["players"][winner_idx]["id"]
+    gs_dict["is_draw"] = False
 
     now = now or _utcnow()
     room.game_state      = gs_dict
@@ -443,24 +475,7 @@ async def play_move(
     if not success:
         raise HTTPException(status_code=422, detail=message)
 
-    gs_dict = _game_state_to_dict(gs_updated)
-
-    room.game_state      = gs_dict
-    room.host_score      = gs_updated.players[0].score
-    room.guest_score     = gs_updated.players[1].score if len(gs_updated.players) > 1 else None
-    room.current_user_id = _current_user_id_from_state(gs_dict, room)
-    room.updated_at      = _utcnow()
-
-    if gs_updated.status.value == "FINISHED":
-        room.status      = RoomStatus.FINISHED
-        room.finished_at = datetime.now(timezone.utc)
-        winner_idx = next(
-            (i for i, p in enumerate(gs_updated.players) if p.name == gs_updated.winner_name),
-            None,
-        )
-        if winner_idx is not None:
-            room.winner_user_id = room.host_user_id if winner_idx == 0 else room.guest_user_id
-
+    gs_dict = _apply_result(room, gs_updated)  # F1
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
@@ -499,16 +514,7 @@ async def pass_turn(
     if not success:
         raise HTTPException(status_code=422, detail=message)
 
-    gs_dict = _game_state_to_dict(gs_updated)
-
-    room.game_state      = gs_dict
-    room.current_user_id = _current_user_id_from_state(gs_dict, room)
-    room.updated_at      = _utcnow()
-
-    if gs_updated.status.value == "FINISHED":
-        room.status      = RoomStatus.FINISHED
-        room.finished_at = datetime.now(timezone.utc)
-
+    gs_dict = _apply_result(room, gs_updated)  # F1
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
@@ -548,11 +554,7 @@ async def swap_tiles(
     if not success:
         raise HTTPException(status_code=422, detail=message)
 
-    gs_dict = _game_state_to_dict(gs_updated)
-
-    room.game_state      = gs_dict
-    room.current_user_id = _current_user_id_from_state(gs_dict, room)
-    room.updated_at      = _utcnow()
+    gs_dict = _apply_result(room, gs_updated)  # F1
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 

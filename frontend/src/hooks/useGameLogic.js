@@ -8,6 +8,7 @@ import * as gameService from '../api/gameService';
 import { saveGame } from '../api/authService';
 import { calculatePreviewScore } from '../utils/scoring';
 import { useLanguage } from '../context/LanguageContext';
+import { isWinner } from '../utils/gameResult';
 
 // ── Hook principal ────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ export function useGameLogic({
       ai_name:          String(aiPlayer.name)      || 'HAL 9000',
       ai_score:         Number(aiPlayer.score)     || 0,
       ai_difficulty:    gameDifficulty,
-      won:              gameState.winner_name === humanPlayer.name,
+      won:              isWinner(gameState, humanPlayer),
       duration_seconds: duration !== null ? Number(duration) : null,
       turns_count:      Number(gameState.passes_count) || 0,
       best_word:        null,

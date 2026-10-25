@@ -691,6 +691,8 @@ class GameEngine:
         # Finaliser la partie
         current_game.status = GameStatus.FINISHED
         current_game.winner_name = winner.name
+        current_game.winner_id = winner.id
+        current_game.is_draw = False
 
         # Snapshot avant suppression (pour la réponse HTTP)
         final_state = current_game.model_copy(deep=True)
@@ -704,26 +706,44 @@ class GameEngine:
     # ------------------------------------------------------------------
     # Fin de partie
     # ------------------------------------------------------------------
-    def _finalize_scores(self, current_game: GameState) -> Player:
+    def _finalize_scores(self, current_game: GameState) -> Optional[Player]:
+        """
+        Décompte final (règle officielle) :
+          - chaque joueur retire de son score la valeur des lettres restées
+            sur son chevalet ;
+          - le joueur qui a vidé son chevalet (sac vide) ajoute à son score
+            la somme des lettres restées chez les autres.
+        Le gagnant est désigné par son identifiant. Égalité de score en tête :
+        match nul (is_draw), sans gagnant. Retourne le gagnant ou None.
+        """
         if current_game.status != GameStatus.FINISHED:
             raise Exception("Jeu non terminé.")
 
-        winner = current_game.players[0]
-        bonus_points = 0
-
+        went_out = next(
+            (p for p in current_game.players if not p.rack and not current_game.remaining_tiles),
+            None,
+        )
+        leftover = 0
         for player in current_game.players:
             rack_points = sum(tile.score for tile in player.rack)
-            if not player.rack and not current_game.remaining_tiles:
-                bonus_points += rack_points
             player.score -= rack_points
+            leftover += rack_points
+        if went_out is not None:
+            # Avant : la prime additionnait les chevalets vides, donc valait toujours 0
+            went_out.score += leftover
 
-        for player in current_game.players:
-            if not player.rack and not current_game.remaining_tiles:
-                player.score += bonus_points
-            if player.score > winner.score:
-                winner = player
+        best = max(p.score for p in current_game.players)
+        leaders = [p for p in current_game.players if p.score == best]
+        if len(leaders) > 1:
+            current_game.is_draw = True
+            current_game.winner_name = None
+            current_game.winner_id = None
+            return None
 
+        winner = leaders[0]
+        current_game.is_draw = False
         current_game.winner_name = winner.name
+        current_game.winner_id = winner.id
         return winner
 
     def _check_game_over(self, current_game: GameState) -> Optional[Player]:

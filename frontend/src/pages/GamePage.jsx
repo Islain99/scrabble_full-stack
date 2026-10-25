@@ -21,6 +21,7 @@ import { useIsMobile }       from '../hooks/useViewport';
 import {
   MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, MoreMenu, StatusLine,
 } from '../components/mobile/MobileGame';
+import { outcomeFor } from '../utils/gameResult';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -241,19 +242,21 @@ export default function GamePage() {
   // ── Écran de fin ──────────────────────────────────────────────
   if (game.gameState.status === 'FINISHED') {
     const humanPlayer = game.gameState.players.find(p => !p.is_ai);
-    const won         = game.gameState.winner_name === humanPlayer?.name;
+    const outcome     = outcomeFor(game.gameState, humanPlayer);
+    const won         = outcome === 'win';
+    const draw        = outcome === 'draw';
 
     return (
       <div className="screen-center" style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',}}>
         <div className="screen-card" style={{ background:   'var(--bg-card)', border: '3px solid var(--border-primary)', borderRadius: '3px', padding:      '3rem', maxWidth:     '480px', width:        '100%', boxShadow:    '8px 8px 0 var(--shadow-card)', textAlign:    'center',}}>
           <div style={{ fontSize: '3rem', marginBottom: '12px' }}>
-            {won ? '🏆' : '🎩'}
+            {won ? '🏆' : draw ? '🤝' : '🎩'}
           </div>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 900, color: won ? 'var(--olive)' : 'var(--brick)', margin: '0 0 6px', }}>
-            {won ? t('game_win_title') : t('game_lose_title')}
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 900, color: won ? 'var(--olive)' : draw ? 'var(--gold)' : 'var(--brick)', margin: '0 0 6px', }}>
+            {won ? t('game_win_title') : draw ? t('game_draw_title') : t('game_lose_title')}
           </h2>
           <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2rem',}}>
-            {game.gameState.winner_name} {t('game_wins_sentence')}
+            {draw ? t('game_draw_sentence') : `${game.gameState.winner_name} ${t('game_wins_sentence')}`}
           </p>
 
           <ScorePanel

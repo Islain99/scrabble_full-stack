@@ -381,3 +381,67 @@ async def test_cleanup(client, login, players, rtdb, sqlite_db):
     counts = await cleanup_rooms(now=later + mp_router.timedelta(days=31))
     assert counts["finished_deleted"] == 1
     assert (await client.get(f"{API}/rooms/{room_id}")).status_code == 404
+
+
+# ── F1 : gagnant par identifiant, égalité, fin par passes ────────
+
+async def _set_scores(sessions, room_id, host_score, guest_score, racks=("E", "E")):
+    from sqlalchemy import select
+    from api.models import POINTS_LETTRES
+    async with sessions() as session:
+        async with session.begin():
+            room = (await session.execute(
+                select(MultiplayerGame).where(MultiplayerGame.room_id == room_id)
+            )).scalar_one()
+            state = dict(room.game_state)
+            state["players"] = [dict(p) for p in state["players"]]
+            for p, score, letters in zip(state["players"], (host_score, guest_score), racks):
+                p["score"] = score
+                p["rack"] = [{"letter": l, "score": POINTS_LETTRES.get(l, 0)} for l in letters]
+            room.game_state = state
+
+
+async def test_homonyms_get_the_right_result(client, login, sqlite_db, rtdb):
+    async with sqlite_db() as session:
+        async with session.begin():
+            host  = User(firebase_uid="uid-a1", email="a1@test.dev", display_name="Alex")
+            guest = User(firebase_uid="uid-a2", email="a2@test.dev", display_name="Alex")
+            session.add_all([host, guest])
+    room_id, _ = await _start_game(client, login, {"alice": host, "bruno": guest})
+    await _set_scores(sqlite_db, room_id, 5, 30)
+
+    r = None
+    for i in range(6):
+        login((host, guest)[i % 2])
+        r = await client.post(f"{API}/rooms/{room_id}/pass")
+        assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "FINISHED"
+    assert body["winner_user_id"] == guest.id            # avant : l'hôte (premier « Alex »)
+    assert body["game_state"]["winner_id"] == 1
+    assert (body["host_score"], body["guest_score"]) == (4, 29)   # chevalets déduits
+    assert body["current_user_id"] is None
+
+
+async def test_tie_has_no_winner(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    await _set_scores(sqlite_db, room_id, 20, 20)
+    r = None
+    for i in range(6):
+        login((players["alice"], players["bruno"])[i % 2])
+        r = await client.post(f"{API}/rooms/{room_id}/pass")
+    body = r.json()
+    assert body["status"] == "FINISHED"
+    assert body["winner_user_id"] is None                 # avant : victoire de l'hôte
+    assert body["game_state"]["is_draw"] is True
+    assert body["game_state"]["winner_name"] is None
+    _, last = rtdb["set"][-1]
+    assert last["for_guest"]["is_draw"] is True
+
+
+async def test_forfeit_sets_winner_id(client, login, players, rtdb):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms/{room_id}/resign")
+    gs = r.json()["game_state"]
+    assert gs["winner_id"] == 1 and gs["is_draw"] is False
