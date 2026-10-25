@@ -545,15 +545,20 @@ export default function ProfilePage() {
                       }}
                     >
                       <MonoLabel size="xs">{dateStr}</MonoLabel>
-                      <MonoLabel size="xs">{g.ai_name}</MonoLabel>
+                      <MonoLabel size="xs">
+                        {/* Partie multijoueur : l'adversaire est un joueur, pas l'IA */}
+                        {g.ai_difficulty === 'multiplayer' ? `👥 ${g.ai_name}` : g.ai_name}
+                      </MonoLabel>
                       <MonoLabel size="xs">
                         {g.user_score} — {g.ai_score}
                       </MonoLabel>
                       <MonoLabel
                         size="xs"
-                        color={g.won ? 'var(--olive)' : 'var(--brick)'}
+                        color={g.won ? 'var(--olive)' : g.user_score === g.ai_score ? 'var(--gold)' : 'var(--brick)'}
                       >
-                        {g.won ? t('profile_victory') : t('profile_defeat')}
+                        {g.won
+                          ? t('profile_victory')
+                          : g.user_score === g.ai_score ? t('game_draw_title') : t('profile_defeat')}
                       </MonoLabel>
                       <MonoLabel size="xs">
                         {g.best_word

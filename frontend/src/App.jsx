@@ -61,13 +61,15 @@ function PageLoader() {
 
 function Router() {
   const hash = useHashRoute();
+  // Paramètres après « ? » ignorés pour le choix de la page (ex. #/multiplayer?code=ABC234)
+  const route = hash.split('?')[0];
 
   const renderPage = () => {
-    if (hash === '#/login')       return <LoginPage />;
-    if (hash === '#/register')    return <RegisterPage />;
-    if (hash === '#/settings')    return <SettingsPage />;
-    if (hash === '#/leaderboard') return <LeaderboardPage />;
-    if (hash === '#/multiplayer') return (
+    if (route === '#/login')       return <LoginPage />;
+    if (route === '#/register')    return <RegisterPage />;
+    if (route === '#/settings')    return <SettingsPage />;
+    if (route === '#/leaderboard') return <LeaderboardPage />;
+    if (route === '#/multiplayer') return (
       <ProtectedRoute>
         <MultiplayerPage />
       </ProtectedRoute>
@@ -75,7 +77,7 @@ function Router() {
 
     return (
       <ProtectedRoute>
-        {hash === '#/profile' ? <ProfilePage /> : <GamePage />}
+        {route === '#/profile' ? <ProfilePage /> : <GamePage />}
       </ProtectedRoute>
     );
   };

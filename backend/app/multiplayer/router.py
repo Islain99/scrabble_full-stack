@@ -29,6 +29,11 @@
 #        winner_user_id ni scores finaux.
 #        Fix : _apply_result() — gagnant par winner_id (index), égalité =
 #              winner_user_id None, scores et statut à jour quelle que soit la fin.
+#   C1 : le code de salle était l'UUID complet (36 caractères à recopier).
+#        Fix : code court de 6 caractères sans ambiguïté (pas de 0/O, 1/I/L),
+#              saisi sans tenir compte de la casse ni des espaces.
+#   C2 : les parties multijoueur n'entraient ni dans l'historique ni dans les
+#        statistiques. Fix : _record_stats() à chaque fin de partie, côté serveur.
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -37,7 +42,8 @@
 import asyncio
 import copy
 import logging
-import uuid
+import re
+import secrets
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -49,7 +55,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.game_logic import GameEngine
 from app.auth.dependencies import get_current_user
 from app.db.database import get_db
-from app.db.models import User
+from app.db.models import GameHistory, User
 from app.multiplayer.models import (
     CreateRoomResponse,
     MultiplayerGame,
@@ -65,6 +71,14 @@ router = APIRouter(prefix="/multiplayer", tags=["Multijoueur"])
 
 # L'adversaire peut réclamer la victoire après ce délai sans coup du joueur au trait
 CLAIM_AFTER = timedelta(minutes=10)
+
+
+# Code de salle (C1) : 6 caractères, alphabet sans caractères ambigus
+ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+ROOM_CODE_LENGTH   = 6
+
+# Marqueur des parties multijoueur dans game_histories (colonne ai_difficulty)
+HISTORY_MODE = "multiplayer"
 
 
 def _utcnow() -> datetime:
@@ -224,6 +238,69 @@ def _current_user_id_from_state(game_state_dict: dict, room: MultiplayerGame) ->
     return room.host_user_id if idx == 0 else room.guest_user_id
 
 
+async def _new_room_code(db: AsyncSession) -> str:
+    """Code court libre (31⁶ ≈ 887 millions de combinaisons)."""
+    for _ in range(10):
+        code = "".join(secrets.choice(ROOM_CODE_ALPHABET) for _ in range(ROOM_CODE_LENGTH))
+        taken = await db.execute(select(MultiplayerGame.id).where(MultiplayerGame.room_id == code))
+        if taken.first() is None:
+            return code
+    raise HTTPException(status_code=503, detail="Impossible de générer un code de salle, réessayez.")
+
+
+def _normalize_room_id(raw: str) -> str:
+    """
+    « abc 123 », « ABC-123 » → « ABC123 ». Les anciens identifiants (UUID)
+    sont laissés tels quels.
+    """
+    compact = re.sub(r"[\s\-]", "", raw or "").upper()
+    if len(compact) == ROOM_CODE_LENGTH and all(ch in ROOM_CODE_ALPHABET for ch in compact):
+        return compact
+    return (raw or "").strip()
+
+
+async def _record_stats(db: AsyncSession, room: MultiplayerGame) -> None:
+    """
+    C2 : enregistre la partie terminée dans l'historique des deux joueurs et
+    met à jour leurs statistiques (classement, profil). Fait par le serveur,
+    une seule fois par joueur (game_id d'historique unique).
+    """
+    if room.status != RoomStatus.FINISHED or not room.game_state:
+        return
+    players = room.game_state.get("players") or []
+    sides = ((room.host_user_id, "host"), (room.guest_user_id, "guest"))
+    users = {
+        u.id: u for u in (await db.execute(
+            select(User).where(User.id.in_([uid for uid, _ in sides if uid is not None]))
+        )).scalars()
+    }
+    for idx, (user_id, side) in enumerate(sides):
+        user = users.get(user_id)
+        if user is None or len(players) < 2:
+            continue
+        history_id = f"mp:{room.room_id}:{side}"
+        already = await db.execute(select(GameHistory.id).where(GameHistory.game_id == history_id))
+        if already.first() is not None:
+            continue
+        me, opponent = players[idx], players[1 - idx]
+        won = room.winner_user_id == user_id
+        duration = None
+        if room.created_at and room.finished_at:
+            duration = int((_as_utc(room.finished_at) - _as_utc(room.created_at)).total_seconds())
+        db.add(GameHistory(
+            game_id=history_id,
+            user_id=user_id,
+            user_score=int(me.get("score", 0)),
+            ai_name=str(opponent.get("name", ""))[:64],
+            ai_score=int(opponent.get("score", 0)),
+            ai_difficulty=HISTORY_MODE,
+            won=won,
+            duration_seconds=max(duration, 0) if duration is not None else None,
+            turns_count=0,
+        ))
+        user.update_stats_after_game(score=int(me.get("score", 0)), won=won)
+
+
 def _apply_result(room: MultiplayerGame, game_state) -> dict:
     """
     Reporte sur la salle l'état produit par le moteur après un coup, une passe
@@ -324,7 +401,7 @@ async def create_room(
             host_name=current_user.display_name,
         )
 
-    room_id = str(uuid.uuid4())
+    room_id = await _new_room_code(db)  # C1
     room = MultiplayerGame(
         room_id=room_id,
         host_user_id=current_user.id,
@@ -354,6 +431,7 @@ async def join_room(
     db: AsyncSession = Depends(get_db),
 ):
     engine = _get_engine(request)
+    room_id = _normalize_room_id(room_id)  # C1
     room = await _get_room_or_404(room_id, db, for_update=True)  # B6
 
     if room.status != RoomStatus.WAITING:
@@ -476,6 +554,7 @@ async def play_move(
         raise HTTPException(status_code=422, detail=message)
 
     gs_dict = _apply_result(room, gs_updated)  # F1
+    await _record_stats(db, room)              # C2 (si la partie est finie)
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
@@ -515,6 +594,7 @@ async def pass_turn(
         raise HTTPException(status_code=422, detail=message)
 
     gs_dict = _apply_result(room, gs_updated)  # F1
+    await _record_stats(db, room)              # C2 (si la partie est finie)
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
@@ -555,6 +635,7 @@ async def swap_tiles(
         raise HTTPException(status_code=422, detail=message)
 
     gs_dict = _apply_result(room, gs_updated)  # F1
+    await _record_stats(db, room)              # C2 (si la partie est finie)
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
@@ -581,6 +662,7 @@ async def resign(
 
     winner = room.guest_user_id if current_user.id == room.host_user_id else room.host_user_id
     gs_dict = _finish_by_forfeit(room, winner)
+    await _record_stats(db, room)  # C2
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)
     logger.info("Salle %s : abandon de user %d", room_id, current_user.id)
@@ -614,6 +696,7 @@ async def claim_win(
         )
 
     gs_dict = _finish_by_forfeit(room, current_user.id)
+    await _record_stats(db, room)  # C2
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)
     logger.info("Salle %s : victoire réclamée par user %d (adversaire inactif)", room_id, current_user.id)

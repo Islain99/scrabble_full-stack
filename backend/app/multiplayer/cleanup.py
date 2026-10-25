@@ -70,6 +70,7 @@ async def cleanup_rooms(now: Optional[datetime] = None) -> dict:
                 loser = room.current_user_id
                 winner = room.guest_user_id if loser == room.host_user_id else room.host_user_id
                 gs_dict = mp._finish_by_forfeit(room, winner, now)
+                await mp._record_stats(session, room)
                 rtdb_to_sync.append((room.room_id, await mp._player_uids(session, room), gs_dict))
             counts["active_forfeited"] = len(stale_active)
 

@@ -20,6 +20,8 @@ import { outcomeFor, isWinner } from '../utils/gameResult';
 import * as mpService  from '../api/multiplayerService';
 
 import Board      from '../components/Board';
+import TileRack   from '../components/TileRack';
+import DesktopGameLayout, { Legend } from '../components/DesktopGameLayout';
 import ScorePanel from '../components/ScorePanel';
 import { Toast }  from '../components/Toast';
 import JokerPicker from '../components/JokerPicker';
@@ -29,11 +31,32 @@ import {
 } from '../components/mobile/MobileGame';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
+// ── Code et lien d'invitation ─────────────────────────────────────
+
+/** « ABC234 » → « ABC 234 » (lisible à voix haute). Les anciens UUID restent tels quels. */
+function formatCode(code) {
+  return code && code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
+}
+
+/** Lien qui ouvre directement la salle : …/#/multiplayer?code=ABC234 */
+function inviteLink(code) {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/multiplayer?code=${encodeURIComponent(code)}`;
+}
+
+/** Code reçu par un lien d'invitation, ou null. */
+function inviteCodeFromHash(hash) {
+  const query = (hash || '').split('?')[1];
+  if (!query) return null;
+  const code = new URLSearchParams(query).get('code');
+  return code ? code.trim() : null;
+}
+
 // ── Sous-composants ───────────────────────────────────────────────
 
-function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
+function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading, initialCode = null }) {
   const { t } = useLanguage();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode ?? '');
   const [joining, setJoining] = useState(false);
 
   const handleJoin = async () => {
@@ -81,13 +104,16 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
           </div>
           <input
             value={code}
-            onChange={e => setCode(e.target.value)}
+            onChange={e => setCode(e.target.value.toUpperCase())}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
             onKeyDown={e => e.key === 'Enter' && handleJoin()}
             placeholder={t('mp_join_ph')}
             style={{
               width: '100%', boxSizing: 'border-box',
               padding: '0.5rem 0.75rem',
-              fontFamily: "'DM Mono', monospace", fontSize: '0.85rem',
+              fontFamily: "'DM Mono', monospace", fontSize: '1rem', letterSpacing: '0.15em', textAlign: 'center',
               background: 'var(--bg-page)', border: '2px solid var(--border-primary)',
               borderRadius: '4px', color: 'var(--text-primary)', outline: 'none',
             }}
@@ -103,17 +129,22 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading }) {
 
 function WaitingScreen({ roomId, onCancel }) {
   const { t } = useLanguage();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(null);   // 'code' | 'link' | null
+  const link = inviteLink(roomId);
+  const canShare = typeof navigator !== 'undefined' && !!navigator.share;
 
-  const copyCode = () => {
-    navigator.clipboard.writeText(roomId).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+  const copy = (what, text) => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(what);
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {});
+  };
+  const share = () => {
+    navigator.share({ title: 'Scrabble', text: t('mp_share_text', { code: formatCode(roomId) }), url: link }).catch(() => {});
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '4rem 1rem', textAlign: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '3rem 1rem', textAlign: 'center' }}>
       <Spinner size="lg" />
       <div>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
@@ -122,62 +153,25 @@ function WaitingScreen({ roomId, onCancel }) {
         <MonoLabel size="sm" color="var(--text-muted)">{t('mp_waiting_desc')}</MonoLabel>
       </div>
 
-      <Card style={{ padding: '1.5rem 2.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+      <Card style={{ padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', width: '100%', maxWidth: '380px', boxSizing: 'border-box' }}>
         <MonoLabel size="xs" color="var(--text-muted)">{t('mp_code_label')}</MonoLabel>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '1rem', color: 'var(--gold)', letterSpacing: '0.1em', wordBreak: 'break-all', maxWidth: '340px' }}>
-          {roomId}
+        <div data-testid="room-code" style={{ fontFamily: "'DM Mono', monospace", fontSize: roomId.length === 6 ? '2.4rem' : '1rem', fontWeight: 500, color: 'var(--gold)', letterSpacing: roomId.length === 6 ? '0.2em' : '0.1em', wordBreak: 'break-all', lineHeight: 1.1 }}>
+          {formatCode(roomId)}
         </div>
-        <RetroButton variant="default" onClick={copyCode} style={{ marginTop: '0.25rem' }}>
-          {copied ? `✓ ${t('mp_copied')}` : t('mp_copy')}
-        </RetroButton>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <RetroButton variant="default" onClick={() => copy('code', roomId)}>
+            {copied === 'code' ? `✓ ${t('mp_copied')}` : t('mp_copy')}
+          </RetroButton>
+          <RetroButton variant="default" onClick={() => copy('link', link)}>
+            {copied === 'link' ? `✓ ${t('mp_copied')}` : t('mp_copy_link')}
+          </RetroButton>
+          {canShare && (
+            <RetroButton variant="primary" onClick={share}>{t('mp_share')}</RetroButton>
+          )}
+        </div>
       </Card>
 
       <RetroButton variant="danger" onClick={onCancel}>{t('btn_cancel')}</RetroButton>
-    </div>
-  );
-}
-
-// ── SimpleRack ────────────────────────────────────────────────────
-//
-// FIX B4 : selectedForSwap est maintenant un tableau d'indices (number[]).
-//   inSwap utilise selectedForSwap.includes(i) au lieu de selectedForSwap.includes(tile.letter).
-//   onTileClick reçoit (tile, i) — l'appelant décide quoi faire de l'index.
-//
-function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap = [], isSwapMode }) {
-  const placed = placements.map(p => p.originalTile);
-  return (
-    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
-      {tiles.map((tile, i) => {
-        const isPlaced = placed.includes(tile);
-        // B4 : comparaison sur l'index, pas sur tile.letter
-        const inSwap   = isSwapMode && selectedForSwap.includes(i);
-        return (
-          <button
-            key={i}
-            onClick={() => !isPlaced && onTileClick(tile, i)}
-            disabled={isPlaced}
-            style={{
-              width: '44px', height: '44px', border: 'none', borderRadius: '4px',
-              cursor: isPlaced ? 'default' : 'pointer',
-              background: isPlaced ? 'var(--bg-page-alt)' : inSwap ? 'var(--tobacco)' : 'var(--gold)',
-              opacity: isPlaced ? 0.35 : 1,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexDirection: 'column', gap: '1px',
-              boxShadow: isPlaced ? 'none' : '2px 2px 0 rgba(0,0,0,0.3)',
-              transition: 'opacity 0.15s',
-            }}
-          >
-            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: '#3a1a00', lineHeight: 1 }}>
-              {tile.letter === '*' ? '★' : tile.letter}
-            </span>
-            {tile.score > 0 && (
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.5rem', color: '#5a2d00' }}>
-                {tile.score}
-              </span>
-            )}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -439,136 +433,160 @@ function PlayingScreen({ mp }) {
     );
   }
 
+  // ── Ordinateur et tablette : même disposition plein écran que le solo ─
+  const placed     = placements.length;
+  const myRack     = gameState.players[mp.myPlayerIndex]?.rack ?? [];
+  const rackTiles  = showSwapPanel ? myRack : availableRackTiles;
+  const selIndex   = selectedRackTile ? availableRackTiles.indexOf(selectedRackTile.tile) : -1;
+  const busy       = isLoading || !isMyTurn;
+  const hint = !isMyTurn
+    ? t('mg_waiting', { name: currentPlayer.name })
+    : showSwapPanel
+      ? tp('game_swap_count', selectedTilesToSwap.length)
+      : t('game_drag_hint');
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', maxWidth: '900px', margin: '0 auto' }}>
-
-      {/* Bandeau tour */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0.6rem 1rem',
-        background: isMyTurn ? 'var(--olive)' : 'var(--bg-card)',
-        border: `2px solid ${isMyTurn ? 'var(--olive)' : 'var(--border-muted)'}`,
-        borderRadius: '6px', transition: 'background 0.3s, border-color 0.3s',
-      }}>
-        <MonoLabel size="sm" color={isMyTurn ? '#fff' : 'var(--text-muted)'}>
-          {isMyTurn ? `🟢 ${t('mp_your_turn')}` : `⏳ ${t('mg_waiting', { name: currentPlayer.name })}`}
-        </MonoLabel>
-        {previewScore > 0 && isMyTurn && (
-          <MonoLabel size="sm" color="#fff">+{previewScore} {t('common_pts')}</MonoLabel>
-        )}
-      </div>
-
-      {claimBanner(false)}
+    <DesktopGameLayout>
+      <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
       {resignModal}
 
-      <ScorePanel
-        players={gameState.players}
-        currentPlayerId={currentPlayer.id}
-        remainingTiles={(gameState.remaining_tiles ?? []).length}
-      />
-
-      <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
-
-      <Board
-        gameState={gameState}
-        placements={placements}
-        onDropTile={handleDropTile}
-        onMoveTile={handleMoveTile}
-        onReturnTile={handleReturnTile}
-        onCellPress={handleCellPress}
-        canPress={!!selectedRackTile && isMyTurn}
-      />
-
-      {/* Chevalet */}
-      <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-        <MonoLabel size="xs" color="var(--text-muted)">{t('mp_your_rack')}</MonoLabel>
-        <SimpleRack
-          tiles={gameState.players[mp.myPlayerIndex]?.rack ?? []}
-          placements={placements}
-          onTileClick={(tile, idx) => setSelectedRackTile(prev => prev?.index === idx ? null : { tile, index: idx })}
-          selectedForSwap={selectedTilesToSwap}
-          isSwapMode={showSwapPanel}
-        />
-        {selectedRackTile && (
-          <MonoLabel size="xs" color="var(--gold)">
-            {t('mp_selected_letter', { letter: selectedRackTile.tile.letter === '*' ? '★' : selectedRackTile.tile.letter })}
-          </MonoLabel>
-        )}
-      </Card>
-
-      {/* Actions */}
-      {isMyTurn && !showSwapPanel && (
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <RetroButton
-            variant="primary"
-            onClick={handleValidate}
-            disabled={placements.length === 0 || isLoading}
-            style={{ flex: 1 }}
-          >
-            {isLoading ? <Spinner size="sm" /> : `${t('btn_validate')} (${placements.length})`}
-          </RetroButton>
-          <RetroButton variant="default" onClick={() => setConfirmPass(true)} disabled={placements.length > 0 || isLoading}>
-            {t('btn_pass')}
-          </RetroButton>
-          <RetroButton
-            variant="tobacco"
-            onClick={() => { setShowSwapPanel(true); setSelectedRackTile(null); }}
-            disabled={isLoading || placements.length > 0}
-          >
-            ⇄
-          </RetroButton>
+      <header className="game-header mp-header" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+        padding: '0 24px', height: '58px',
+        borderBottom: '3px solid var(--border-primary)', background: 'var(--bg-card)',
+      }}>
+        <span style={{
+          fontFamily: "'DM Mono', monospace", fontSize: '0.78rem', letterSpacing: '0.08em',
+          color: isMyTurn ? 'var(--olive)' : 'var(--text-muted)', fontWeight: isMyTurn ? 600 : 400,
+        }}>
+          {isMyTurn ? `● ${t('mp_your_turn')}` : `⏳ ${t('mg_waiting', { name: currentPlayer.name })}`}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-invert)', borderRadius: '2px', padding: '4px 12px', border: '1.5px solid var(--border-gold)' }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            {t('mg_bag')}
+          </span>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>
+            {(gameState.remaining_tiles ?? []).length}
+          </span>
         </div>
-      )}
+      </header>
 
-      {/* Panneau échange */}
-      {showSwapPanel && isMyTurn && (
-        <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-          <MonoLabel size="sm" color="var(--text-primary)">{t('mp_swap_hint')}</MonoLabel>
-          {/* B4 : onTileClick passe l'index à toggleTileForSwap */}
-          <SimpleRack
-            tiles={gameState.players[mp.myPlayerIndex]?.rack ?? []}
-            placements={[]}
-            onTileClick={(tile, idx) => toggleTileForSwap(idx)}
-            selectedForSwap={selectedTilesToSwap}
-            isSwapMode
-          />
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+      <div className="dg-main">
+        <div className="dg-play">
+          <div className="dg-board">
+            <Board
+              fit
+              gameState={gameState}
+              placements={placements}
+              onDropTile={handleDropTile}
+              onMoveTile={handleMoveTile}
+              onReturnTile={handleReturnTile}
+              onCellPress={handleCellPress}
+              canPress={!!selectedRackTile && isMyTurn && !showSwapPanel}
+            />
+          </div>
+          <div className="dg-below">
+            <div className="dg-rack">
+              <TileRack
+                tiles={rackTiles}
+                playerId={mp.myPlayerIndex}
+                selectByIndex
+                onTileClick={showSwapPanel ? toggleTileForSwap : undefined}
+                selectedTiles={selectedTilesToSwap}
+                selectedIndex={selIndex >= 0 ? selIndex : null}
+                onSelectTile={isMyTurn ? (i => setSelectedRackTile(prev => (
+                  prev?.tile === availableRackTiles[i] ? null : { tile: availableRackTiles[i], index: i }
+                ))) : undefined}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="dg-info">
+          <div className="dg-hint">{hint}</div>
+          <div className="dg-legend"><Legend t={t} /></div>
+        </div>
+
+        <aside className="game-sidebar dg-side">
+          {claimBanner(true)}
+
+          <div className="dg-scores">
+            <ScorePanel
+              compact
+              players={gameState.players}
+              currentPlayerId={currentPlayer.id}
+              remainingTiles={(gameState.remaining_tiles ?? []).length}
+            />
+          </div>
+
+          <div className="dg-preview">
+            {isMyTurn && placed > 0 && (
+              <div className="dg-preview-card">
+                <div className="dg-preview-text">
+                  <span className="dg-preview-label">{t('game_score_preview')}</span>
+                  <span className="dg-preview-count">{tp('game_tile', placed)}</span>
+                </div>
+                <span className="dg-preview-score">+{previewScore}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="dg-actions">
             <RetroButton
               variant="primary"
-              onClick={() => { handleSwapTiles(); setShowSwapPanel(false); }}
-              disabled={selectedTilesToSwap.length === 0 || isLoading}
+              fullWidth
+              style={{ gridColumn: '1 / -1' }}
+              disabled={placed === 0 || busy || showSwapPanel}
+              onClick={handleValidate}
             >
-              {t('btn_exchange')} ({selectedTilesToSwap.length})
+              {isLoading ? '…' : `✓ ${t('btn_validate')} (${placed})`}
             </RetroButton>
-            <RetroButton variant="default" onClick={() => setShowSwapPanel(false)}>{t('btn_cancel')}</RetroButton>
-          </div>
-        </Card>
-      )}
 
-      {/* Abandon : possible à tout moment */}
-      {!showSwapPanel && !confirmPass && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <RetroButton variant="danger" onClick={() => setConfirmResign(true)} disabled={isLoading}>
-            ✕ {t('mp_resign')}
-          </RetroButton>
-        </div>
-      )}
-
-      {/* Confirmation passage */}
-      {confirmPass && (
-        <Card style={{ padding: '1.25rem', textAlign: 'center', border: '2px solid var(--border-primary)' }}>
-          <div style={{ marginBottom: '1rem', fontFamily: "'Playfair Display', serif", color: 'var(--text-primary)' }}>
-            {t('mg_pass_question')}
-          </div>
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-            <RetroButton variant="default" onClick={() => setConfirmPass(false)}>{t('btn_cancel')}</RetroButton>
-            <RetroButton variant="danger" onClick={() => { setConfirmPass(false); handlePassTurn(); }}>
-              {t('mg_pass_confirm')}
+            <RetroButton variant="default" fullWidth disabled={placed > 0 || busy || showSwapPanel} onClick={handlePassTurn}>
+              → {t('btn_pass')}
             </RetroButton>
+
+            <RetroButton variant="default" fullWidth disabled={placed === 0 || isLoading} onClick={handleClearPlacements}>
+              ↺ {t('mg_recall')}
+            </RetroButton>
+
+            <div className={showSwapPanel ? 'dg-swap dg-swap--open' : 'dg-swap'}>
+              {showSwapPanel ? (
+                <>
+                  <div className="dg-swap-hint">{t('game_swap_hint')}</div>
+                  <RetroButton
+                    variant="danger"
+                    fullWidth
+                    disabled={selectedTilesToSwap.length === 0 || busy}
+                    onClick={() => { handleSwapTiles(); setShowSwapPanel(false); }}
+                  >
+                    {t('btn_exchange')} ({selectedTilesToSwap.length})
+                  </RetroButton>
+                  <RetroButton variant="default" fullWidth onClick={() => setShowSwapPanel(false)}>
+                    {t('game_swap_cancel')}
+                  </RetroButton>
+                </>
+              ) : (
+                <RetroButton
+                  variant="tobacco"
+                  fullWidth
+                  disabled={busy || placed > 0}
+                  onClick={() => { setShowSwapPanel(true); setSelectedRackTile(null); }}
+                >
+                  ⇄ {t('game_swap_mode')}
+                </RetroButton>
+              )}
+            </div>
+
+            <div className="dg-resign">
+              <RetroButton variant="danger" fullWidth disabled={isLoading} onClick={() => setConfirmResign(true)}>
+                ✕ {t('mp_resign')}
+              </RetroButton>
+            </div>
           </div>
-        </Card>
-      )}
-    </div>
+        </aside>
+      </div>
+    </DesktopGameLayout>
   );
 }
 
@@ -580,6 +598,8 @@ export default function MultiplayerPage() {
   const { t } = useLanguage();
 
   const [phase,      setPhase]      = useState('CHECKING');
+  // Code reçu par un lien d'invitation (#/multiplayer?code=ABC234), lu une fois
+  const [inviteCode] = useState(() => inviteCodeFromHash(window.location.hash));
   const [roomId,     setRoomId]     = useState(null);
   const [hostUserId, setHostUserId] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -599,16 +619,34 @@ export default function MultiplayerPage() {
     mpService.getCurrentRoom()
       .then((room) => {
         if (cancelled) return;
-        if (room) {
+        // Une partie en cours passe avant l'invitation
+        if (room && (room.status === 'ACTIVE' || !inviteCode)) {
           setRoomId(room.room_id);
           setHostUserId(room.host_user_id);
           setPhase(room.status === 'WAITING' ? 'WAITING' : 'PLAYING');
+        } else if (inviteCode) {
+          // Lien d'invitation : on rejoint directement, puis on nettoie l'adresse
+          window.history.replaceState(null, '', '#/multiplayer');
+          mpService.joinRoom(inviteCode)
+            .then((joined) => {
+              if (cancelled) return;
+              setRoomId(joined.room_id);
+              setHostUserId(joined.host_user_id);
+              setPhase('PLAYING');
+            })
+            .catch((err) => {
+              if (cancelled) return;
+              addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
+              setPhase('LOBBY');
+            });
         } else {
           setPhase('LOBBY');
         }
       })
       .catch(() => { if (!cancelled) setPhase('LOBBY'); });
     return () => { cancelled = true; };
+    // Une seule fois au chargement de la page
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Passage WAITING → PLAYING dès que l'invité rejoint (RTDB pousse le game_state)
@@ -660,7 +698,7 @@ export default function MultiplayerPage() {
           <MonoLabel size="sm" color="var(--text-muted)">{t('mp_resuming')}</MonoLabel>
         </div>
       )}
-      {currentPhase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} />}
+      {currentPhase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} initialCode={inviteCode} />}
       {currentPhase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
       {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} />}
     </div>
