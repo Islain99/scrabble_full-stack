@@ -6,6 +6,8 @@
 # JSONB sous PostgreSQL) ; l'authentification Firebase est remplacée par un
 # utilisateur choisi par le test ; les écritures Firebase RTDB sont capturées.
 #
+import json
+
 import pytest
 
 from app.auth.dependencies import get_current_user
@@ -68,14 +70,17 @@ def login(app):
 @pytest.fixture
 def rtdb(monkeypatch):
     """Capture les écritures RTDB au lieu de contacter Firebase."""
-    writes = {"set": [], "delete": []}
+    writes = {"set": [], "raw": [], "delete": []}
 
     def fake_sync(room_id, players, gs_dict=None):
-        payload = {"players": players}
-        if gs_dict is not None:
-            payload["for_host"]  = mp_router._build_masked_state(gs_dict, viewer_index=0)
-            payload["for_guest"] = mp_router._build_masked_state(gs_dict, viewer_index=1)
-        writes["set"].append((room_id, payload))
+        # Le vrai contenu envoyé à Firebase, puis sa version décodée (plus lisible)
+        raw = mp_router._rtdb_payload(players, gs_dict)
+        writes["raw"].append((room_id, raw))
+        decoded = {"players": raw["players"]}
+        for side in ("for_host", "for_guest"):
+            if side in raw:
+                decoded[side] = json.loads(raw[side]["state"])
+        writes["set"].append((room_id, decoded))
 
     monkeypatch.setattr(mp_router, "_sync_rtdb", fake_sync)
     monkeypatch.setattr(mp_router, "_delete_rtdb", lambda room_id: writes["delete"].append(room_id))
@@ -521,3 +526,52 @@ async def test_cleanup_forfeit_counts(client, login, players, rtdb, sqlite_db):
     rows, users = await _history(sqlite_db)
     assert len(rows) == 2
     assert users[players["bruno"].id].games_won == 1      # Alice était au trait
+
+
+# ── R0 : ce que Firebase fait des valeurs null ───────────────────
+
+def _firebase_roundtrip(value):
+    """
+    Imite la Realtime Database : `null` n'est jamais stocké, un objet vide
+    disparaît, un tableau devient un objet {index: valeur} sans ses trous,
+    relu comme tableau seulement s'il n'en a pas.
+    """
+    if isinstance(value, dict):
+        kept = {k: _firebase_roundtrip(v) for k, v in value.items()}
+        kept = {k: v for k, v in kept.items() if v is not None}
+        return kept or None
+    if isinstance(value, list):
+        kept = {str(i): _firebase_roundtrip(v) for i, v in enumerate(value)}
+        kept = {k: v for k, v in kept.items() if v is not None}
+        if not kept:
+            return None
+        if list(kept) == [str(i) for i in range(len(kept))]:
+            return list(kept.values())
+        return kept
+    return value
+
+
+async def test_state_survives_firebase_unchanged(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["alice"])
+    await _set_rack(sqlite_db, room_id, 0, "CHATXYZ")
+    await client.post(f"{API}/rooms/{room_id}/move",
+                      json={"placements": [{"r": 7, "c": 7 + i, "letter": l} for i, l in enumerate("CHAT")]})
+
+    for (_, raw), (_, decoded) in zip(rtdb["raw"], rtdb["set"]):
+        stored = _firebase_roundtrip(raw)
+        for side in ("for_host", "for_guest"):
+            if side not in raw:
+                continue
+            assert stored[side]["v"] == 2
+            assert json.loads(stored[side]["state"]) == decoded[side]   # rien de perdu
+            grid = decoded[side]["board"]["grid"]
+            assert len(grid) == 15 and all(len(row) == 15 for row in grid)
+
+
+def test_raw_state_would_lose_the_board():
+    """Le bug d'origine : envoyé tel quel, un plateau vide disparaît."""
+    empty_board = {"board": {"grid": [[None] * 15 for _ in range(15)]}, "players": [{"name": "Alice", "rack": []}]}
+    stored = _firebase_roundtrip(empty_board)
+    assert "board" not in stored
+    assert "rack" not in stored["players"][0]

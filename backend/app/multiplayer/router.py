@@ -34,6 +34,11 @@
 #              saisi sans tenir compte de la casse ni des espaces.
 #   C2 : les parties multijoueur n'entraient ni dans l'historique ni dans les
 #        statistiques. Fix : _record_stats() à chaque fin de partie, côté serveur.
+#   R0 : la Realtime Database ne stocke pas `null` : un plateau vide (225 cases
+#        à null) disparaissait, un plateau entamé devenait un objet clairsemé,
+#        un chevalet vide disparaissait → « Chargement du plateau… » sans fin.
+#        Fix : _rtdb_payload() envoie chaque état sous forme de texte JSON
+#              ({state: "<json>", v: 2}) ; le client le décode tel quel.
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -41,6 +46,7 @@
 #
 import asyncio
 import copy
+import json
 import logging
 import re
 import secrets
@@ -185,6 +191,30 @@ async def _player_uids(db: AsyncSession, room: MultiplayerGame) -> dict:
     return players
 
 
+RTDB_STATE_VERSION = 2   # v2 : état encodé en texte JSON (R0)
+
+
+def _encode_state(gs_dict: dict) -> dict:
+    """
+    R0 : Firebase supprime les `null` et transforme les tableaux à trous en
+    objets. Une chaîne, elle, est stockée telle quelle : l'état arrive chez le
+    joueur exactement comme le serveur l'a produit.
+    """
+    return {
+        "state": json.dumps(gs_dict, ensure_ascii=False, separators=(",", ":")),
+        "v": RTDB_STATE_VERSION,
+    }
+
+
+def _rtdb_payload(players: dict, gs_dict: Optional[dict] = None) -> dict:
+    """Nœud /games/{room_id} complet (voir _sync_rtdb)."""
+    payload: dict[str, Any] = {"players": players}
+    if gs_dict is not None:
+        payload["for_host"]  = _encode_state(_build_masked_state(gs_dict, viewer_index=0))
+        payload["for_guest"] = _encode_state(_build_masked_state(gs_dict, viewer_index=1))
+    return payload
+
+
 def _sync_rtdb(room_id: str, players: dict, gs_dict: Optional[dict] = None) -> None:
     """
     Pousse l'état de partie dans Firebase RTDB (fonction synchrone).
@@ -192,18 +222,15 @@ def _sync_rtdb(room_id: str, players: dict, gs_dict: Optional[dict] = None) -> N
 
     Structure poussée (un seul set → mise à jour atomique) :
         /games/{room_id}/players   — { host: uid, guest: uid } (règles d'accès)
-        /games/{room_id}/for_host  — rack invité masqué
-        /games/{room_id}/for_guest — rack hôte masqué
+        /games/{room_id}/for_host  — { state: "<json>", v: 2 }, rack invité masqué
+        /games/{room_id}/for_guest — { state: "<json>", v: 2 }, rack hôte masqué
 
     Sans gs_dict (salle en attente), seul `players` est écrit : l'hôte peut
     déjà écouter son chemin, qui reste vide jusqu'à l'arrivée de l'invité.
 
     Les erreurs sont loguées mais n'interrompent pas la réponse HTTP.
     """
-    payload: dict[str, Any] = {"players": players}
-    if gs_dict is not None:
-        payload["for_host"]  = _build_masked_state(gs_dict, viewer_index=0)
-        payload["for_guest"] = _build_masked_state(gs_dict, viewer_index=1)
+    payload = _rtdb_payload(players, gs_dict)
     try:
         from firebase_admin import db as rtdb
         rtdb.reference(f"/games/{room_id}").set(payload)
