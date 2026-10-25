@@ -490,6 +490,11 @@ html.mg-lock .toast-stack {
   cursor: pointer;
 }
 .mg-more-item:first-child { border-top: none; }
+/* Bouton en haut de l'écran (bandeau des scores) : le menu s'ouvre vers le bas,
+   au-dessus du plateau — vers le haut, il sortait de l'écran. */
+.mg-more--down { flex: none; }
+.mg-more--down > .mg-btn { width: auto; min-width: 52px; }
+.mg-more--down .mg-more-menu { top: calc(100% + 8px); bottom: auto; z-index: 300; }
 .mg-more-item--danger { color: var(--brick); }
 
 /* Focus clavier visible partout */
@@ -519,3 +524,54 @@ html.mg-lock .toast-stack {
   /* La page multijoueur laisse toute la place à l'écran de jeu */
   .s-page:has(.mg) { padding: 0; min-height: 0; }
 }
+
+/* ── Classement sur téléphone (LeaderboardPage, MobileRow) ─────────── */
+.lb-mrow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid rgba(200, 168, 48, 0.18);
+}
+.lb-mrow[data-me] { background: var(--bg-invert); }
+.lb-mrow-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.lb-mrow-rank { width: 28px; flex: none; text-align: center; }
+.lb-mrow-avatar {
+  width: 34px; height: 34px; flex: none; border-radius: 50%;
+  border: 2px solid var(--gold); background: var(--bg-page-alt);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  font-family: 'Playfair Display', serif; font-weight: 700; font-size: 0.95rem;
+}
+.lb-mrow-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.lb-mrow-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lb-mrow-name-text {
+  font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lb-mrow-word {
+  font-family: 'DM Mono', monospace; font-size: 0.66rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lb-mrow-main { flex: none; display: flex; flex-direction: column; align-items: flex-end; }
+.lb-mrow-main-value {
+  font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.45rem;
+  line-height: 1; color: var(--gold);
+}
+.lb-mrow-main-label {
+  font-family: 'DM Mono', monospace; font-size: 0.6rem;
+  letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px;
+}
+.lb-mrow-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  padding-left: 38px;               /* aligné sous l'avatar */
+}
+.lb-mrow-stat { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.lb-mrow-stat-label {
+  font-family: 'DM Mono', monospace; font-size: 0.58rem;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lb-mrow-stat-value { font-family: 'DM Mono', monospace; font-size: 0.85rem; font-weight: 500; }
+.lb-mrow-stat[data-main] .lb-mrow-stat-value { font-weight: 700; }

@@ -164,9 +164,11 @@ export function PlayButton({ label, points = null, onClick, disabled, buttonRef 
 
 /**
  * Menu « Plus » : actions moins fréquentes (tutoriel, abandon…).
- * @param {{ label:string, items: Array<{ label:string, icon?:string, onSelect:()=>void, danger?:boolean }> }} props
+ * placement : 'up' (défaut, menu au-dessus du bouton — barre d'actions en bas)
+ *             ou 'down' (bouton placé en haut de l'écran, ex. bandeau des scores).
+ * @param {{ label:string, items: Array<{ label:string, icon?:string, onSelect:()=>void, danger?:boolean }>, placement?:'up'|'down' }} props
  */
-export function MoreMenu({ label, items, disabled = false }) {
+export function MoreMenu({ label, items, disabled = false, placement = 'up' }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -186,7 +188,7 @@ export function MoreMenu({ label, items, disabled = false }) {
   }, [open]);
 
   return (
-    <div className="mg-more" ref={wrapRef}>
+    <div className={`mg-more mg-more--${placement}`} ref={wrapRef}>
       <ActionButton
         icon="⋯"
         label={label}

@@ -341,6 +341,7 @@ function PlayingScreen({ mp }) {
               bagLabel={t('mg_bag')}
               extra={
                 <MoreMenu
+                  placement="down"
                   label={t('mg_more')}
                   items={[{ icon: '✕', label: t('mp_resign'), danger: true, onSelect: () => setConfirmResign(true) }]}
                 />

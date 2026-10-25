@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth }        from '../context/AuthContext';
 import { useLanguage }    from '../context/LanguageContext';
 import { getLeaderboard } from '../api/authService';
+import { useIsMobile }    from '../hooks/useViewport';
 import { Card, PageHeader, MonoLabel, Spinner, Badge } from '../components/ui';
 
 // ── Sous-composants ───────────────────────────────────────────────
@@ -42,11 +43,70 @@ const Stat = ({ value, highlight = false, isMe }) => (
   </div>
 );
 
+// ── Ligne téléphone (portrait) ────────────────────────────────────
+// Sur un écran étroit, 5 colonnes de chiffres ne laissaient plus de place au
+// nom. Chaque joueur tient sur deux lignes : rang, nom et la valeur triée en
+// grand, puis les cinq statistiques avec leur libellé.
+
+const MobileRow = ({ entry, isMe, sortBy, labels, t }) => {
+  const stats = [
+    { k: 'games_played',  l: labels[0], v: entry.games_played },
+    { k: 'games_won',     l: labels[1], v: entry.games_won },
+    { k: 'win_rate',      l: labels[2], v: `${entry.win_rate}%` },
+    { k: 'best_score',    l: labels[3], v: entry.best_score },
+    { k: 'average_score', l: labels[4], v: Math.round(entry.average_score) },
+  ];
+  const main = stats.find(s => s.k === sortBy) ?? stats[3];
+  const ink   = isMe ? 'var(--gold)' : 'var(--text-primary)';
+  const quiet = isMe ? 'var(--text-invert-muted)' : 'var(--text-muted)';
+
+  return (
+    <div className="lb-mrow" data-me={isMe || undefined}>
+      <div className="lb-mrow-top">
+        <div className="lb-mrow-rank">
+          {entry.rank <= 3
+            ? <span style={{ fontSize: '1.25rem' }}>{['🥇','🥈','🥉'][entry.rank - 1]}</span>
+            : <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.85rem', color: quiet }}>{entry.rank}</span>}
+        </div>
+        <div className="lb-mrow-avatar">
+          {entry.avatar_url
+            ? <img src={entry.avatar_url} alt="" />
+            : <span style={{ color: ink }}>{entry.display_name[0].toUpperCase()}</span>}
+        </div>
+        <div className="lb-mrow-name">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <span className="lb-mrow-name-text" style={{ color: ink }}>{entry.display_name}</span>
+            {isMe && <Badge variant="gold">{t('lb_you')}</Badge>}
+          </div>
+          {entry.best_word && (
+            <span className="lb-mrow-word" style={{ color: quiet }}>
+              🏆 {entry.best_word} ({entry.best_word_score} pts)
+            </span>
+          )}
+        </div>
+        <div className="lb-mrow-main">
+          <span className="lb-mrow-main-value">{main.v}</span>
+          <span className="lb-mrow-main-label" style={{ color: quiet }}>{main.l}</span>
+        </div>
+      </div>
+      <div className="lb-mrow-stats">
+        {stats.map(st => (
+          <div key={st.k} className="lb-mrow-stat" data-main={st.k === main.k || undefined}>
+            <span className="lb-mrow-stat-label" style={{ color: quiet }}>{st.l}</span>
+            <span className="lb-mrow-stat-value" style={{ color: st.k === main.k ? 'var(--gold)' : ink }}>{st.v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ── Page ──────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
   const { user }            = useAuth();
   const { t }               = useLanguage();
+  const isMobile            = useIsMobile();
   // Résultat de la dernière requête, étiqueté par ses filtres : on charge
   // tant que le résultat affiché ne correspond pas aux filtres courants.
   const [result, setResult] = useState(null);   // { key, data }
@@ -132,6 +192,24 @@ export default function LeaderboardPage() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
             <Spinner size={36} />
           </div>
+        ) : isMobile ? (
+          <Card style={{ overflow: 'hidden', padding: 0 }}>
+            {data?.entries?.length === 0 && (
+              <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <MonoLabel>{t('lb_empty')}</MonoLabel>
+              </div>
+            )}
+            {data?.entries?.map((entry) => (
+              <MobileRow
+                key={entry.user_id}
+                entry={entry}
+                isMe={!!user && entry.user_id === user.id}
+                sortBy={sortBy}
+                labels={COL_HEADERS}
+                t={t}
+              />
+            ))}
+          </Card>
         ) : (
           <Card style={{ overflow: 'hidden' }}>
 
@@ -251,4 +329,4 @@ export default function LeaderboardPage() {
       </div>
     </div>
   );
-}
+}
