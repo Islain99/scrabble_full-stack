@@ -59,3 +59,7 @@ class GameState(BaseModel):
     status: GameStatus = GameStatus.ACTIVE 
     # Le nom du joueur gagnant (si la partie est FINISHED)
     winner_name: Optional[str] = None
+    # Son identifiant (Player.id) : fait foi, deux joueurs pouvant porter le même nom
+    winner_id: Optional[int] = None
+    # Partie terminée sur une égalité de score (winner_name et winner_id à None)
+    is_draw: bool = False

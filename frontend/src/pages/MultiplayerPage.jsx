@@ -16,6 +16,7 @@ import { useAuth }     from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast }    from '../hooks/useToast';
 import { useMultiplayerGame } from '../hooks/useMultiplayerGame';
+import { outcomeFor, isWinner } from '../utils/gameResult';
 import * as mpService  from '../api/multiplayerService';
 
 import Board      from '../components/Board';
@@ -294,19 +295,20 @@ function PlayingScreen({ mp }) {
 
   // Fin de partie
   if (isFinished) {
-    const winner = gameState.winner_name;
-    const isWinner = winner === gameState.players[mp.myPlayerIndex]?.name;
+    const outcome = outcomeFor(gameState, gameState.players[mp.myPlayerIndex]);
+    const won  = outcome === 'win';
+    const draw = outcome === 'draw';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '3rem 1rem', textAlign: 'center' }}>
-        <div style={{ fontSize: '3rem' }}>{isWinner ? '🏆' : '😔'}</div>
+        <div style={{ fontSize: '3rem' }}>{won ? '🏆' : draw ? '🤝' : '😔'}</div>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 900, color: 'var(--text-primary)' }}>
-          {isWinner ? t('game_win_title') : t('game_lose_title')}
+          {won ? t('game_win_title') : draw ? t('game_draw_title') : t('game_lose_title')}
         </div>
         <div style={{ display: 'flex', gap: '2rem' }}>
           {gameState.players.map((p, i) => (
             <Card key={i} style={{ padding: '1.25rem 2rem', textAlign: 'center' }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: p.name === winner ? 'var(--gold)' : 'var(--text-primary)' }}>
-                {p.name} {p.name === winner ? '👑' : ''}
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: isWinner(gameState, p) ? 'var(--gold)' : 'var(--text-primary)' }}>
+                {p.name} {isWinner(gameState, p) ? '👑' : ''}
               </div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '2rem', color: 'var(--text-primary)', marginTop: '0.25rem' }}>
                 {p.score}
