@@ -222,3 +222,162 @@ async def test_outsider_cannot_read_room(client, login, players, rtdb, sqlite_db
             session.add(carla)
     login(carla)
     assert (await client.get(f"{API}/rooms/{room_id}")).status_code == 403
+
+
+# ── R1 : reprise après actualisation ─────────────────────────────
+
+async def test_current_room_lets_both_players_resume(client, login, players, rtdb):
+    login(players["alice"])
+    assert (await client.get(f"{API}/rooms/current")).json() is None
+
+    room_id = (await client.post(f"{API}/rooms")).json()["room_id"]
+    waiting = (await client.get(f"{API}/rooms/current")).json()
+    assert waiting["room_id"] == room_id
+    assert waiting["status"] == "WAITING"
+    assert waiting["host_user_id"] == players["alice"].id
+
+    login(players["bruno"])
+    assert (await client.get(f"{API}/rooms/current")).json() is None   # pas sa salle
+    await client.post(f"{API}/rooms/{room_id}/join")
+
+    for name, me, other in (("alice", 0, 1), ("bruno", 1, 0)):
+        login(players[name])
+        room = (await client.get(f"{API}/rooms/current")).json()
+        assert room["room_id"] == room_id
+        assert room["status"] == "ACTIVE"
+        assert room["host_user_id"] == players["alice"].id
+        assert room["guest_user_id"] == players["bruno"].id
+        assert room["last_action_at"] is not None
+        assert "?" not in _letters(room["game_state"]["players"][me]["rack"])
+        assert _letters(room["game_state"]["players"][other]["rack"]) == ["?"] * 7
+
+
+async def test_create_returns_the_room_already_waiting(client, login, players, rtdb):
+    """Avant : 409 et aucun moyen d'annuler la salle après une actualisation."""
+    login(players["alice"])
+    first = await client.post(f"{API}/rooms")
+    again = await client.post(f"{API}/rooms")
+    assert again.status_code == 201
+    assert again.json()["room_id"] == first.json()["room_id"]
+
+
+async def test_one_game_at_a_time(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["alice"])
+    assert (await client.post(f"{API}/rooms")).status_code == 409
+
+    async with sqlite_db() as session:
+        async with session.begin():
+            carla = User(firebase_uid="uid-carla", email="carla@test.dev", display_name="Carla")
+            session.add(carla)
+    login(carla)
+    other = (await client.post(f"{API}/rooms")).json()["room_id"]
+    login(players["bruno"])
+    assert (await client.post(f"{API}/rooms/{other}/join")).status_code == 409
+
+
+async def test_joining_cancels_own_waiting_room(client, login, players, rtdb):
+    login(players["bruno"])
+    own = (await client.post(f"{API}/rooms")).json()["room_id"]
+    login(players["alice"])
+    room_id = (await client.post(f"{API}/rooms")).json()["room_id"]
+
+    login(players["bruno"])
+    assert (await client.post(f"{API}/rooms/{room_id}/join")).status_code == 200
+    assert (await client.get(f"{API}/rooms/{own}")).status_code == 404
+    assert own in rtdb["delete"]
+
+
+# ── R2 : abandon et inactivité ───────────────────────────────────
+
+async def test_resign_gives_the_win_to_the_opponent(client, login, players, rtdb):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["bruno"])                     # abandon possible hors de son tour
+    r = await client.post(f"{API}/rooms/{room_id}/resign")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "FINISHED"
+    assert body["winner_user_id"] == players["alice"].id
+    assert body["game_state"]["status"] == "FINISHED"
+    assert body["game_state"]["winner_name"] == "Alice"
+
+    _, last = rtdb["set"][-1]                   # les deux joueurs voient la fin
+    assert last["for_host"]["status"] == "FINISHED"
+    assert last["for_guest"]["winner_name"] == "Alice"
+
+    login(players["alice"])
+    assert (await client.post(f"{API}/rooms/{room_id}/pass")).status_code == 409
+    assert (await client.post(f"{API}/rooms/{room_id}/resign")).status_code == 409
+    assert (await client.get(f"{API}/rooms/current")).json() is None
+    assert (await client.post(f"{API}/rooms")).status_code == 201     # libre de rejouer
+
+
+async def test_claim_win_only_after_the_delay(client, login, players, rtdb, monkeypatch):
+    from datetime import datetime, timezone
+    room_id, _ = await _start_game(client, login, players)   # c'est à Alice
+
+    login(players["alice"])                     # le joueur au trait ne peut pas réclamer
+    assert (await client.post(f"{API}/rooms/{room_id}/claim-win")).status_code == 409
+
+    login(players["bruno"])
+    r = await client.post(f"{API}/rooms/{room_id}/claim-win")
+    assert r.status_code == 409                 # trop tôt
+    assert "s pour jouer" in r.json()["detail"]
+
+    later = datetime.now(timezone.utc) + mp_router.CLAIM_AFTER + mp_router.timedelta(seconds=5)
+    monkeypatch.setattr(mp_router, "_utcnow", lambda: later)
+    r = await client.post(f"{API}/rooms/{room_id}/claim-win")
+    assert r.status_code == 200, r.text
+    assert r.json()["winner_user_id"] == players["bruno"].id
+    assert r.json()["game_state"]["winner_name"] == "Bruno"
+
+
+async def test_a_move_resets_the_inactivity_delay(client, login, players, rtdb, monkeypatch):
+    from datetime import datetime, timezone
+    room_id, _ = await _start_game(client, login, players)
+    later = datetime.now(timezone.utc) + mp_router.CLAIM_AFTER + mp_router.timedelta(seconds=5)
+    monkeypatch.setattr(mp_router, "_utcnow", lambda: later)
+
+    login(players["alice"])                     # Alice joue (tard) : le délai repart
+    assert (await client.post(f"{API}/rooms/{room_id}/pass")).status_code == 200
+    login(players["alice"])                     # c'est à Bruno : Alice doit attendre
+    assert (await client.post(f"{API}/rooms/{room_id}/claim-win")).status_code == 409
+
+
+# ── R2 : nettoyage ───────────────────────────────────────────────
+
+async def test_cleanup(client, login, players, rtdb, sqlite_db):
+    from datetime import datetime, timezone
+    from app.multiplayer.cleanup import ACTIVE_TTL, cleanup_rooms
+
+    room_id, _ = await _start_game(client, login, players)           # en cours, au tour d'Alice
+    async with sqlite_db() as session:
+        async with session.begin():
+            carla = User(firebase_uid="uid-carla", email="carla@test.dev", display_name="Carla")
+            session.add(carla)
+    login(carla)
+    waiting_id = (await client.post(f"{API}/rooms")).json()["room_id"]
+
+    # Rien à faire tout de suite
+    assert not any((await cleanup_rooms()).values())
+
+    # Un jour plus tard : salle en attente supprimée, partie abandonnée par Alice
+    later = datetime.now(timezone.utc) + ACTIVE_TTL + mp_router.timedelta(minutes=1)
+    counts = await cleanup_rooms(now=later)
+    assert counts["waiting_deleted"] == 1
+    assert counts["active_forfeited"] == 1
+    assert waiting_id in rtdb["delete"]
+
+    login(players["bruno"])
+    room = (await client.get(f"{API}/rooms/{room_id}")).json()
+    assert room["status"] == "FINISHED"
+    assert room["winner_user_id"] == players["bruno"].id
+    assert room["game_state"]["winner_name"] == "Bruno"
+    assert rtdb["set"][-1][1]["for_guest"]["status"] == "FINISHED"
+
+    # 20 min après la fin : nœud RTDB supprimé ; 31 jours après : salle supprimée
+    counts = await cleanup_rooms(now=later + mp_router.timedelta(minutes=20))
+    assert counts["rtdb_cleared"] == 1 and room_id in rtdb["delete"]
+    counts = await cleanup_rooms(now=later + mp_router.timedelta(days=31))
+    assert counts["finished_deleted"] == 1
+    assert (await client.get(f"{API}/rooms/{room_id}")).status_code == 404

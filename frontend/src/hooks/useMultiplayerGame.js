@@ -3,8 +3,11 @@
 // Gère l'intégralité d'une partie multijoueur :
 //   - Sync temps réel via Firebase RTDB (onValue sur /games/{roomId}/for_host
 //     ou /games/{roomId}/for_guest selon myPlayerIndex)
-//   - Fallback polling REST toutes les 5 s si RTDB indisponible ou lecture refusée
-//   - Actions : playMove, passTurn, swapTiles
+//   - Fallback polling REST toutes les 5 s si RTDB indisponible, injoignable
+//     (aucun événement après 8 s) ou lecture refusée
+//   - Actions : playMove, passTurn, swapTiles, resign, claimWin
+//   - Délai d'inactivité : canClaim passe à true quand l'adversaire n'a pas
+//     joué depuis claim_after_s (le serveur vérifie de son côté)
 //   - Placement côté client (même logique que useGameLogic.js)
 //
 // FIX B2 — Fuite des racks via RTDB :
@@ -26,11 +29,21 @@
 //   const mp = useMultiplayerGame({ roomId, currentUserId, hostUserId, addToast });
 //   mp.gameState / mp.isMyTurn / mp.handleDropTile / mp.handleValidateWord ...
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getRtdb } from '../firebase';
 import * as mp from '../api/multiplayerService';
 import { calculatePreviewScore } from '../utils/scoring';
 import { useLanguage } from '../context/LanguageContext';
+
+const DEFAULT_CLAIM_AFTER_MS = 10 * 60 * 1000;
+const RTDB_TIMEOUT_MS = 8000;
+
+/** Empreinte d'un état : change à chaque coup (sert à dater la dernière action). */
+function stateSignature(gs) {
+  if (!gs) return '';
+  const scores = (gs.players ?? []).map(p => p.score).join(',');
+  return `${gs.status}|${gs.current_player_index}|${gs.passes_count}|${(gs.remaining_tiles ?? []).length}|${scores}`;
+}
 
 // ── Hook ──────────────────────────────────────────────────────────
 
@@ -57,6 +70,12 @@ export function useMultiplayerGame({
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [isLoading,  setIsLoading]  = useState(false);
 
+  // Délai d'inactivité : date de la dernière action (ms) et délai du serveur
+  const [lastActionAt, setLastActionAt] = useState(null);
+  const [claimAfterMs, setClaimAfterMs] = useState(DEFAULT_CLAIM_AFTER_MS);
+  const [now, setNow] = useState(0);
+  const signatureRef = useRef('');
+
   // Index joueur courant (0 = hôte, 1 = invité)
   const myPlayerIndex = currentUserId === hostUserId ? 0 : 1;
 
@@ -80,10 +99,27 @@ export function useMultiplayerGame({
   );
 
   // ── Sync Firebase RTDB ────────────────────────────────────────
+  // État reçu de Firebase : la dernière action est datée à réception si l'état a changé
+  const applyLiveState = useCallback((data) => {
+    if (!data) return;
+    setGameState(data);
+    const signature = stateSignature(data);
+    if (signature !== signatureRef.current) {
+      signatureRef.current = signature;
+      setLastActionAt(Date.now());
+    }
+  }, []);
+
+  // Réponse du serveur (REST) : fait foi, y compris pour la date de la dernière action
   const applyRoomState = useCallback((roomData) => {
     if (!roomData) return;
-    if (roomData.game_state) setGameState(roomData.game_state);
-    if (roomData.status)     setRoomStatus(roomData.status);
+    if (roomData.game_state) {
+      setGameState(roomData.game_state);
+      signatureRef.current = stateSignature(roomData.game_state);
+    }
+    if (roomData.status)         setRoomStatus(roomData.status);
+    if (roomData.last_action_at) setLastActionAt(Date.parse(roomData.last_action_at));
+    if (roomData.claim_after_s)  setClaimAfterMs(roomData.claim_after_s * 1000);
   }, []);
 
   useEffect(() => {
@@ -115,16 +151,29 @@ export function useMultiplayerGame({
       pollTimer = setInterval(poll, 5000);
     };
 
+    // État initial et date de la dernière action (le temps réel ne la porte pas)
+    mp.getRoom(roomId)
+      .then((room) => { if (!cancelled) applyRoomState(room); })
+      .catch(() => { /* le temps réel ou le polling prendront le relais */ });
+
+    // Aucun événement Firebase après RTDB_TIMEOUT_MS (réseau bloqué, base
+    // injoignable) : le premier événement arrive même quand le chemin est
+    // vide, donc son absence signifie qu'on n'est pas connecté → polling.
+    let gotEvent = false;
+    const watchdog = setTimeout(() => {
+      if (!cancelled && !gotEvent && !pollTimer) {
+        console.warn('[MP] Aucune réponse de RTDB, repli sur le polling REST.');
+        startPolling();
+      }
+    }, RTDB_TIMEOUT_MS);
+
     // Base temps réel, chargée à la demande (voir firebase.js)
     getRtdb()
       .then(({ db, ref, onValue }) => {
         if (cancelled) return;
         unsubscribe = onValue(
           ref(db, rtdbSubPath),
-          (snapshot) => {
-            const data = snapshot.val();
-            if (data) setGameState(data);
-          },
+          (snapshot) => { gotEvent = true; applyLiveState(snapshot.val()); },
           // Lecture refusée (règles RTDB, salle créée avant leur mise en place)
           // ou connexion perdue : on bascule sur le polling REST.
           (err) => {
@@ -141,10 +190,25 @@ export function useMultiplayerGame({
 
     return () => {
       cancelled = true;
+      clearTimeout(watchdog);
       unsubscribe?.();
       if (pollTimer) clearInterval(pollTimer);
     };
-  }, [roomId, myPlayerIndex, applyRoomState]);
+  }, [roomId, myPlayerIndex, applyRoomState, applyLiveState]);
+
+  // ── Délai d'inactivité de l'adversaire ────────────────────────
+  const isActive = !!gameState && gameState.status !== 'FINISHED' && roomStatus !== 'FINISHED';
+  const waitingForOpponent = isActive && !isMyTurn;
+  useEffect(() => {
+    if (!waitingForOpponent) return;
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, 5000);
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }, [waitingForOpponent]);
+
+  const opponentIdleMs = waitingForOpponent && lastActionAt && now ? Math.max(0, now - lastActionAt) : 0;
+  const canClaim = waitingForOpponent && opponentIdleMs >= claimAfterMs;
   //            ↑ myPlayerIndex ajouté : recrée le listener si le rôle change
 
   // ── Placement côté client (identique à useGameLogic) ──────────
@@ -257,6 +321,33 @@ export function useMultiplayerGame({
     }
   }, [roomId, isMyTurn, selectedTilesToSwap, myRack, applyRoomState, addToast, t]);
 
+  const handleResign = useCallback(async () => {
+    if (!roomId) return;
+    setIsLoading(true);
+    try {
+      applyRoomState(await mp.resign(roomId));
+      setPlacements([]);
+    } catch (err) {
+      addToast(err?.response?.data?.detail || t('toast_network_error'), 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [roomId, applyRoomState, addToast, t]);
+
+  const handleClaimWin = useCallback(async () => {
+    if (!roomId) return;
+    setIsLoading(true);
+    try {
+      applyRoomState(await mp.claimWin(roomId));
+    } catch (err) {
+      // 409 « encore N s » : l'horloge locale était en avance, on resynchronise
+      addToast(err?.response?.data?.detail || t('toast_network_error'), 'error');
+      mp.getRoom(roomId).then(applyRoomState).catch(() => {});
+    } finally {
+      setIsLoading(false);
+    }
+  }, [roomId, applyRoomState, addToast, t]);
+
   // B4 : index de rack au lieu de la lettre — deux tuiles identiques sélectionnables indépendamment.
   const toggleTileForSwap = useCallback((rackIndex) => {
     setSelectedTilesToSwap(prev =>
@@ -279,6 +370,8 @@ export function useMultiplayerGame({
     availableRackTiles,
     previewScore,
     pendingJoker,
+    opponentIdleMs,
+    canClaim,
 
     // Actions placement
     handleDropTile,
@@ -292,6 +385,8 @@ export function useMultiplayerGame({
     handleValidateWord,
     handlePassTurn,
     handleSwapTiles,
+    handleResign,
+    handleClaimWin,
     toggleTileForSwap,
   };
 }

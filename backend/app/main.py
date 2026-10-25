@@ -93,16 +93,20 @@ async def lifespan(application: FastAPI):
     cleanup_task = asyncio.create_task(
         solo_store.run_cleanup_loop(lambda: getattr(application.state, "game_engine", None))
     )
+    # … et des salles multijoueur — app/multiplayer/cleanup.py
+    from app.multiplayer.cleanup import run_cleanup_loop as run_mp_cleanup
+    mp_cleanup_task = asyncio.create_task(run_mp_cleanup())
 
     logger.info("Application prête.")
     yield
 
     # ── Arrêt ──────────────────────────────────────────────────────
-    cleanup_task.cancel()
-    try:
-        await cleanup_task
-    except asyncio.CancelledError:
-        pass
+    for task in (cleanup_task, mp_cleanup_task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     try:
         if db.engine is not None:

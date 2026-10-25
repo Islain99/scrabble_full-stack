@@ -18,6 +18,12 @@
 #        action → GET /game/status/{game_id} (sans authentification) renvoyait
 #        l'état complet, chevalet adverse compris.
 #        Fix : _on_engine() — la partie n'est en mémoire que le temps de l'action.
+#   R1 : salle et partie perdues après une actualisation (l'identifiant n'était
+#        connu que de la page) ; un hôte qui actualisait restait bloqué (409).
+#        Fix : GET /rooms/current ; POST /rooms renvoie la salle déjà en attente.
+#   R2 : pas d'abandon, pas de délai d'inactivité, aucun nettoyage.
+#        Fix : POST /rooms/{id}/resign, POST /rooms/{id}/claim-win (après
+#              CLAIM_AFTER sans coup du joueur au trait), app/multiplayer/cleanup.py.
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -28,7 +34,7 @@ import copy
 import logging
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -52,6 +58,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/multiplayer", tags=["Multijoueur"])
 
+# L'adversaire peut réclamer la victoire après ce délai sans coup du joueur au trait
+CLAIM_AFTER = timedelta(minutes=10)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """SQLite rend des dates sans fuseau : elles sont en UTC."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
 
 # ── Helpers ───────────────────────────────────────────────────────
 
@@ -66,11 +86,15 @@ def _room_to_response(room: MultiplayerGame) -> RoomStateResponse:
     return RoomStateResponse(
         room_id=room.room_id,
         status=room.status,
+        host_user_id=room.host_user_id,
+        guest_user_id=room.guest_user_id,
         current_user_id=room.current_user_id,
         winner_user_id=room.winner_user_id,
         host_score=room.host_score,
         guest_score=room.guest_score,
         game_state=room.game_state,
+        last_action_at=_as_utc(room.updated_at),
+        claim_after_s=int(CLAIM_AFTER.total_seconds()),
     )
 
 
@@ -195,6 +219,47 @@ def _current_user_id_from_state(game_state_dict: dict, room: MultiplayerGame) ->
     return room.host_user_id if idx == 0 else room.guest_user_id
 
 
+def _finish_by_forfeit(room: MultiplayerGame, winner_user_id: int, now: Optional[datetime] = None) -> dict:
+    """
+    Termine une partie en cours au profit de winner_user_id (abandon, joueur
+    inactif). Les scores restent ceux du plateau. Retourne le nouvel état.
+    """
+    gs_dict = copy.deepcopy(room.game_state)
+    winner_idx = 0 if winner_user_id == room.host_user_id else 1
+    gs_dict["status"] = "FINISHED"
+    gs_dict["winner_name"] = gs_dict["players"][winner_idx]["name"]
+
+    now = now or _utcnow()
+    room.game_state      = gs_dict
+    room.status          = RoomStatus.FINISHED
+    room.winner_user_id  = winner_user_id
+    room.current_user_id = None
+    room.finished_at     = now
+    room.updated_at      = now
+    return gs_dict
+
+
+async def _user_rooms(db: AsyncSession, user_id: int, statuses) -> list[MultiplayerGame]:
+    """Salles de l'utilisateur (hôte ou invité) aux statuts donnés, la plus récente d'abord."""
+    result = await db.execute(
+        select(MultiplayerGame)
+        .where(
+            MultiplayerGame.status.in_([str(s.value) for s in statuses]),
+            (MultiplayerGame.host_user_id == user_id) | (MultiplayerGame.guest_user_id == user_id),
+        )
+        .order_by(MultiplayerGame.created_at.desc(), MultiplayerGame.id.desc())
+    )
+    return list(result.scalars().all())
+
+
+def _masked_response(room: MultiplayerGame, viewer_user_id: int) -> RoomStateResponse:
+    response = _room_to_response(room)
+    if response.game_state:
+        viewer_index = 0 if viewer_user_id == room.host_user_id else 1
+        response.game_state = _build_masked_state(response.game_state, viewer_index)
+    return response
+
+
 # ── Routes ────────────────────────────────────────────────────────
 
 @router.post(
@@ -210,18 +275,21 @@ async def create_room(
 ):
     _get_engine(request)  # vérifie que le moteur est prêt
 
-    existing_result = await db.execute(
-        select(MultiplayerGame)
-        .where(
-            MultiplayerGame.host_user_id == current_user.id,
-            MultiplayerGame.status == RoomStatus.WAITING,
-        )
-        .limit(1)
-    )
-    if existing_result.scalars().first():
+    # Une seule partie à la fois par joueur
+    if await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE]):
         raise HTTPException(
             status_code=409,
-            detail="Vous avez déjà une salle en attente. Rejoignez-la ou annulez-la.",
+            detail="Vous avez déjà une partie en cours. Terminez-la ou abandonnez-la.",
+        )
+
+    # R1 : une salle déjà en attente est renvoyée telle quelle (page actualisée)
+    waiting = [r for r in await _user_rooms(db, current_user.id, [RoomStatus.WAITING])
+               if r.host_user_id == current_user.id]
+    if waiting:
+        return CreateRoomResponse(
+            room_id=waiting[0].room_id,
+            status=RoomStatus.WAITING,
+            host_name=current_user.display_name,
         )
 
     room_id = str(uuid.uuid4())
@@ -260,6 +328,17 @@ async def join_room(
         raise HTTPException(status_code=409, detail=f"La salle est déjà {room.status}.")
     if room.host_user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Vous êtes déjà l'hôte de cette salle.")
+    if await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE]):
+        raise HTTPException(
+            status_code=409,
+            detail="Vous avez déjà une partie en cours. Terminez-la ou abandonnez-la.",
+        )
+
+    # Rejoindre une partie annule la salle que ce joueur attendait lui-même
+    for own in await _user_rooms(db, current_user.id, [RoomStatus.WAITING]):
+        if own.host_user_id == current_user.id:
+            await db.delete(own)
+            await asyncio.to_thread(_delete_rtdb, own.room_id)
 
     host_result = await db.execute(select(User).where(User.id == room.host_user_id))
     host = host_result.scalar_one()
@@ -277,6 +356,7 @@ async def join_room(
     room.current_user_id = room.host_user_id
     room.host_score      = 0
     room.guest_score     = 0
+    room.updated_at      = _utcnow()
     await db.flush()
 
     players = {"host": host.firebase_uid, "guest": current_user.firebase_uid}
@@ -289,6 +369,27 @@ async def join_room(
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=1)
     return response
+
+
+@router.get(
+    "/rooms/current",
+    response_model=Optional[RoomStateResponse],
+    summary="Salle en attente ou partie en cours de l'utilisateur (reprise)",
+)
+async def get_current_room(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    R1 : après une actualisation, la page retrouve sa salle ou sa partie.
+    Partie en cours en priorité, sinon salle en attente créée par l'utilisateur.
+    `null` s'il n'y a rien à reprendre.
+    """
+    rooms = await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE, RoomStatus.WAITING])
+    active  = [r for r in rooms if r.status == RoomStatus.ACTIVE]
+    waiting = [r for r in rooms if r.status == RoomStatus.WAITING and r.host_user_id == current_user.id]
+    room = (active or waiting or [None])[0]
+    return _masked_response(room, current_user.id) if room else None
 
 
 @router.get(
@@ -307,11 +408,7 @@ async def get_room(
     if current_user.id not in (room.host_user_id, room.guest_user_id):
         raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
 
-    viewer_index = 0 if current_user.id == room.host_user_id else 1
-    response = _room_to_response(room)
-    if response.game_state:
-        response.game_state = _build_masked_state(response.game_state, viewer_index)
-    return response
+    return _masked_response(room, current_user.id)
 
 
 @router.post(
@@ -352,6 +449,7 @@ async def play_move(
     room.host_score      = gs_updated.players[0].score
     room.guest_score     = gs_updated.players[1].score if len(gs_updated.players) > 1 else None
     room.current_user_id = _current_user_id_from_state(gs_dict, room)
+    room.updated_at      = _utcnow()
 
     if gs_updated.status.value == "FINISHED":
         room.status      = RoomStatus.FINISHED
@@ -405,6 +503,7 @@ async def pass_turn(
 
     room.game_state      = gs_dict
     room.current_user_id = _current_user_id_from_state(gs_dict, room)
+    room.updated_at      = _utcnow()
 
     if gs_updated.status.value == "FINISHED":
         room.status      = RoomStatus.FINISHED
@@ -453,12 +552,70 @@ async def swap_tiles(
 
     room.game_state      = gs_dict
     room.current_user_id = _current_user_id_from_state(gs_dict, room)
+    room.updated_at      = _utcnow()
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
     return response
+
+
+@router.post(
+    "/rooms/{room_id}/resign",
+    response_model=RoomStateResponse,
+    summary="Abandonner la partie (l'adversaire gagne)",
+)
+async def resign(
+    room_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    room = await _get_room_or_404(room_id, db, for_update=True)
+    if current_user.id not in (room.host_user_id, room.guest_user_id):
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
+    if room.status != RoomStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
+
+    winner = room.guest_user_id if current_user.id == room.host_user_id else room.host_user_id
+    gs_dict = _finish_by_forfeit(room, winner)
+    await db.flush()
+    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)
+    logger.info("Salle %s : abandon de user %d", room_id, current_user.id)
+    return _masked_response(room, current_user.id)
+
+
+@router.post(
+    "/rooms/{room_id}/claim-win",
+    response_model=RoomStateResponse,
+    summary="Réclamer la victoire quand l'adversaire ne joue plus",
+)
+async def claim_win(
+    room_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    room = await _get_room_or_404(room_id, db, for_update=True)
+    if current_user.id not in (room.host_user_id, room.guest_user_id):
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
+    if room.status != RoomStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
+    if room.current_user_id == current_user.id:
+        raise HTTPException(status_code=409, detail="C'est à vous de jouer.")
+
+    idle = _utcnow() - (_as_utc(room.updated_at) or _utcnow())
+    if idle < CLAIM_AFTER:
+        remaining = int((CLAIM_AFTER - idle).total_seconds())
+        raise HTTPException(
+            status_code=409,
+            detail=f"Votre adversaire a encore {remaining} s pour jouer.",
+        )
+
+    gs_dict = _finish_by_forfeit(room, current_user.id)
+    await db.flush()
+    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)
+    logger.info("Salle %s : victoire réclamée par user %d (adversaire inactif)", room_id, current_user.id)
+    return _masked_response(room, current_user.id)
 
 
 @router.delete(

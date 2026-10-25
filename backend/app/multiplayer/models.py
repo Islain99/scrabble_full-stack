@@ -74,11 +74,17 @@ class RoomStateResponse(BaseModel):
     """
     room_id:         str
     status:          str
+    host_user_id:    Optional[int] = None
+    guest_user_id:   Optional[int] = None
     current_user_id: Optional[int]
     winner_user_id:  Optional[int]
     host_score:      Optional[int]
     guest_score:     Optional[int]
     game_state:      Optional[dict[str, Any]]
+    # Dernière action jouée (ISO 8601, UTC) : sert au délai d'inactivité
+    last_action_at:  Optional[datetime] = None
+    # Délai (s) après lequel l'adversaire du joueur inactif peut réclamer la victoire
+    claim_after_s:   int = 0
 
     class Config:
         from_attributes = True
@@ -92,4 +98,4 @@ class PlayMoveRequest(BaseModel):
 
 class SwapRequest(BaseModel):
     """Corps de POST /multiplayer/{room_id}/swap"""
-    letters: list[str]
+    letters: list[str]

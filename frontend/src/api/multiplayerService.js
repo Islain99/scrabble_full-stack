@@ -30,6 +30,15 @@ export const getRoom = async (roomId) => {
   return data;
 };
 
+/**
+ * Salle à reprendre après une actualisation : partie en cours, sinon salle
+ * en attente créée par l'utilisateur. Retourne null s'il n'y a rien.
+ */
+export const getCurrentRoom = async () => {
+  const { data } = await api.get(`${BASE}/rooms/current`);
+  return data ?? null;
+};
+
 /** Annule une salle WAITING (hôte uniquement). */
 export const cancelRoom = async (roomId) => {
   await api.delete(`${BASE}/rooms/${roomId}`);
@@ -61,4 +70,16 @@ export const passTurn = async (roomId) => {
 export const swapTiles = async (roomId, letters) => {
   const { data } = await api.post(`${BASE}/rooms/${roomId}/swap`, { letters });
   return data;
-};
+};
+
+/** Abandonne la partie : l'adversaire gagne. */
+export const resign = async (roomId) => {
+  const { data } = await api.post(`${BASE}/rooms/${roomId}/resign`);
+  return data;
+};
+
+/** Réclame la victoire quand l'adversaire ne joue plus (après claim_after_s). */
+export const claimWin = async (roomId) => {
+  const { data } = await api.post(`${BASE}/rooms/${roomId}/claim-win`);
+  return data;
+};

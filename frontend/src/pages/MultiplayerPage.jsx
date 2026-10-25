@@ -1,6 +1,7 @@
 // src/pages/MultiplayerPage.jsx
 //
-// Écran unique avec 3 phases :
+// Écran unique avec 4 phases :
+//   CHECKING → recherche d'une salle ou d'une partie à reprendre (actualisation)
 //   LOBBY    → créer une salle ou saisir un code pour rejoindre
 //   WAITING  → hôte attend l'adversaire (affiche room_id à partager)
 //   PLAYING  → plateau de jeu (réutilise Board, ScorePanel, etc.)
@@ -10,7 +11,7 @@
 //           au lieu de lettres (string[]). inSwap utilise selectedForSwap.includes(i).
 //           Le panneau d'échange passe l'index à toggleTileForSwap via onTileClick(tile, idx).
 //
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth }     from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast }    from '../hooks/useToast';
@@ -23,7 +24,7 @@ import { Toast }  from '../components/Toast';
 import JokerPicker from '../components/JokerPicker';
 import { useIsMobile } from '../hooks/useViewport';
 import {
-  MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, StatusLine,
+  MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, MoreMenu, StatusLine,
 } from '../components/mobile/MobileGame';
 import { Card, MonoLabel, RetroButton, Spinner } from '../components/ui';
 
@@ -180,12 +181,69 @@ function SimpleRack({ tiles = [], placements = [], onTileClick, selectedForSwap 
   );
 }
 
+// ── Abandon : confirmation ────────────────────────────────────────
+
+function ResignModal({ opponentName, onConfirm, onCancel, busy }) {
+  const { t } = useLanguage();
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onCancel}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(30,26,18,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: 'var(--bg-page)', border: '3px solid var(--brick)', borderRadius: '3px', padding: '1.75rem 2rem', maxWidth: '420px', width: '100%', boxShadow: '8px 8px 0 var(--brick)', textAlign: 'center' }}
+      >
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', fontWeight: 900, color: 'var(--brick)', margin: '0 0 8px' }}>
+          {t('mp_resign_title')}
+        </h2>
+        <p style={{ fontFamily: "'Libre Baskerville', serif", fontSize: '0.95rem', color: 'var(--text-secondary)', fontStyle: 'italic', margin: '0 0 20px' }}>
+          {t('mp_resign_desc', { name: opponentName })}
+        </p>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <RetroButton variant="default" onClick={onCancel}>{t('btn_cancel')}</RetroButton>
+          <RetroButton variant="danger" onClick={onConfirm} disabled={busy}>{t('mp_resign_confirm')}</RetroButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Adversaire inactif : réclamer la victoire ─────────────────────
+
+function ClaimBanner({ name, idleMs, onClaim, busy, compact = false }) {
+  const { t } = useLanguage();
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap',
+      padding: compact ? '6px 10px' : '0.6rem 1rem',
+      background: 'var(--bg-card)', border: '2px solid var(--tobacco)', borderRadius: '4px',
+    }}>
+      <MonoLabel size={compact ? 'xs' : 'sm'} color="var(--text-primary)">
+        {t('mp_idle_claimable', { name, min: Math.floor(idleMs / 60000) })}
+      </MonoLabel>
+      <RetroButton variant="tobacco" onClick={onClaim} disabled={busy} style={compact ? { padding: '6px 10px', fontSize: '0.7rem' } : undefined}>
+        {t('mp_claim_win')}
+      </RetroButton>
+    </div>
+  );
+}
+
 // ── PlayingScreen ─────────────────────────────────────────────────
 
 function PlayingScreen({ mp }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
+  const [confirmResign,    setConfirmResign]     = useState(false);
   const isMobile = useIsMobile();
   const { t, tp } = useLanguage();
 
@@ -195,7 +253,9 @@ function PlayingScreen({ mp }) {
     handleValidateWord, handlePassTurn, handleSwapTiles,
     toggleTileForSwap, selectedTilesToSwap, isLoading,
     pendingJoker, chooseJokerLetter, cancelJoker, handleClearPlacements,
+    canClaim, opponentIdleMs, handleResign, handleClaimWin,
   } = mp;
+  const closeResign = useCallback(() => setConfirmResign(false), []);
 
   if (!gameState) return (
     <div style={{ padding: '3rem', textAlign: 'center' }}><Spinner size="lg" /></div>
@@ -203,6 +263,19 @@ function PlayingScreen({ mp }) {
 
   const currentPlayer = gameState.players[gameState.current_player_index];
   const isFinished    = gameState.status === 'FINISHED';
+  const opponentName  = gameState.players[1 - mp.myPlayerIndex]?.name ?? '';
+
+  const resignModal = confirmResign && (
+    <ResignModal
+      opponentName={opponentName}
+      busy={isLoading}
+      onCancel={closeResign}
+      onConfirm={async () => { setConfirmResign(false); await handleResign(); }}
+    />
+  );
+  const claimBanner = (compact) => canClaim && (
+    <ClaimBanner name={opponentName} idleMs={opponentIdleMs} onClaim={handleClaimWin} busy={isLoading} compact={compact} />
+  );
 
   const handleCellPress = (r, c) => {
     if (!selectedRackTile || !isMyTurn) return;
@@ -262,6 +335,7 @@ function PlayingScreen({ mp }) {
     return (
       <>
         <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
+        {resignModal}
         <MobileGameLayout
           top={
             <ScoreStrip
@@ -269,6 +343,13 @@ function PlayingScreen({ mp }) {
               activeIndex={gameState.current_player_index}
               bagCount={(gameState.remaining_tiles ?? []).length}
               bagLabel={t('mg_bag')}
+              extra={
+                <MoreMenu
+                  label={t('mg_more')}
+                  items={[{ icon: '✕', label: t('mp_resign'), danger: true, onSelect: () => setConfirmResign(true) }]}
+                />
+              }
+              below={claimBanner(true)}
             />
           }
           board={
@@ -375,6 +456,9 @@ function PlayingScreen({ mp }) {
         )}
       </div>
 
+      {claimBanner(false)}
+      {resignModal}
+
       <ScorePanel
         players={gameState.players}
         currentPlayerId={currentPlayer.id}
@@ -459,6 +543,15 @@ function PlayingScreen({ mp }) {
         </Card>
       )}
 
+      {/* Abandon : possible à tout moment */}
+      {!showSwapPanel && !confirmPass && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <RetroButton variant="danger" onClick={() => setConfirmResign(true)} disabled={isLoading}>
+            ✕ {t('mp_resign')}
+          </RetroButton>
+        </div>
+      )}
+
       {/* Confirmation passage */}
       {confirmPass && (
         <Card style={{ padding: '1.25rem', textAlign: 'center', border: '2px solid var(--border-primary)' }}>
@@ -484,7 +577,7 @@ export default function MultiplayerPage() {
   const { toasts, dismissToast, addToast } = useToast();
   const { t } = useLanguage();
 
-  const [phase,      setPhase]      = useState('LOBBY');
+  const [phase,      setPhase]      = useState('CHECKING');
   const [roomId,     setRoomId]     = useState(null);
   const [hostUserId, setHostUserId] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -497,6 +590,24 @@ export default function MultiplayerPage() {
     hostUserId,
     addToast,
   });
+
+  // Reprise après une actualisation : salle en attente ou partie en cours (R1)
+  useEffect(() => {
+    let cancelled = false;
+    mpService.getCurrentRoom()
+      .then((room) => {
+        if (cancelled) return;
+        if (room) {
+          setRoomId(room.room_id);
+          setHostUserId(room.host_user_id);
+          setPhase(room.status === 'WAITING' ? 'WAITING' : 'PLAYING');
+        } else {
+          setPhase('LOBBY');
+        }
+      })
+      .catch(() => { if (!cancelled) setPhase('LOBBY'); });
+    return () => { cancelled = true; };
+  }, []);
 
   // Passage WAITING → PLAYING dès que l'invité rejoint (RTDB pousse le game_state)
   const currentPhase = phase === 'WAITING' && mp.gameState ? 'PLAYING' : phase;
@@ -518,8 +629,8 @@ export default function MultiplayerPage() {
   const handleJoinRoom = useCallback(async (code) => {
     try {
       const room = await mpService.joinRoom(code);
-      setRoomId(code);
-      setHostUserId(room.current_user_id);
+      setRoomId(room.room_id ?? code);
+      setHostUserId(room.host_user_id ?? room.current_user_id);
       setPhase('PLAYING');
     } catch (err) {
       addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
@@ -537,12 +648,16 @@ export default function MultiplayerPage() {
 
   return (
     <div className="s-page">
-      <div style={{ position: 'fixed', top: '70px', right: '16px', zIndex: 200, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {(toasts ?? []).map(t => (
-          <Toast key={t.id} toast={t} onDismiss={dismissToast} />
-        ))}
-      </div>
+      {/* Toast affiche lui-même la pile (avant : un Toast par message avec une
+          prop `toast` inexistante → plantage de la page au premier message) */}
+      <Toast toasts={toasts} onDismiss={dismissToast} />
 
+      {currentPhase === 'CHECKING' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '4rem 1rem' }}>
+          <Spinner size="lg" />
+          <MonoLabel size="sm" color="var(--text-muted)">{t('mp_resuming')}</MonoLabel>
+        </div>
+      )}
       {currentPhase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} />}
       {currentPhase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
       {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} />}
