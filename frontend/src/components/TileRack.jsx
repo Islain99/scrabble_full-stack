@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { useTutorialRef } from '../context/TutorialContext';
 import { useLanguage } from '../context/LanguageContext';
 
-const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIndex = null, onSelectTile }) => {
+// selectByIndex : en mode échange, selectedTiles contient des indices de chevalet (et
+// onTileClick reçoit l'indice) — deux lettres identiques restent distinctes.
+const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIndex = null, onSelectTile, selectByIndex = false }) => {
   const isSwapMode = onTileClick !== undefined;
   const [draggingIndex, setDraggingIndex] = useState(null);
   const rackRef = useTutorialRef('tile-rack');
@@ -62,7 +64,9 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIn
         </span>
       ) : (
         tiles.map((tile, index) => {
-          const isSelected = isSwapMode ? selectedTiles.includes(tile.letter) : selectedIndex === index;
+          const isSelected = isSwapMode
+            ? selectedTiles.includes(selectByIndex ? index : tile.letter)
+            : selectedIndex === index;
           const isDragging = draggingIndex === index;
           return (
             <RackTile
@@ -72,6 +76,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIn
               onDragStart={handleDragStart} onDragEnd={handleDragEnd}
               onTileClick={onTileClick}
               onSelectTile={onSelectTile}
+              selectByIndex={selectByIndex}
             />
           );
         })
@@ -80,7 +85,7 @@ const TileRack = ({ tiles, playerId, onTileClick, selectedTiles = [], selectedIn
   );
 };
 
-const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart, onDragEnd, onTileClick, onSelectTile }) => {
+const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart, onDragEnd, onTileClick, onSelectTile, selectByIndex }) => {
   const { t } = useLanguage();
   const [isHover, setIsHover] = useState(false);
   const isJoker = tile.letter === '*';
@@ -96,7 +101,7 @@ const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart
       onDragEnd={onDragEnd}
       className="rack-tile"
       onClick={
-        isSwapMode ? () => onTileClick(tile.letter)
+        isSwapMode ? () => onTileClick(selectByIndex ? index : tile.letter)
         : onSelectTile ? () => onSelectTile(index)
         : undefined
       }
@@ -144,4 +149,4 @@ const RackTile = ({ tile, index, isSwapMode, isSelected, isDragging, onDragStart
   );
 };
 
-export default TileRack;
+export default TileRack;

@@ -10,7 +10,7 @@ import pytest
 
 from app.auth.dependencies import get_current_user
 from app.db import database as db
-from app.db.models import User
+from app.db.models import GameHistory, User
 from app.multiplayer import router as mp_router
 from app.multiplayer.models import MultiplayerGame
 
@@ -34,6 +34,7 @@ async def sqlite_db():
     async with test_engine.begin() as conn:
         await conn.run_sync(User.__table__.create)
         await conn.run_sync(MultiplayerGame.__table__.create)
+        await conn.run_sync(GameHistory.__table__.create)
 
     previous = db.AsyncSessionLocal
     db.AsyncSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
@@ -445,3 +446,78 @@ async def test_forfeit_sets_winner_id(client, login, players, rtdb):
     r = await client.post(f"{API}/rooms/{room_id}/resign")
     gs = r.json()["game_state"]
     assert gs["winner_id"] == 1 and gs["is_draw"] is False
+
+
+# ── C1 : code de salle court ─────────────────────────────────────
+
+async def test_room_code_is_short_and_forgiving(client, login, players, rtdb):
+    login(players["alice"])
+    code = (await client.post(f"{API}/rooms")).json()["room_id"]
+    assert len(code) == mp_router.ROOM_CODE_LENGTH
+    assert all(ch in mp_router.ROOM_CODE_ALPHABET for ch in code)
+    assert not set(code) & set("0O1IL")             # pas de caractères ambigus
+
+    login(players["bruno"])
+    typed = f" {code[:3].lower()} {code[3:].lower()} "   # saisi en minuscules, avec espaces
+    r = await client.post(f"{API}/rooms/{typed}/join")
+    assert r.status_code == 200, r.text
+    assert r.json()["room_id"] == code
+
+
+def test_normalize_room_id_keeps_old_uuids():
+    old = "679fcf58-2058-4023-aa94-e5d9806f64fd"
+    assert mp_router._normalize_room_id(old) == old
+    assert mp_router._normalize_room_id("abc-234") == "ABC234"
+
+
+# ── C2 : historique et statistiques ──────────────────────────────
+
+async def _history(sessions):
+    from sqlalchemy import select
+    async with sessions() as session:
+        rows = (await session.execute(select(GameHistory).order_by(GameHistory.game_id))).scalars().all()
+        users = {u.id: u for u in (await session.execute(select(User))).scalars()}
+    return rows, users
+
+
+async def test_finished_game_counts_for_both_players(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    await _set_scores(sqlite_db, room_id, 12, 30)
+    for i in range(6):
+        login((players["alice"], players["bruno"])[i % 2])
+        await client.post(f"{API}/rooms/{room_id}/pass")
+
+    rows, users = await _history(sqlite_db)
+    assert [r.game_id for r in rows] == [f"mp:{room_id}:guest", f"mp:{room_id}:host"]
+    by_user = {r.user_id: r for r in rows}
+    alice, bruno = players["alice"].id, players["bruno"].id
+    assert (by_user[alice].user_score, by_user[alice].ai_score, by_user[alice].won) == (11, 29, False)
+    assert (by_user[bruno].ai_name, by_user[bruno].won) == ("Alice", True)
+    assert all(r.ai_difficulty == "multiplayer" for r in rows)
+    assert (users[alice].games_played, users[alice].games_won) == (1, 0)
+    assert (users[bruno].games_played, users[bruno].games_won, users[bruno].best_score) == (1, 1, 29)
+
+    # Une requête de plus sur la partie finie ne compte rien deux fois
+    login(players["alice"])
+    assert (await client.post(f"{API}/rooms/{room_id}/resign")).status_code == 409
+    rows, users = await _history(sqlite_db)
+    assert len(rows) == 2 and users[alice].games_played == 1
+
+
+async def test_forfeits_count_too(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["bruno"])
+    await client.post(f"{API}/rooms/{room_id}/resign")
+    rows, users = await _history(sqlite_db)
+    assert {r.user_id: r.won for r in rows} == {players["alice"].id: True, players["bruno"].id: False}
+    assert users[players["alice"].id].games_won == 1
+
+
+async def test_cleanup_forfeit_counts(client, login, players, rtdb, sqlite_db):
+    from datetime import datetime, timezone
+    from app.multiplayer.cleanup import ACTIVE_TTL, cleanup_rooms
+    await _start_game(client, login, players)
+    await cleanup_rooms(now=datetime.now(timezone.utc) + ACTIVE_TTL + mp_router.timedelta(minutes=1))
+    rows, users = await _history(sqlite_db)
+    assert len(rows) == 2
+    assert users[players["bruno"].id].games_won == 1      # Alice était au trait

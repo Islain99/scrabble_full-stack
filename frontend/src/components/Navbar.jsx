@@ -14,7 +14,7 @@ export default function Navbar() {
   const { t, language, setLanguage }                    = useLanguage();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const isMobile = useIsMobile();
-  const currentHash = window.location.hash || '#/';
+  const currentHash = (window.location.hash || '#/').split('?')[0];
 
   // Labels traduits (recalculés à chaque render, donc réactifs au changement de langue)
   const ThemeLabels = {
