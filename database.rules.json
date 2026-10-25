@@ -1,0 +1,17 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "games": {
+      "$roomId": {
+        "for_host": {
+          ".read": "auth != null && auth.uid === root.child('games').child($roomId).child('players/host').val()"
+        },
+        "for_guest": {
+          ".read": "auth != null && auth.uid === root.child('games').child($roomId).child('players/guest').val()"
+        }
+      }
+    }
+  }
+}

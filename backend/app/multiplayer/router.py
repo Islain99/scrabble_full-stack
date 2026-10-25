@@ -14,11 +14,20 @@
 #        si deux requêtes arrivent simultanément sur la même salle.
 #        Fix : with_for_update=True dans _get_room_or_404() pour join, move,
 #              pass, swap, cancel.
+#   S1 : la partie était laissée dans la mémoire du moteur solo après chaque
+#        action → GET /game/status/{game_id} (sans authentification) renvoyait
+#        l'état complet, chevalet adverse compris.
+#        Fix : _on_engine() — la partie n'est en mémoire que le temps de l'action.
+#   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
+#        Fix : le nœud porte les uid Firebase des joueurs (players/host,
+#              players/guest) ; database.rules.json limite chaque chemin à
+#              son joueur et interdit toute écriture côté client.
 #
 import asyncio
 import copy
 import logging
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -105,27 +114,68 @@ def _build_masked_state(gs_dict: dict, viewer_index: int) -> dict:
     return masked
 
 
-def _sync_rtdb(room_id: str, gs_dict: dict) -> None:
+@contextmanager
+def _on_engine(engine: GameEngine, game_state):
+    """
+    Charge la partie dans le moteur le temps d'une action, puis l'en retire.
+
+    La partie de référence est en base (room.game_state). Laissée dans
+    engine.active_games, elle serait lisible par les routes solo /game/*,
+    qui n'exigent pas d'authentification (S1). Aucun `await` n'a lieu entre
+    le chargement et le retrait : aucune autre requête ne peut s'intercaler.
+    """
+    engine.active_games[game_state.game_id] = game_state
+    try:
+        yield game_state
+    finally:
+        engine.forget_game(game_state.game_id)
+
+
+async def _player_uids(db: AsyncSession, room: MultiplayerGame) -> dict:
+    """uid Firebase de l'hôte et de l'invité (lus par les règles RTDB, S2)."""
+    ids = [i for i in (room.host_user_id, room.guest_user_id) if i is not None]
+    rows = (await db.execute(select(User.id, User.firebase_uid).where(User.id.in_(ids)))).all()
+    by_id = {user_id: uid for user_id, uid in rows}
+    players = {"host": by_id.get(room.host_user_id)}
+    if room.guest_user_id is not None:
+        players["guest"] = by_id.get(room.guest_user_id)
+    return players
+
+
+def _sync_rtdb(room_id: str, players: dict, gs_dict: Optional[dict] = None) -> None:
     """
     Pousse l'état de partie dans Firebase RTDB (fonction synchrone).
     Appelée via await asyncio.to_thread() pour ne pas bloquer l'event loop.
 
-    Structure poussée :
+    Structure poussée (un seul set → mise à jour atomique) :
+        /games/{room_id}/players   — { host: uid, guest: uid } (règles d'accès)
         /games/{room_id}/for_host  — rack invité masqué
         /games/{room_id}/for_guest — rack hôte masqué
 
+    Sans gs_dict (salle en attente), seul `players` est écrit : l'hôte peut
+    déjà écouter son chemin, qui reste vide jusqu'à l'arrivée de l'invité.
+
     Les erreurs sont loguées mais n'interrompent pas la réponse HTTP.
     """
+    payload: dict[str, Any] = {"players": players}
+    if gs_dict is not None:
+        payload["for_host"]  = _build_masked_state(gs_dict, viewer_index=0)
+        payload["for_guest"] = _build_masked_state(gs_dict, viewer_index=1)
     try:
         from firebase_admin import db as rtdb
-        ref = rtdb.reference(f"/games/{room_id}")
-        ref.set({
-            "for_host":  _build_masked_state(gs_dict, viewer_index=0),
-            "for_guest": _build_masked_state(gs_dict, viewer_index=1),
-        })
+        rtdb.reference(f"/games/{room_id}").set(payload)
         logger.debug("RTDB sync OK pour room %s", room_id)
     except Exception as exc:
         logger.warning("RTDB sync ignorée (room=%s) : %s", room_id, exc)
+
+
+def _delete_rtdb(room_id: str) -> None:
+    """Supprime le nœud RTDB d'une salle (fonction synchrone, erreurs ignorées)."""
+    try:
+        from firebase_admin import db as rtdb
+        rtdb.reference(f"/games/{room_id}").delete()
+    except Exception as exc:
+        logger.warning("Suppression RTDB ignorée (room=%s) : %s", room_id, exc)
 
 
 def _game_state_to_dict(game_state) -> dict:
@@ -182,6 +232,7 @@ async def create_room(
     )
     db.add(room)
     await db.flush()
+    await asyncio.to_thread(_sync_rtdb, room_id, {"host": current_user.firebase_uid})
     logger.info("Salle créée : %s par user %d", room_id, current_user.id)
 
     return CreateRoomResponse(
@@ -217,6 +268,7 @@ async def join_room(
         player_names=[host.display_name, current_user.display_name],
         difficulty="medium",
     )
+    engine.forget_game(game_state.game_id)  # S1 : la référence est en base
     gs_dict = _game_state_to_dict(game_state)
 
     room.guest_user_id   = current_user.id
@@ -227,7 +279,8 @@ async def join_room(
     room.guest_score     = 0
     await db.flush()
 
-    await asyncio.to_thread(_sync_rtdb, room_id, gs_dict)  # B3
+    players = {"host": host.firebase_uid, "guest": current_user.firebase_uid}
+    await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
     logger.info(
         "Partie démarrée : room %s | %s vs %s",
         room_id, host.display_name, current_user.display_name,
@@ -283,18 +336,17 @@ async def play_move(
 
     from api.models import GameState as GSModel
     gs = GSModel.model_validate(room.game_state)
-    engine.active_games[gs.game_id] = gs
 
     player_idx = _player_index_for_user(room.game_state, current_user.id, room)
     player_id  = gs.players[player_idx].id
 
     placements = [(p["r"], p["c"], p["letter"]) for p in body.placements]
-    success, message = engine.play_word(gs.game_id, player_id, placements)
+    with _on_engine(engine, gs) as gs_updated:  # S1
+        success, message = engine.play_word(gs.game_id, player_id, placements)
     if not success:
         raise HTTPException(status_code=422, detail=message)
 
-    gs_updated = engine.active_games[gs.game_id]
-    gs_dict    = _game_state_to_dict(gs_updated)
+    gs_dict = _game_state_to_dict(gs_updated)
 
     room.game_state      = gs_dict
     room.host_score      = gs_updated.players[0].score
@@ -312,7 +364,7 @@ async def play_move(
             room.winner_user_id = room.host_user_id if winner_idx == 0 else room.guest_user_id
 
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, gs_dict)  # B3
+    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
@@ -340,17 +392,16 @@ async def pass_turn(
 
     from api.models import GameState as GSModel
     gs = GSModel.model_validate(room.game_state)
-    engine.active_games[gs.game_id] = gs
 
     player_idx = _player_index_for_user(room.game_state, current_user.id, room)
     player_id  = gs.players[player_idx].id
 
-    success, message = engine.pass_turn(gs.game_id, player_id)
+    with _on_engine(engine, gs) as gs_updated:  # S1
+        success, message = engine.pass_turn(gs.game_id, player_id)
     if not success:
         raise HTTPException(status_code=422, detail=message)
 
-    gs_updated = engine.active_games[gs.game_id]
-    gs_dict    = _game_state_to_dict(gs_updated)
+    gs_dict = _game_state_to_dict(gs_updated)
 
     room.game_state      = gs_dict
     room.current_user_id = _current_user_id_from_state(gs_dict, room)
@@ -360,7 +411,7 @@ async def pass_turn(
         room.finished_at = datetime.now(timezone.utc)
 
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, gs_dict)  # B3
+    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
@@ -389,22 +440,21 @@ async def swap_tiles(
 
     from api.models import GameState as GSModel
     gs = GSModel.model_validate(room.game_state)
-    engine.active_games[gs.game_id] = gs
 
     player_idx = _player_index_for_user(room.game_state, current_user.id, room)
     player_id  = gs.players[player_idx].id
 
-    success, message = engine.swap_tiles(gs.game_id, player_id, body.letters)
+    with _on_engine(engine, gs) as gs_updated:  # S1
+        success, message = engine.swap_tiles(gs.game_id, player_id, body.letters)
     if not success:
         raise HTTPException(status_code=422, detail=message)
 
-    gs_updated = engine.active_games[gs.game_id]
-    gs_dict    = _game_state_to_dict(gs_updated)
+    gs_dict = _game_state_to_dict(gs_updated)
 
     room.game_state      = gs_dict
     room.current_user_id = _current_user_id_from_state(gs_dict, room)
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, gs_dict)  # B3
+    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
@@ -430,4 +480,5 @@ async def cancel_room(
 
     await db.delete(room)
     await db.flush()
-    logger.info("Salle %s annulée par user %d", room_id, current_user.id)
+    await asyncio.to_thread(_delete_rtdb, room_id)
+    logger.info("Salle %s annulée par user %d", room_id, current_user.id)

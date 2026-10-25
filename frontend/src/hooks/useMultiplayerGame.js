@@ -3,7 +3,7 @@
 // Gère l'intégralité d'une partie multijoueur :
 //   - Sync temps réel via Firebase RTDB (onValue sur /games/{roomId}/for_host
 //     ou /games/{roomId}/for_guest selon myPlayerIndex)
-//   - Fallback polling REST toutes les 5 s si RTDB indisponible
+//   - Fallback polling REST toutes les 5 s si RTDB indisponible ou lecture refusée
 //   - Actions : playMove, passTurn, swapTiles
 //   - Placement côté client (même logique que useGameLogic.js)
 //
@@ -119,14 +119,24 @@ export function useMultiplayerGame({
     getRtdb()
       .then(({ db, ref, onValue }) => {
         if (cancelled) return;
-        unsubscribe = onValue(ref(db, rtdbSubPath), (snapshot) => {
-          const data = snapshot.val();
-          if (data) setGameState(data);
-        });
+        unsubscribe = onValue(
+          ref(db, rtdbSubPath),
+          (snapshot) => {
+            const data = snapshot.val();
+            if (data) setGameState(data);
+          },
+          // Lecture refusée (règles RTDB, salle créée avant leur mise en place)
+          // ou connexion perdue : on bascule sur le polling REST.
+          (err) => {
+            console.warn('[MP] Écoute RTDB interrompue, repli sur le polling REST :', err?.message);
+            unsubscribe = null;
+            if (!cancelled && !pollTimer) startPolling();
+          },
+        );
       })
       .catch((err) => {
         console.warn('[MP] RTDB indisponible, repli sur le polling REST :', err?.message);
-        if (!cancelled) startPolling();
+        if (!cancelled && !pollTimer) startPolling();
       });
 
     return () => {

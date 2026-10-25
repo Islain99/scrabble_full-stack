@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,7 +38,8 @@ class MultiplayerGame(Base):
     status:          Mapped[str]           = mapped_column(String(16), nullable=False, default=RoomStatus.WAITING)
 
     # État complet sérialisé (GameState Pydantic → dict JSON)
-    game_state:      Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # JSONB sous PostgreSQL, JSON ailleurs (tests en SQLite)
+    game_state:      Mapped[Optional[dict]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
 
     # Dénormalisations pratiques
     current_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -91,4 +92,4 @@ class PlayMoveRequest(BaseModel):
 
 class SwapRequest(BaseModel):
     """Corps de POST /multiplayer/{room_id}/swap"""
-    letters: list[str]
+    letters: list[str]
