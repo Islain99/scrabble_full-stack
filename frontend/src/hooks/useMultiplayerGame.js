@@ -33,6 +33,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getRtdb } from '../firebase';
 import * as mp from '../api/multiplayerService';
 import { calculatePreviewScore } from '../utils/scoring';
+import { decodeLiveState, normalizeGameState } from '../utils/gameState';
 import { useLanguage } from '../context/LanguageContext';
 
 const DEFAULT_CLAIM_AFTER_MS = 10 * 60 * 1000;
@@ -100,7 +101,9 @@ export function useMultiplayerGame({
 
   // ── Sync Firebase RTDB ────────────────────────────────────────
   // État reçu de Firebase : la dernière action est datée à réception si l'état a changé
-  const applyLiveState = useCallback((data) => {
+  const applyLiveState = useCallback((raw) => {
+    // Firebase : état encodé en texte JSON (voir utils/gameState.js)
+    const data = decodeLiveState(raw);
     if (!data) return;
     setGameState(data);
     const signature = stateSignature(data);
@@ -114,8 +117,9 @@ export function useMultiplayerGame({
   const applyRoomState = useCallback((roomData) => {
     if (!roomData) return;
     if (roomData.game_state) {
-      setGameState(roomData.game_state);
-      signatureRef.current = stateSignature(roomData.game_state);
+      const gs = normalizeGameState(roomData.game_state);
+      setGameState(gs);
+      signatureRef.current = stateSignature(gs);
     }
     if (roomData.status)         setRoomStatus(roomData.status);
     if (roomData.last_action_at) setLastActionAt(Date.parse(roomData.last_action_at));
