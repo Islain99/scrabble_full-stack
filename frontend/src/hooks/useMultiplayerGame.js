@@ -5,7 +5,7 @@
 //     ou /games/{roomId}/for_guest selon myPlayerIndex)
 //   - Fallback polling REST toutes les 5 s si RTDB indisponible, injoignable
 //     (aucun événement après 8 s) ou lecture refusée
-//   - Actions : playMove, passTurn, swapTiles, resign, claimWin
+//   - Actions : playMove, passTurn, swapTiles, resign, claimWin, shuffleRack
 //   - Délai d'inactivité : canClaim passe à true quand l'adversaire n'a pas
 //     joué depuis claim_after_s (le serveur vérifie de son côté)
 //   - Placement côté client (même logique que useGameLogic.js)
@@ -40,6 +40,16 @@ const DEFAULT_CLAIM_AFTER_MS = 10 * 60 * 1000;
 const RTDB_TIMEOUT_MS = 8000;
 
 /** Empreinte d'un état : change à chaque coup (sert à dater la dernière action). */
+/**
+ * Garde l'objet précédent quand rien n'a changé pour ce joueur : un mélange du
+ * chevalet adverse (masqué) renvoie le même état, et remplacer les tuiles du
+ * chevalet ferait perdre les placements en cours (comparés par référence).
+ */
+function keepIfSame(prev, next) {
+  if (prev && next && JSON.stringify(prev) === JSON.stringify(next)) return prev;
+  return next;
+}
+
 function stateSignature(gs) {
   if (!gs) return '';
   const scores = (gs.players ?? []).map(p => p.score).join(',');
@@ -64,8 +74,11 @@ export function useMultiplayerGame({
 } = {}) {
   const { t } = useLanguage();
 
-  const [gameState,  setGameState]  = useState(null);
-  const [roomStatus, setRoomStatus] = useState('ACTIVE');
+  // État rangé avec sa salle : après une revanche (nouvelle salle), l'état de
+  // la partie terminée n'est plus servi, sans effet de réinitialisation
+  const [live, setLive] = useState({ roomId: null, gameState: null, status: 'ACTIVE' });
+  const gameState  = live.roomId === roomId ? live.gameState : null;
+  const roomStatus = live.roomId === roomId ? live.status : 'ACTIVE';
   const [placements, setPlacements] = useState([]);
   const [pendingJoker, setPendingJoker] = useState(null); // { tile, r, c }
   const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
@@ -101,11 +114,13 @@ export function useMultiplayerGame({
 
   // ── Sync Firebase RTDB ────────────────────────────────────────
   // État reçu de Firebase : la dernière action est datée à réception si l'état a changé
-  const applyLiveState = useCallback((raw) => {
+  const applyLiveState = useCallback((rid, raw) => {
     // Firebase : état encodé en texte JSON (voir utils/gameState.js)
     const data = decodeLiveState(raw);
     if (!data) return;
-    setGameState(data);
+    setLive(prev => prev.roomId === rid
+      ? { ...prev, gameState: keepIfSame(prev.gameState, data) }
+      : { roomId: rid, gameState: data, status: 'ACTIVE' });
     const signature = stateSignature(data);
     if (signature !== signatureRef.current) {
       signatureRef.current = signature;
@@ -115,13 +130,18 @@ export function useMultiplayerGame({
 
   // Réponse du serveur (REST) : fait foi, y compris pour la date de la dernière action
   const applyRoomState = useCallback((roomData) => {
-    if (!roomData) return;
-    if (roomData.game_state) {
-      const gs = normalizeGameState(roomData.game_state);
-      setGameState(gs);
-      signatureRef.current = stateSignature(gs);
-    }
-    if (roomData.status)         setRoomStatus(roomData.status);
+    if (!roomData?.room_id) return;
+    const rid = roomData.room_id;
+    const gs  = roomData.game_state ? normalizeGameState(roomData.game_state) : null;
+    if (gs) signatureRef.current = stateSignature(gs);
+    setLive(prev => {
+      const same = prev.roomId === rid;
+      return {
+        roomId: rid,
+        gameState: gs ? keepIfSame(same ? prev.gameState : null, gs) : (same ? prev.gameState : null),
+        status: roomData.status ?? (same ? prev.status : 'ACTIVE'),
+      };
+    });
     if (roomData.last_action_at) setLastActionAt(Date.parse(roomData.last_action_at));
     if (roomData.claim_after_s)  setClaimAfterMs(roomData.claim_after_s * 1000);
   }, []);
@@ -177,7 +197,7 @@ export function useMultiplayerGame({
         if (cancelled) return;
         unsubscribe = onValue(
           ref(db, rtdbSubPath),
-          (snapshot) => { gotEvent = true; applyLiveState(snapshot.val()); },
+          (snapshot) => { gotEvent = true; applyLiveState(roomId, snapshot.val()); },
           // Lecture refusée (règles RTDB, salle créée avant leur mise en place)
           // ou connexion perdue : on bascule sur le polling REST.
           (err) => {
@@ -352,6 +372,19 @@ export function useMultiplayerGame({
     }
   }, [roomId, applyRoomState, addToast, t]);
 
+  // Mélange : à tout moment, sans consommer le tour. Les tuiles posées reviennent
+  // d'abord sur le chevalet (le nouvel ordre remplace les tuiles du chevalet).
+  const handleShuffleRack = useCallback(async () => {
+    if (!roomId || !isActive) return;
+    setPlacements([]);
+    setSelectedTilesToSwap([]);
+    try {
+      applyRoomState(await mp.shuffleRack(roomId));
+    } catch (err) {
+      addToast(err?.response?.data?.detail || t('toast_network_error'), 'error');
+    }
+  }, [roomId, isActive, applyRoomState, addToast, t]);
+
   // B4 : index de rack au lieu de la lettre — deux tuiles identiques sélectionnables indépendamment.
   const toggleTileForSwap = useCallback((rackIndex) => {
     setSelectedTilesToSwap(prev =>
@@ -391,6 +424,7 @@ export function useMultiplayerGame({
     handleSwapTiles,
     handleResign,
     handleClaimWin,
+    handleShuffleRack,
     toggleTileForSwap,
   };
 }

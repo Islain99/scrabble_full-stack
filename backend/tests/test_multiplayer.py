@@ -575,3 +575,115 @@ def test_raw_state_would_lose_the_board():
     stored = _firebase_roundtrip(empty_board)
     assert "board" not in stored
     assert "rack" not in stored["players"][0]
+
+
+# ── A1 : actions en partie (historique, mélange, revanche) ───────
+
+async def test_moves_are_recorded_for_both_players(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["alice"])
+    await _set_rack(sqlite_db, room_id, 0, "CHATXYZ")
+    r = await client.post(f"{API}/rooms/{room_id}/move",
+                          json={"placements": [{"r": 7, "c": 7 + i, "letter": l} for i, l in enumerate("CHAT")]})
+    assert r.status_code == 200, r.text
+
+    login(players["bruno"])
+    r = await client.get(f"{API}/rooms/{room_id}")
+    first = r.json()["game_state"]["players"][1]["rack"][0]["letter"]
+    assert (await client.post(f"{API}/rooms/{room_id}/swap", json={"letters": [first]})).status_code == 200
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms/{room_id}/pass")
+    moves = r.json()["game_state"]["moves"]
+
+    assert [m["kind"] for m in moves] == ["play", "swap", "pass"]
+    assert moves[0]["words"] == ["CHAT"] and moves[0]["score"] > 0
+    assert moves[0]["cells"] == [[7, 7], [7, 8], [7, 9], [7, 10]]
+    assert moves[0]["player_id"] == 0 and moves[1]["player_id"] == 1
+    assert moves[1]["count"] == 1
+    _, last = rtdb["set"][-1]                   # l'adversaire voit aussi l'historique
+    assert [m["kind"] for m in last["for_guest"]["moves"]] == ["play", "swap", "pass"]
+
+
+async def test_shuffle_any_time_without_using_the_turn(client, login, players, rtdb, sqlite_db, monkeypatch):
+    from collections import Counter
+    from datetime import datetime, timezone
+    room_id, _ = await _start_game(client, login, players)   # c'est à Alice
+    await _set_rack(sqlite_db, room_id, 1, "ABCDEFG")
+
+    login(players["bruno"])                     # hors de son tour
+    r = await client.post(f"{API}/rooms/{room_id}/shuffle")
+    assert r.status_code == 200, r.text
+    state = r.json()["game_state"]
+    rack = _letters(state["players"][1]["rack"])
+    assert Counter(rack) == Counter("ABCDEFG")  # mêmes lettres
+    assert state["current_player_index"] == 0   # le tour n'a pas bougé
+    assert state["moves"] == []                 # rien dans l'historique
+    assert _letters(state["players"][0]["rack"]) == ["?"] * 7   # l'adversaire reste masqué
+
+    # Le délai d'inactivité n'est pas remis à zéro par un mélange
+    later = datetime.now(timezone.utc) + mp_router.CLAIM_AFTER + mp_router.timedelta(seconds=5)
+    monkeypatch.setattr(mp_router, "_utcnow", lambda: later)
+    login(players["alice"])
+    assert (await client.post(f"{API}/rooms/{room_id}/shuffle")).status_code == 200
+    login(players["bruno"])
+    assert (await client.post(f"{API}/rooms/{room_id}/claim-win")).status_code == 200
+
+
+async def test_shuffle_refused_outside_an_active_game(client, login, players, rtdb, sqlite_db):
+    async with sqlite_db() as session:
+        async with session.begin():
+            carl = User(firebase_uid="uid-carl", email="carl@test.dev", display_name="Carl")
+            session.add(carl)
+    room_id, _ = await _start_game(client, login, players)
+    login(carl)
+    assert (await client.post(f"{API}/rooms/{room_id}/shuffle")).status_code == 403
+    login(players["alice"])
+    await client.post(f"{API}/rooms/{room_id}/resign")
+    assert (await client.post(f"{API}/rooms/{room_id}/shuffle")).status_code == 409
+
+
+async def test_rematch_offer_then_accept(client, login, players, rtdb):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["alice"])
+    assert (await client.post(f"{API}/rooms/{room_id}/rematch")).status_code == 409   # pas finie
+    await client.post(f"{API}/rooms/{room_id}/resign")
+
+    # Bruno propose : une salle à son nom, annoncée dans l'ancienne partie
+    login(players["bruno"])
+    r = await client.post(f"{API}/rooms/{room_id}/rematch")
+    assert r.status_code == 200, r.text
+    offer = r.json()
+    assert offer["action"] == "created" and offer["status"] == "WAITING"
+    new_code = offer["room_id"]
+    assert new_code != room_id
+    _, last = rtdb["set"][-1]
+    assert last["for_host"]["rematch"] == {"code": new_code, "by": 1}
+
+    # Redemander ne crée pas une seconde salle
+    assert (await client.post(f"{API}/rooms/{room_id}/rematch")).json()["room_id"] == new_code
+
+    # Alice accepte : elle rejoint, la partie démarre
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms/{room_id}/rematch")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["action"] == "joined" and body["room_id"] == new_code
+    assert body["status"] == "ACTIVE"
+    assert body["host_user_id"] == players["bruno"].id
+    assert body["game_state"]["moves"] == []
+    current = (await client.get(f"{API}/rooms/current")).json()
+    assert current["room_id"] == new_code
+
+
+async def test_rematch_when_offer_expired_creates_a_new_room(client, login, players, rtdb):
+    room_id, _ = await _start_game(client, login, players)
+    login(players["alice"])
+    await client.post(f"{API}/rooms/{room_id}/resign")
+    login(players["bruno"])
+    code = (await client.post(f"{API}/rooms/{room_id}/rematch")).json()["room_id"]
+    assert (await client.delete(f"{API}/rooms/{code}")).status_code in (200, 204)  # Bruno annule
+
+    login(players["alice"])                     # la proposition n'existe plus
+    r = await client.post(f"{API}/rooms/{room_id}/rematch")
+    assert r.status_code == 200, r.text
+    assert r.json()["action"] == "created" and r.json()["room_id"] != code

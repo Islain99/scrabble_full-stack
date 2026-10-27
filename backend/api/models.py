@@ -44,6 +44,15 @@ class Board(BaseModel):
     # Utiliser un générateur de liste garantit que toutes les sous-listes sont distinctes
     grid: List[List[Optional[Tile]]] = [[None for _ in range(15)] for _ in range(15)]
 
+# Un coup joué (historique, dernier coup surligné)
+class Move(BaseModel):
+    player_id: int
+    kind: str                         # "play" | "pass" | "swap"
+    words: List[str] = []             # mots formés (play)
+    score: int = 0                    # points marqués (play)
+    cells: List[List[int]] = []       # cases posées [[r, c], …] (play)
+    count: int = 0                    # lettres échangées (swap)
+
 # Modèle principal pour l'état du jeu
 class GameState(BaseModel):
     game_id: str
@@ -62,4 +71,8 @@ class GameState(BaseModel):
     # Son identifiant (Player.id) : fait foi, deux joueurs pouvant porter le même nom
     winner_id: Optional[int] = None
     # Partie terminée sur une égalité de score (winner_name et winner_id à None)
-    is_draw: bool = False
+    is_draw: bool = False
+    # Historique des coups, du premier au dernier
+    moves: List[Move] = []
+    # Multijoueur : revanche proposée après la fin { "code": salle, "by": index du joueur }
+    rematch: Optional[Dict[str, int | str]] = None

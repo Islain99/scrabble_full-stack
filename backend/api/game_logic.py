@@ -2,7 +2,7 @@ import random
 import uuid
 import time
 from typing import List, Tuple, Optional, Set, Dict
-from api.models import GameState, Player, Tile, POINTS_LETTRES, Board, GameStatus
+from api.models import GameState, Move, Player, Tile, POINTS_LETTRES, Board, GameStatus
 from copy import deepcopy
 
 # ---------------------------------------------------------------------------
@@ -588,6 +588,10 @@ class GameEngine:
         new_tiles = self._draw_tiles(current_game, len(placements))
         current_player.rack.extend(new_tiles)
         current_game.passes_count = 0
+        current_game.moves.append(Move(
+            player_id=player_id, kind="play", words=formed_words, score=score,
+            cells=[[r, c] for r, c, _ in placements],
+        ))
         self._check_game_over(current_game)
 
         if current_game.status == GameStatus.ACTIVE:
@@ -605,6 +609,7 @@ class GameEngine:
             return (False, "Ce n'est pas le tour de ce joueur.")
 
         current_game.passes_count += 1
+        current_game.moves.append(Move(player_id=player_id, kind="pass"))
         self._check_game_over(current_game)
 
         if current_game.status == GameStatus.ACTIVE:
@@ -645,6 +650,7 @@ class GameEngine:
         current_player.rack.extend(new_tiles)
         current_game.remaining_tiles.extend([t.letter for t in swapped_tiles])
         random.shuffle(current_game.remaining_tiles)
+        current_game.moves.append(Move(player_id=player_id, kind="swap", count=len(letters_to_swap)))
         current_game.current_player_index = (
             current_game.current_player_index + 1
         ) % len(current_game.players)
@@ -1385,4 +1391,4 @@ class GameEngine:
  
         return best_result
 
-# Fin du fichier: backend/game_logic.py
+# Fin du fichier: backend/game_logic.py
