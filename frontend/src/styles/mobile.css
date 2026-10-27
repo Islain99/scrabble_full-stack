@@ -575,3 +575,67 @@ html.mg-lock .toast-stack {
 }
 .lb-mrow-stat-value { font-family: 'DM Mono', monospace; font-size: 0.85rem; font-weight: 500; }
 .lb-mrow-stat[data-main] .lb-mrow-stat-value { font-weight: 700; }
+
+/* ── Pause (écran de jeu solo, téléphone et ordinateur) ─────────────── */
+.pause-btn {
+  position: relative; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 2.5px solid var(--border-primary);
+  box-shadow: 2px 2px 0 var(--border-primary);
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; font-weight: 700; letter-spacing: -0.1em;
+  cursor: pointer; padding: 0;
+}
+.pause-btn[aria-pressed="true"] { background: var(--text-primary); color: var(--bg-card); }
+.mg-strip .pause-btn { align-self: center; }
+.pause-overlay {
+  position: fixed; inset: 0; z-index: 95;          /* sous la barre de navigation (100) */
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(245, 237, 214, 0.35);
+  -webkit-backdrop-filter: blur(14px) saturate(0.8);
+  backdrop-filter: blur(14px) saturate(0.8);
+}
+:root[data-theme="dark"] .pause-overlay, .dark .pause-overlay { background: rgba(20, 18, 14, 0.45); }
+.pause-card {
+  width: 100%; max-width: 360px; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 28px 24px 24px; text-align: center;
+  background: var(--bg-card); border: 3px solid var(--border-primary); border-radius: 3px;
+  box-shadow: 6px 6px 0 var(--shadow-card);
+}
+.pause-icon { font-family: 'DM Mono', monospace; font-size: 1.8rem; font-weight: 700; letter-spacing: -0.15em; color: var(--gold); }
+.pause-card h2 { margin: 0; font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 900; color: var(--text-primary); }
+.pause-card p { margin: 0 0 8px; font-family: 'DM Mono', monospace; font-size: 0.78rem; line-height: 1.5; color: var(--text-muted); }
+
+/* ── Reprise d'une partie solo (écran de démarrage) ──────────────────── */
+.resume-card { display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center; }
+.resume-title {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--tobacco); font-weight: 700;
+}
+.resume-score {
+  display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 6px 10px;
+  font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--text-primary);
+}
+.resume-score b { font-family: 'DM Mono', monospace; font-size: 1.4rem; color: var(--gold); }
+.resume-dash { color: var(--text-muted); }
+.resume-meta { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted); margin-bottom: 8px; }
+.resume-hint { font-family: 'DM Mono', monospace; font-size: 0.6rem; line-height: 1.5; color: var(--text-muted); margin-top: 6px; }
+
+/* ── Débordements sur téléphone (iPhone 12 : 390 px) ─────────────────── */
+/* Paramètres : sous la description, le contrôle prend toute la largeur */
+@media (max-width: 600px) {
+  .s-row-control { flex: 1 1 100% !important; }
+  .s-row-control > div { width: 100%; }
+}
+/* Menu « Plus » : « Abandonner la partie » sur une ligne */
+.mg-more-menu { min-width: max-content; }
+.mg-more-item { white-space: nowrap; padding-right: 18px; }
+/* Profil, historique : 4 colonnes sur téléphone (meilleur mot masqué) */
+@media (max-width: 600px) {
+  .profile-hist { grid-template-columns: 48px minmax(0, 1fr) 64px 64px !important; padding-left: 12px !important; padding-right: 12px !important; }
+  .profile-hist > :nth-child(5) { display: none; }
+  .profile-hist > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+}

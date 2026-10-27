@@ -3,12 +3,36 @@
 // Les notifications (erreurs, IA, succès) passent toutes par `addToast`
 // fourni en paramètre depuis GamePage via useToast().
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import * as gameService from '../api/gameService';
 import { saveGame } from '../api/authService';
 import { calculatePreviewScore } from '../utils/scoring';
 import { useLanguage } from '../context/LanguageContext';
 import { isWinner } from '../utils/gameResult';
+
+// ── Partie en cours mémorisée (reprise au retour) ─────────────────
+// La partie elle-même est conservée par le serveur (table solo_games) ; le
+// navigateur garde son identifiant et l'état du minuteur pour la reprendre.
+
+const sessionKey = (user) => `scrabble-solo-session:${user?.id ?? 'guest'}`;
+
+function readSession(key) {
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+function writeSession(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* stockage indisponible */ }
+}
+function clearSession(key) {
+  try { localStorage.removeItem(key); } catch { /* stockage indisponible */ }
+}
+
+// ── Page visible ? (appli en arrière-plan, onglet caché) ──────────
+function subscribeVisibility(callback) {
+  document.addEventListener('visibilitychange', callback);
+  return () => document.removeEventListener('visibilitychange', callback);
+}
+const getVisible = () => document.visibilityState !== 'hidden';
+const getVisibleServer = () => true;
 
 // ── Hook principal ────────────────────────────────────────────────
 
@@ -17,6 +41,7 @@ import { isWinner } from '../utils/gameResult';
  *   isAuthenticated: boolean,
  *   user: object|null,
  *   autoSortRack: boolean,
+ *   turnDuration: number,          // secondes par tour, 0 = sans minuteur
  *   addToast: (message: string, type: 'info'|'success'|'error'|'warn') => void
  * }} options
  */
@@ -24,9 +49,11 @@ export function useGameLogic({
   isAuthenticated,
   user,
   autoSortRack = false,
+  turnDuration = 0,
   addToast = () => {},
 } = {}) {
   const { t, tp } = useLanguage();
+  const storageKey = sessionKey(user);
 
   // ── State ─────────────────────────────────────────────────────
   const [gameState, setGameState]                     = useState(null);
@@ -41,7 +68,19 @@ export function useGameLogic({
   const [isLoading, setIsLoading]                     = useState(false);
   const [showAbandonModal, setShowAbandonModal]       = useState(false);
 
-  const timerResetRef = useRef(null);
+  // Minuteur du tour, tenu ici (et plus dans TurnTimer) pour pouvoir le mettre
+  // en pause, le sauvegarder et le reprendre au retour du joueur.
+  const [turnNo, setTurnNo]               = useState(0);       // n° du tour du joueur
+  const [turnRemaining, setTurnRemaining] = useState(0);       // secondes restantes
+  const remainingRef                      = useRef(0);
+  const [paused, setPaused]               = useState(false);   // bouton Pause
+  const [resumeOffer, setResumeOffer]     = useState(null);    // { saved, gameState }
+  const visible = useSyncExternalStore(subscribeVisibility, getVisible, getVisibleServer);
+
+  const setRemaining = useCallback((value) => {
+    remainingRef.current = value;
+    setTurnRemaining(value);
+  }, []);
 
   // ── Dérivés ───────────────────────────────────────────────────
   const activePlayerId = gameState
@@ -70,8 +109,9 @@ export function useGameLogic({
   const isSwapMode   = selectedTilesToSwap.length > 0;
 
   // ── Tour IA automatique ───────────────────────────────────────
+  // En pause (bouton ou appli en arrière-plan), l'IA attend elle aussi.
   useEffect(() => {
-    if (!gameState || gameState.status !== 'ACTIVE' || !gameId) return;
+    if (!gameState || gameState.status !== 'ACTIVE' || !gameId || paused || !visible) return;
     const currentPlayer = gameState.players[gameState.current_player_index];
     if (!currentPlayer?.is_ai) return;
 
@@ -79,6 +119,11 @@ export function useGameLogic({
       try {
         const { gameState: updated, message, move } = await gameService.aiPlayTurn(gameId);
         setGameState(updated);
+        // Retour au joueur : nouveau tour, minuteur plein
+        if (updated?.status === 'ACTIVE' && !updated.players[updated.current_player_index]?.is_ai) {
+          setTurnNo(n => n + 1);
+          setRemaining(turnDuration);
+        }
         // Message composé dans la langue du joueur ; repli sur celui du serveur
         const name = currentPlayer.name;
         if (move?.kind === 'play')      addToast(t('ai_move_play', { name, word: move.word, score: move.score }), 'info');
@@ -92,7 +137,7 @@ export function useGameLogic({
     }, 1500);
 
     return () => clearTimeout(delay);
-  }, [gameState, gameId, addToast, t, tp]);
+  }, [gameState, gameId, paused, visible, turnDuration, setRemaining, addToast, t, tp]);
 
   // ── Sauvegarde auto en fin de partie ─────────────────────────
   useEffect(() => {
@@ -137,6 +182,12 @@ export function useGameLogic({
 
   const startGame = useCallback(async (difficulty = 'medium') => {
     setIsLoading(true);
+    // Une partie en cours proposée à la reprise est abandonnée sans être comptée
+    if (resumeOffer) {
+      gameService.abandonGame(resumeOffer.saved.gameId, 0).catch(() => {});
+      clearSession(storageKey);
+      setResumeOffer(null);
+    }
     try {
       const playerName = isAuthenticated && user?.display_name ? user.display_name : t('player_default');
       const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)'], difficulty);
@@ -148,13 +199,68 @@ export function useGameLogic({
       setGameStartTime(Date.now());
       setGameSaved(false);
       setTimerActive(true);
+      setTurnNo(1);
+      setRemaining(turnDuration);
+      setPaused(false);
     } catch (e) {
       console.error('Erreur démarrage:', e);
       addToast(t('toast_start_error'), 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user, addToast, t]);
+  }, [isAuthenticated, user, addToast, t, resumeOffer, storageKey, turnDuration, setRemaining]);
+
+  /** Reprend la partie proposée au retour du joueur, minuteur compris. */
+  const resumeGame = useCallback(() => {
+    if (!resumeOffer) return;
+    const { saved, gameState: gs } = resumeOffer;
+    setGameState(gs);
+    setGameId(saved.gameId);
+    setGameDifficulty(saved.difficulty ?? 'medium');
+    setGameStartTime(saved.startedAt ?? Date.now());
+    setGameSaved(false);
+    setPlacements([]);
+    setSelectedTilesToSwap([]);
+    setTimerActive(true);
+    setTurnNo(saved.turnNo ?? 1);
+    const left = Number.isFinite(saved.remaining) && saved.remaining > 0 ? saved.remaining : turnDuration;
+    setRemaining(Math.min(left, turnDuration));
+    setPaused(false);
+    setResumeOffer(null);
+  }, [resumeOffer, turnDuration, setRemaining]);
+
+  // Au retour sur l'écran de jeu : une partie non terminée est-elle à reprendre ?
+  useEffect(() => {
+    if (gameState) return;
+    const saved = readSession(storageKey);
+    if (!saved?.gameId) return;
+    let cancelled = false;
+    gameService.getGameStatus(saved.gameId)
+      .then((gs) => {
+        if (cancelled) return;
+        if (gs?.status === 'ACTIVE') setResumeOffer({ saved, gameState: gs });
+        else clearSession(storageKey);
+      })
+      .catch((err) => {
+        // Partie introuvable (purgée) : on oublie ; erreur réseau : on réessaiera
+        if (!cancelled && err?.response?.status === 404) clearSession(storageKey);
+      });
+    return () => { cancelled = true; };
+  }, [gameState, storageKey]);
+
+  // Sauvegarde continue de la partie en cours (et du temps restant du tour)
+  useEffect(() => {
+    if (!gameId || !gameState) return;
+    if (gameState.status !== 'ACTIVE') { clearSession(storageKey); return; }
+    writeSession(storageKey, {
+      gameId,
+      difficulty: gameDifficulty,
+      startedAt:  gameStartTime,
+      turnNo,
+      remaining:  turnRemaining,
+      savedAt:    Date.now(),
+    });
+  }, [storageKey, gameId, gameState, gameDifficulty, gameStartTime, turnNo, turnRemaining]);
 
   /** Déposer une tuile du rack sur une case du plateau. */
   const handleDropTile = useCallback((rackIndex, r, c) => {
@@ -218,9 +324,6 @@ export function useGameLogic({
         addToast(t('toast_bingo'), 'success');
       }
       setPlacements([]);
-      if (result.status !== 'FINISHED') {
-        timerResetRef.current?.();
-      }
     } catch (error) {
       const detail = error.response?.data?.detail || t('toast_word_invalid');
       addToast(detail, 'error');
@@ -279,11 +382,31 @@ export function useGameLogic({
     try {
       const updated = await gameService.passTurn(gameId, activePlayerId);
       setGameState(updated);
-      timerResetRef.current?.();
     } catch (e) {
       console.error('Auto-pass échoué:', e);
     }
   }, [gameId, activePlayerId, isAITurn, addToast, t]);
+
+  // ── Minuteur du tour ──────────────────────────────────────────
+  // Il tourne pendant le tour du joueur, sauf en pause ou appli en arrière-plan.
+  const timerOn = turnDuration > 0 && timerActive && !!gameState
+    && gameState.status === 'ACTIVE' && !isAITurn;
+  const timerRunning = timerOn && !paused && visible && turnRemaining > 0;
+  const expireRef = useRef(handleTimerExpire);
+  useEffect(() => { expireRef.current = handleTimerExpire; }, [handleTimerExpire]);
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const id = setInterval(() => {
+      const next = Math.max(0, Math.min(remainingRef.current, turnDuration) - 1);
+      remainingRef.current = next;
+      setTurnRemaining(next);
+      if (next === 0) expireRef.current?.();
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timerRunning, turnDuration]);
+
+  const togglePause = useCallback(() => setPaused(p => !p), []);
 
   const toggleTileForSwap = useCallback((letter) => {
     setSelectedTilesToSwap(prev =>
@@ -326,6 +449,7 @@ export function useGameLogic({
       setPlacements([]);
       setSelectedTilesToSwap([]);
       setGameState(finalState);
+      clearSession(storageKey);
 
     } catch (err) {
       console.warn('Abandon backend error:', err?.response?.data?.detail || err.message);
@@ -336,8 +460,9 @@ export function useGameLogic({
       setSelectedTilesToSwap([]);
       setGameStartTime(null);
       setGameSaved(false);
+      clearSession(storageKey);
     }
-  }, [gameState, gameId, gameDifficulty, isAuthenticated, gameStartTime]);
+  }, [gameState, gameId, gameDifficulty, isAuthenticated, gameStartTime, storageKey]);
 
   // ── API publique du hook ──────────────────────────────────────
   return {
@@ -354,11 +479,18 @@ export function useGameLogic({
     activePlayerId,
     rackTilesForDisplay,
     previewScore,
-    timerResetRef,
     pendingJoker,
+    // Minuteur, pause, reprise
+    timerOn,
+    turnDuration,
+    turnRemaining: Math.min(turnRemaining, turnDuration),
+    paused,
+    resumeOffer,
 
     // Actions
     startGame,
+    resumeGame,
+    togglePause,
     handleDropTile,
     chooseJokerLetter,
     cancelJoker,

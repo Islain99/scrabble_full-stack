@@ -57,6 +57,48 @@ function ScorePreview({ score, count, t, tp, compact = false }) {
   );
 }
 
+// ── Pause ─────────────────────────────────────────────────────────
+
+const formatTime = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
+/** Bouton rond ⏸ / ▶, à côté du bouton « ? » du tutoriel. */
+function PauseButton({ paused, onToggle, t }) {
+  return (
+    <button
+      type="button"
+      className="pause-btn"
+      onClick={onToggle}
+      aria-pressed={paused}
+      aria-label={paused ? t('pause_resume') : t('game_pause')}
+      title={paused ? t('pause_resume') : t('game_pause')}
+    >
+      <span aria-hidden="true">{paused ? '▶' : '❚❚'}</span>
+    </button>
+  );
+}
+
+/** Écran de jeu flouté pendant la pause ; le minuteur et l'IA sont arrêtés. */
+function PauseOverlay({ onResume, timerOn, remaining, t }) {
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onResume(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onResume]);
+
+  return (
+    <div className="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+      <div className="pause-card">
+        <div className="pause-icon" aria-hidden="true">❚❚</div>
+        <h2 id="pause-title">{t('pause_title')}</h2>
+        <p>{timerOn ? t('pause_desc_timer', { time: formatTime(remaining) }) : t('pause_desc')}</p>
+        <RetroButton variant="primary" fullWidth onClick={onResume}>
+          ▶ {t('pause_resume')}
+        </RetroButton>
+      </div>
+    </div>
+  );
+}
+
 // ── AbandonModal ──────────────────────────────────────────────────
 
 function AbandonModal({ onConfirm, onCancel, t }) {
@@ -92,11 +134,19 @@ function AbandonModal({ onConfirm, onCancel, t }) {
 // ── GamePage ──────────────────────────────────────────────────────
 
 export default function GamePage() {
-  const { isAuthenticated }    = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { settings, DIFFICULTY_META } = useSettings();
   const { t, tp }              = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
-  const game = useGameLogic({ addToast });
+  // Avant : seul addToast était passé → partie au nom de « Joueur » et
+  // statistiques jamais enregistrées (isAuthenticated restait indéfini).
+  const game = useGameLogic({
+    isAuthenticated,
+    user,
+    autoSortRack: settings.autoSortRack,
+    turnDuration: settings.turnDuration,
+    addToast,
+  });
   const isMobile = useIsMobile();
 
   // Sélection « toucher une lettre, puis une case » (écrans tactiles)
@@ -187,18 +237,58 @@ export default function GamePage() {
             </div>
           </div>
 
-          <RetroButton
-            variant="primary"
-            fullWidth
-            disabled={game.isLoading}
-            onClick={() => game.startGame(settings.difficulty)}
-          >
-            {game.isLoading ? t('start_loading') : `▶ ${t('start_btn')}`}
-          </RetroButton>
+          {/* Partie non terminée : on propose de la reprendre */}
+          {game.resumeOffer ? (() => {
+            const gs    = game.resumeOffer.gameState;
+            const human = gs.players.find(p => !p.is_ai);
+            const ai    = gs.players.find(p => p.is_ai);
+            const left  = game.resumeOffer.saved.remaining;
+            return (
+              <div className="resume-card">
+                <div className="resume-title">{t('resume_title')}</div>
+                <div className="resume-score">
+                  <span>{human?.name}</span><b>{human?.score ?? 0}</b>
+                  <span className="resume-dash">—</span>
+                  <b>{ai?.score ?? 0}</b><span>{ai?.name}</span>
+                </div>
+                <div className="resume-meta">
+                  {tp('resume_bag', gs.remaining_tiles?.length ?? 0)}
+                  {settings.turnDuration > 0 && left > 0 && ` · ${t('resume_time_left', { time: formatTime(Math.min(left, settings.turnDuration)) })}`}
+                </div>
+                <RetroButton variant="primary" fullWidth onClick={game.resumeGame}>
+                  ▶ {t('resume_btn')}
+                </RetroButton>
+                <RetroButton
+                  variant="default"
+                  fullWidth
+                  disabled={game.isLoading}
+                  onClick={() => game.startGame(settings.difficulty)}
+                  style={{ marginTop: '12px' }}
+                >
+                  {game.isLoading ? t('start_loading') : t('resume_new')}
+                </RetroButton>
+                <div className="resume-hint">{t('resume_new_hint')}</div>
+              </div>
+            );
+          })() : (
+            <RetroButton
+              variant="primary"
+              fullWidth
+              disabled={game.isLoading}
+              onClick={() => game.startGame(settings.difficulty)}
+            >
+              {game.isLoading ? t('start_loading') : `▶ ${t('start_btn')}`}
+            </RetroButton>
+          )}
         </div>
       </div>
     );
   }
+
+  const pauseButton  = <PauseButton paused={game.paused} onToggle={game.togglePause} t={t} />;
+  const pauseOverlay = game.paused && (
+    <PauseOverlay onResume={game.togglePause} timerOn={game.timerOn} remaining={game.turnRemaining} t={t} />
+  );
 
   // ── Écran de fin ──────────────────────────────────────────────
   if (game.gameState.status === 'FINISHED') {
@@ -284,13 +374,12 @@ export default function GamePage() {
               activeIndex={activeIndex}
               bagCount={settings.showRemainingTiles ? (game.gameState.remaining_tiles?.length ?? 0) : null}
               bagLabel={t('mg_bag')}
-              extra={<TutorialButton t={t} inline />}
+              extra={<>{pauseButton}<TutorialButton t={t} inline /></>}
               below={settings.turnDuration > 0 ? (
                 <TurnTimer
                   duration={settings.turnDuration}
-                  isActive={game.timerActive && !busy}
-                  onExpire={game.handleTimerExpire}
-                  resetRef={game.timerResetRef}
+                  remaining={game.turnRemaining}
+                  paused={game.paused}
                 />
               ) : null}
             />
@@ -375,6 +464,7 @@ export default function GamePage() {
             t={t}
           />
         )}
+        {pauseOverlay}
       </>
     );
   }
@@ -388,11 +478,10 @@ export default function GamePage() {
 
       <GameHeader
         gameState={game.gameState}
-        timerActive={game.timerActive && !game.isAITurn}
-        timerResetRef={game.timerResetRef}
-        onTimerExpire={game.handleTimerExpire}
-        actions={<TutorialButton t={t} inline />}
+        timer={{ remaining: game.turnRemaining, paused: game.paused }}
+        actions={<div style={{ display: 'flex', gap: '8px' }}>{pauseButton}<TutorialButton t={t} inline /></div>}
       />
+      {pauseOverlay}
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
       <JokerPicker open={!!game.pendingJoker} onPick={game.chooseJokerLetter} onCancel={game.cancelJoker} />

@@ -8,7 +8,8 @@ import { useLanguage } from '../context/LanguageContext';
  * GameHeader — barre sticky en haut de l'écran de jeu.
  * Affiche : titre, tour actuel, tuiles restantes, timer.
  */
-export default function GameHeader({ gameState, timerActive, timerResetRef, onTimerExpire, actions = null }) {
+// timer : { duration, remaining, paused } — tenu par useGameLogic (pause, reprise)
+export default function GameHeader({ gameState, timer = null, actions = null }) {
   const { settings } = useSettings();
   const { t } = useLanguage();
 
@@ -155,12 +156,11 @@ export default function GameHeader({ gameState, timerActive, timerResetRef, onTi
         <div style={{ width: '100%', paddingBottom: '8px' }}>
           <TurnTimer
             duration={settings.turnDuration}
-            isActive={timerActive && !isAI}
-            onExpire={onTimerExpire}
-            resetRef={timerResetRef}
+            remaining={timer?.remaining ?? settings.turnDuration}
+            paused={!!timer?.paused}
           />
         </div>
       )}
     </header>
   );
-}
+}
