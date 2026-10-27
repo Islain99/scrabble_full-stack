@@ -214,8 +214,16 @@ function ResignModal({ opponentName, onConfirm, onCancel, busy }) {
 
 // ── Adversaire inactif : réclamer la victoire ─────────────────────
 
+/** 12 min · 3 h · 2 j */
+function formatIdle(ms, language = 'fr') {
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  return h < 48 ? `${h} h` : `${Math.floor(h / 24)} ${language === 'fr' ? 'j' : 'd'}`;
+}
+
 function ClaimBanner({ name, idleMs, onClaim, busy, compact = false }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap',
@@ -223,7 +231,7 @@ function ClaimBanner({ name, idleMs, onClaim, busy, compact = false }) {
       background: 'var(--bg-card)', border: '2px solid var(--tobacco)', borderRadius: '4px',
     }}>
       <MonoLabel size={compact ? 'xs' : 'sm'} color="var(--text-primary)">
-        {t('mp_idle_claimable', { name, min: Math.floor(idleMs / 60000) })}
+        {t('mp_idle_claimable', { name, time: formatIdle(idleMs, language) })}
       </MonoLabel>
       <RetroButton variant="tobacco" onClick={onClaim} disabled={busy} style={compact ? { padding: '6px 10px', fontSize: '0.7rem' } : undefined}>
         {t('mp_claim_win')}

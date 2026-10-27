@@ -364,9 +364,12 @@ export default function ProfilePage() {
                 fontFamily:    "'DM Mono', monospace",
                 fontSize:      '0.68rem',
                 fontWeight:    500,
-                letterSpacing: '0.12em',
+                letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                padding:       '10px 20px',
+                padding:       '10px 12px',
+                flex:          '1 1 auto',
+                minWidth:      0,
+                whiteSpace:    'nowrap',
                 border:        'none',
                 borderBottom:  `3px solid ${activeTab === tab.id ? 'var(--gold)' : 'transparent'}`,
                 background:    activeTab === tab.id ? 'var(--bg-page-alt)' : 'transparent',
@@ -510,7 +513,7 @@ export default function ProfilePage() {
             ) : (
               <>
                 {/* En-tête tableau */}
-                <div style={{
+                <div className="profile-hist" style={{
                   display:             'grid',
                   gridTemplateColumns: '80px 1fr 100px 100px 1fr',
                   gap:                 '8px',
@@ -533,6 +536,7 @@ export default function ProfilePage() {
                   return (
                     <div
                       key={g.id}
+                      className="profile-hist"
                       style={{
                         display:             'grid',
                         gridTemplateColumns: '80px 1fr 100px 100px 1fr',

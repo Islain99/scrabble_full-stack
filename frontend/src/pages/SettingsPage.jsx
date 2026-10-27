@@ -31,7 +31,8 @@ const Row = ({ label, desc, children }) => (
         <MonoLabel size="xs" style={{ lineHeight: 1.5 }}>{desc}</MonoLabel>
       )}
     </div>
-    <div style={{ flexShrink: 0 }}>{children}</div>
+    {/* Le contrôle peut rétrécir et passer à la ligne (téléphone) au lieu de déborder */}
+    <div className="s-row-control" style={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%' }}>{children}</div>
   </div>
 );
 
@@ -243,7 +244,7 @@ export default function SettingsPage() {
             <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
               <Row label={t('row_difficulty')} desc={t('row_difficulty_desc')}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '260px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 'min(260px, 100%)' }}>
                   {diffOptions.map(d => {
                     const active = d.key === settings.difficulty;
                     return (
