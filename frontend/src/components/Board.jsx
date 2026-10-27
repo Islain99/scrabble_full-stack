@@ -30,8 +30,9 @@ const getBonus = (r, c) => {
   return 'DEFAULT';
 };
 
+// highlight : cases du dernier coup joué ([[r, c], …]), mises en évidence
 // fit : le parent fixe la taille du plateau (écran de jeu plein écran) ; sinon il se limite à la hauteur de la fenêtre
-const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, onCellPress, canPress = false, compact = false, fit = false }) => {
+const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, onCellPress, canPress = false, compact = false, fit = false, highlight = null }) => {
   const [hoverCell, setHoverCell] = useState(null);
   const [dragSource, setDragSource] = useState(null);
   const boardRef       = useTutorialRef('board');
@@ -44,6 +45,11 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
     if (grid && placements) placements.forEach(p => { map[`${p.r}-${p.c}`] = p; });
     return map;
   }, [grid, placements]);
+
+  const highlightSet = useMemo(
+    () => new Set((highlight ?? []).map(([r, c]) => `${r}-${c}`)),
+    [highlight]
+  );
 
   const handleDragOver = useCallback((e, r, c) => {
     e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setHoverCell(`${r}-${c}`);
@@ -132,7 +138,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
               onClick={!tile && onCellPress ? () => onCellPress(r, c) : undefined}
             >
               {tile ? (
-                <TileBoardCell tile={tile} isTemp={isTemp} r={r} c={c} onReturnTile={onReturnTile} onDragStart={handleBoardTileDragStart} />
+                <TileBoardCell tile={tile} isTemp={isTemp} isLast={!isTemp && highlightSet.has(cellKey)} r={r} c={c} onReturnTile={onReturnTile} onDragStart={handleBoardTileDragStart} />
               ) : (
                 bonus.label && (
                   <span className="bc-bonus" style={{ fontSize:'clamp(0.4rem,1.1vw,0.65rem)', fontWeight:700, color:bonus.text, fontFamily:"'DM Mono', monospace", textAlign:'center', lineHeight:1, letterSpacing:'-0.02em', pointerEvents:'none' }}>
@@ -148,7 +154,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
   );
 };
 
-const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
+const TileBoardCell = ({ tile, isTemp, isLast, r, c, onReturnTile, onDragStart }) => {
   const { t } = useLanguage();
   const [isOver, setIsOver] = useState(false);
 
@@ -180,7 +186,10 @@ const TileBoardCell = ({ tile, isTemp, r, c, onReturnTile, onDragStart }) => {
   }
 
   return (
-    <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: (tile.is_joker||tile.letter==='*')?'var(--tile-joker-bg)':'var(--tile-bg)', border:`2px solid ${(tile.is_joker||tile.letter==='*')?'var(--tile-joker-border)':'var(--tile-border)'}`, boxShadow:'2px 2px 0 var(--tile-shadow)', borderRadius:'2px' }}>
+    <div
+      className={isLast ? 'bt-last' : undefined}
+      style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', position:'relative', background: (tile.is_joker||tile.letter==='*')?'var(--tile-joker-bg)':'var(--tile-bg)', border:`2px solid ${isLast ? 'var(--gold)' : (tile.is_joker||tile.letter==='*')?'var(--tile-joker-border)':'var(--tile-border)'}`, boxShadow: isLast ? 'inset 0 0 0 1px var(--gold), 2px 2px 0 var(--tile-shadow)' : '2px 2px 0 var(--tile-shadow)', borderRadius:'2px' }}
+    >
       <span className="bt-letter" style={{ fontSize:'clamp(0.7rem,1.8vw,1.1rem)', fontWeight:700, color:'var(--tile-text)', fontFamily:"'Playfair Display', Georgia, serif", lineHeight:1 }}>
         {tile.letter === '*' ? '★' : tile.letter}
       </span>

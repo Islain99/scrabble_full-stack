@@ -83,3 +83,19 @@ export const claimWin = async (roomId) => {
   const { data } = await api.post(`${BASE}/rooms/${roomId}/claim-win`);
   return data;
 };
+
+/** Mélange son chevalet (à tout moment ; ne consomme pas le tour). */
+export const shuffleRack = async (roomId) => {
+  const { data } = await api.post(`${BASE}/rooms/${roomId}/shuffle`);
+  return data;
+};
+
+/**
+ * Revanche après une partie terminée.
+ * Réponse : { action: 'created', room_id } (salle en attente de l'adversaire)
+ *        ou { action: 'joined', room_id, game_state, … } (la partie démarre).
+ */
+export const rematch = async (roomId) => {
+  const { data } = await api.post(`${BASE}/rooms/${roomId}/rematch`);
+  return data;
+};

@@ -145,6 +145,19 @@ export const translations = {
     mp_resign_confirm:  'Oui, abandonner',
     mp_idle_claimable:  '{{name}} ne joue plus depuis {{time}}.',
     mp_claim_win:       'Réclamer la victoire',
+    mp_rematch:         'Revanche',
+    mp_rematch_accept:  'Accepter la revanche',
+    mp_rematch_offered: '{{name}} propose une revanche !',
+    mp_rematch_error:   'Impossible de lancer la revanche.',
+
+    // Historique des coups
+    mh_title:           'Historique des coups',
+    mh_open:            'Historique',
+    mh_empty:           'Aucun coup joué pour le moment.',
+    mh_pass:            'passe son tour',
+    mh_swap_one:        'échange {{count}} lettre',
+    mh_swap_other:      'échange {{count}} lettres',
+    mh_close:           'Fermer',
 
     // Erreurs de connexion (Firebase)
     auth_err_email_in_use:     'Cette adresse email est déjà utilisée.',
@@ -541,6 +554,19 @@ export const translations = {
     mp_resign_confirm:  'Yes, resign',
     mp_idle_claimable:  "{{name}} hasn't played for {{time}}.",
     mp_claim_win:       'Claim the win',
+    mp_rematch:         'Rematch',
+    mp_rematch_accept:  'Accept the rematch',
+    mp_rematch_offered: '{{name}} wants a rematch!',
+    mp_rematch_error:   "Couldn't start the rematch.",
+
+    // Move history
+    mh_title:           'Move history',
+    mh_open:            'History',
+    mh_empty:           'No moves yet.',
+    mh_pass:            'passed',
+    mh_swap_one:        'swapped {{count}} letter',
+    mh_swap_other:      'swapped {{count}} letters',
+    mh_close:           'Close',
 
     // Sign-in errors (Firebase)
     auth_err_email_in_use:     'This email address is already in use.',

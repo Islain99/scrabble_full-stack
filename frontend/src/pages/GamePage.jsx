@@ -23,6 +23,8 @@ import {
 } from '../components/mobile/MobileGame';
 import { outcomeFor } from '../utils/gameResult';
 import DesktopGameLayout, { Legend } from '../components/DesktopGameLayout';
+import MoveHistory, { HistoryButton } from '../components/MoveHistory';
+import { lastPlayedCells } from '../utils/gameState';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -153,6 +155,8 @@ export default function GamePage() {
   // La sélection est liée à l'état de partie courant : elle s'annule d'elle-même
   // quand le plateau change (coup joué, tour de l'IA) ou en mode échange.
   const [rackSelection, setRackSelection] = React.useState(null); // { index, state }
+  const [showHistory, setShowHistory] = React.useState(false);
+  const closeHistory = React.useCallback(() => setShowHistory(false), []);
   const selectedRackIndex =
     rackSelection && rackSelection.state === game.gameState && !game.isSwapMode
       ? rackSelection.index
@@ -286,6 +290,15 @@ export default function GamePage() {
   }
 
   const pauseButton  = <PauseButton paused={game.paused} onToggle={game.togglePause} t={t} />;
+  const lastMove     = lastPlayedCells(game.gameState);
+  const historyModal = (
+    <MoveHistory
+      open={showHistory}
+      onClose={closeHistory}
+      moves={game.gameState.moves}
+      players={game.gameState.players}
+    />
+  );
   const pauseOverlay = game.paused && (
     <PauseOverlay onResume={game.togglePause} timerOn={game.timerOn} remaining={game.turnRemaining} t={t} />
   );
@@ -394,6 +407,7 @@ export default function GamePage() {
               onReturnTile={game.handleReturnTile}
               onCellPress={handleCellPress}
               canPress={selectedRackIndex !== null && !game.isSwapMode}
+              highlight={lastMove}
             />
           }
           status={
@@ -440,6 +454,7 @@ export default function GamePage() {
                     <MoreMenu
                       label={t('mg_more')}
                       items={[
+                        { icon: '☰', label: t('mh_open'), onSelect: () => setShowHistory(true) },
                         { icon: '✕', label: t('game_abandon'), danger: true, onSelect: () => game.setShowAbandonModal(true) },
                       ]}
                     />
@@ -464,6 +479,7 @@ export default function GamePage() {
             t={t}
           />
         )}
+        {historyModal}
         {pauseOverlay}
       </>
     );
@@ -479,9 +495,10 @@ export default function GamePage() {
       <GameHeader
         gameState={game.gameState}
         timer={{ remaining: game.turnRemaining, paused: game.paused }}
-        actions={<div style={{ display: 'flex', gap: '8px' }}>{pauseButton}<TutorialButton t={t} inline /></div>}
+        actions={<div style={{ display: 'flex', gap: '8px' }}><HistoryButton onClick={() => setShowHistory(true)} />{pauseButton}<TutorialButton t={t} inline /></div>}
       />
       {pauseOverlay}
+      {historyModal}
 
       <Toast toasts={toasts} onDismiss={dismissToast} />
       <JokerPicker open={!!game.pendingJoker} onPick={game.chooseJokerLetter} onCancel={game.cancelJoker} />
@@ -501,6 +518,7 @@ export default function GamePage() {
               onReturnTile={game.handleReturnTile}
               onCellPress={handleCellPress}
               canPress={selectedRackIndex !== null && !game.isSwapMode}
+              highlight={lastMove}
             />
           </div>
 

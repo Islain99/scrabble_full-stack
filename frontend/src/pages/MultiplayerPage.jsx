@@ -17,6 +17,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast }    from '../hooks/useToast';
 import { useMultiplayerGame } from '../hooks/useMultiplayerGame';
 import { outcomeFor, isWinner } from '../utils/gameResult';
+import { lastPlayedCells } from '../utils/gameState';
 import * as mpService  from '../api/multiplayerService';
 
 import Board      from '../components/Board';
@@ -25,6 +26,7 @@ import DesktopGameLayout, { Legend } from '../components/DesktopGameLayout';
 import ScorePanel from '../components/ScorePanel';
 import { Toast }  from '../components/Toast';
 import JokerPicker from '../components/JokerPicker';
+import MoveHistory, { HistoryButton } from '../components/MoveHistory';
 import { useIsMobile } from '../hooks/useViewport';
 import {
   MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, MoreMenu, StatusLine,
@@ -242,11 +244,12 @@ function ClaimBanner({ name, idleMs, onClaim, busy, compact = false }) {
 
 // ── PlayingScreen ─────────────────────────────────────────────────
 
-function PlayingScreen({ mp }) {
+function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
   const [confirmResign,    setConfirmResign]     = useState(false);
+  const [showHistory,      setShowHistory]       = useState(false);
   const isMobile = useIsMobile();
   const { t, tp } = useLanguage();
 
@@ -256,9 +259,10 @@ function PlayingScreen({ mp }) {
     handleValidateWord, handlePassTurn, handleSwapTiles,
     toggleTileForSwap, selectedTilesToSwap, isLoading,
     pendingJoker, chooseJokerLetter, cancelJoker, handleClearPlacements,
-    canClaim, opponentIdleMs, handleResign, handleClaimWin,
+    canClaim, opponentIdleMs, handleResign, handleClaimWin, handleShuffleRack,
   } = mp;
-  const closeResign = useCallback(() => setConfirmResign(false), []);
+  const closeResign  = useCallback(() => setConfirmResign(false), []);
+  const closeHistory = useCallback(() => setShowHistory(false), []);
 
   if (!gameState) return (
     <div style={{ padding: '3rem', textAlign: 'center' }}><Spinner size="lg" /></div>
@@ -276,6 +280,13 @@ function PlayingScreen({ mp }) {
       onConfirm={async () => { setConfirmResign(false); await handleResign(); }}
     />
   );
+  const historyModal = (
+    <MoveHistory open={showHistory} onClose={closeHistory} moves={gameState.moves} players={gameState.players} />
+  );
+  const lastMove = lastPlayedCells(gameState);
+  // Mélange : à tout moment (même pendant le tour adverse), hors mode échange
+  const shuffle = () => { setSelectedRackTile(null); handleShuffleRack(); };
+
   const claimBanner = (compact) => canClaim && (
     <ClaimBanner name={opponentName} idleMs={opponentIdleMs} onClaim={handleClaimWin} busy={isLoading} compact={compact} />
   );
@@ -300,6 +311,9 @@ function PlayingScreen({ mp }) {
     const outcome = outcomeFor(gameState, gameState.players[mp.myPlayerIndex]);
     const won  = outcome === 'win';
     const draw = outcome === 'draw';
+    // Revanche : proposée par moi (en attente) ou par l'adversaire (à accepter)
+    const offer      = gameState.rematch ?? null;
+    const offeredByOpponent = !!offer && offer.by !== mp.myPlayerIndex;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '3rem 1rem', textAlign: 'center' }}>
         <div style={{ fontSize: '3rem' }}>{won ? '🏆' : draw ? '🤝' : '😔'}</div>
@@ -318,9 +332,25 @@ function PlayingScreen({ mp }) {
             </Card>
           ))}
         </div>
-        <RetroButton variant="primary" onClick={() => { window.location.hash = '#/'; }}>
-          {t('mp_back_home')}
-        </RetroButton>
+        {offeredByOpponent && (
+          <div className="mp-rematch-offer" role="status">
+            {t('mp_rematch_offered', { name: opponentName })}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {onRematch && (
+            <RetroButton variant={offeredByOpponent ? 'primary' : 'tobacco'} onClick={onRematch} disabled={rematchBusy}>
+              {rematchBusy ? <Spinner size="sm" /> : `↻ ${offeredByOpponent ? t('mp_rematch_accept') : t('mp_rematch')}`}
+            </RetroButton>
+          )}
+          <RetroButton variant="default" onClick={() => setShowHistory(true)}>
+            ☰ {t('mh_open')}
+          </RetroButton>
+          <RetroButton variant={offeredByOpponent ? 'default' : 'primary'} onClick={() => { window.location.hash = '#/'; }}>
+            {t('mp_back_home')}
+          </RetroButton>
+        </div>
+        {historyModal}
       </div>
     );
   }
@@ -340,6 +370,7 @@ function PlayingScreen({ mp }) {
       <>
         <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
         {resignModal}
+        {historyModal}
         <MobileGameLayout
           top={
             <ScoreStrip
@@ -351,7 +382,11 @@ function PlayingScreen({ mp }) {
                 <MoreMenu
                   placement="down"
                   label={t('mg_more')}
-                  items={[{ icon: '✕', label: t('mp_resign'), danger: true, onSelect: () => setConfirmResign(true) }]}
+                  items={[
+                    { icon: '⇅', label: t('mg_shuffle'), onSelect: shuffle },
+                    { icon: '☰', label: t('mh_open'), onSelect: () => setShowHistory(true) },
+                    { icon: '✕', label: t('mp_resign'), danger: true, onSelect: () => setConfirmResign(true) },
+                  ]}
                 />
               }
               below={claimBanner(true)}
@@ -367,6 +402,7 @@ function PlayingScreen({ mp }) {
               onReturnTile={handleReturnTile}
               onCellPress={handleCellPress}
               canPress={!!selectedRackTile && isMyTurn}
+              highlight={lastMove}
             />
           }
           status={
@@ -458,6 +494,7 @@ function PlayingScreen({ mp }) {
     <DesktopGameLayout>
       <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
       {resignModal}
+      {historyModal}
 
       <header className="game-header mp-header" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
@@ -470,13 +507,16 @@ function PlayingScreen({ mp }) {
         }}>
           {isMyTurn ? `● ${t('mp_your_turn')}` : `⏳ ${t('mg_waiting', { name: currentPlayer.name })}`}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-invert)', borderRadius: '2px', padding: '4px 12px', border: '1.5px solid var(--border-gold)' }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            {t('mg_bag')}
-          </span>
-          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>
-            {(gameState.remaining_tiles ?? []).length}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <HistoryButton onClick={() => setShowHistory(true)} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-invert)', borderRadius: '2px', padding: '4px 12px', border: '1.5px solid var(--border-gold)' }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              {t('mg_bag')}
+            </span>
+            <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>
+              {(gameState.remaining_tiles ?? []).length}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -492,6 +532,7 @@ function PlayingScreen({ mp }) {
               onReturnTile={handleReturnTile}
               onCellPress={handleCellPress}
               canPress={!!selectedRackTile && isMyTurn && !showSwapPanel}
+              highlight={lastMove}
             />
           </div>
           <div className="dg-below">
@@ -557,6 +598,10 @@ function PlayingScreen({ mp }) {
 
             <RetroButton variant="default" fullWidth disabled={placed === 0 || isLoading} onClick={handleClearPlacements}>
               ↺ {t('mg_recall')}
+            </RetroButton>
+
+            <RetroButton variant="default" fullWidth style={{ gridColumn: '1 / -1' }} disabled={isLoading || showSwapPanel} onClick={shuffle}>
+              ⇅ {t('game_shuffle')}
             </RetroButton>
 
             <div className={showSwapPanel ? 'dg-swap dg-swap--open' : 'dg-swap'}>
@@ -686,6 +731,28 @@ export default function MultiplayerPage() {
     }
   }, [addToast, t]);
 
+  // Revanche : salle créée (on attend l'adversaire) ou rejointe (la partie démarre)
+  const [rematchBusy, setRematchBusy] = useState(false);
+  const handleRematch = useCallback(async () => {
+    if (!roomId) return;
+    setRematchBusy(true);
+    try {
+      const res = await mpService.rematch(roomId);
+      setRoomId(res.room_id);
+      if (res.action === 'joined') {
+        setHostUserId(res.host_user_id);
+        setPhase('PLAYING');
+      } else {
+        setHostUserId(user?.id);
+        setPhase('WAITING');
+      }
+    } catch (err) {
+      addToast(err?.response?.data?.detail || t('mp_rematch_error'), 'error');
+    } finally {
+      setRematchBusy(false);
+    }
+  }, [roomId, user, addToast, t]);
+
   const handleCancelRoom = useCallback(async () => {
     if (roomId) {
       try { await mpService.cancelRoom(roomId); } catch { /* silencieux */ }
@@ -709,7 +776,7 @@ export default function MultiplayerPage() {
       )}
       {currentPhase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} initialCode={inviteCode} />}
       {currentPhase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
-      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} />}
+      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} onRematch={handleRematch} rematchBusy={rematchBusy} />}
     </div>
   );
 }

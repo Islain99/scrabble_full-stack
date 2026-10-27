@@ -231,3 +231,59 @@
 @media (min-width: 1700px) and (min-height: 1000px) {
   .dg-hint { font-size: 0.78rem; }
 }
+
+/* ── Historique des coups (solo et multijoueur, tous écrans) ─────── */
+.mh-backdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  background: rgba(30, 26, 18, 0.7);
+}
+.mh-panel {
+  width: 100%; max-width: 440px; max-height: min(80vh, 640px);
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 1.25rem 1.25rem 1rem;
+  background: var(--bg-page);
+  border: 3px solid var(--border-primary); border-radius: 3px;
+  box-shadow: 8px 8px 0 var(--border-primary);
+  box-sizing: border-box;
+}
+.mh-title {
+  margin: 0;
+  font-family: 'Playfair Display', Georgia, serif; font-size: 1.35rem; font-weight: 900;
+  color: var(--text-primary);
+}
+.mh-empty {
+  margin: 0;
+  font-family: 'Libre Baskerville', Georgia, serif; font-style: italic; font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.mh-list {
+  list-style: none; margin: 0; padding: 0;
+  overflow-y: auto; min-height: 0;
+  border-top: 1.5px solid var(--border-muted);
+}
+.mh-row {
+  display: grid; grid-template-columns: 2.2em minmax(0, 7em) minmax(0, 1fr) auto;
+  align-items: baseline; gap: 8px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border-muted);
+  font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--text-secondary);
+}
+.mh-row--last { background: var(--bg-card); }
+.mh-num   { color: var(--text-muted); font-size: 0.7rem; }
+.mh-name  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.mh-words {
+  overflow-wrap: anywhere;
+  font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 0.95rem;
+  letter-spacing: 0.04em; color: var(--text-primary);
+}
+.mh-other { font-style: italic; color: var(--text-muted); }
+.mh-score { color: var(--gold-dk); font-weight: 600; }
+
+/* Écran de fin multijoueur : proposition de revanche */
+.mp-rematch-offer {
+  padding: 0.6rem 1rem;
+  background: var(--bg-card); border: 2px solid var(--gold); border-radius: 4px;
+  font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--text-primary);
+}

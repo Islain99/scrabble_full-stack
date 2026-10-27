@@ -45,6 +45,7 @@ export function normalizeGameState(gs) {
     winner_name: gs.winner_name ?? null,
     winner_id: gs.winner_id ?? null,
     is_draw: gs.is_draw ?? false,
+    moves: toArray(gs.moves).filter(Boolean),
   };
 }
 
@@ -62,4 +63,10 @@ export function decodeLiveState(value) {
     }
   }
   return normalizeGameState(value);
+}
+
+/** Dernier coup joué (pose de mots) : ses cases, pour les mettre en évidence. */
+export function lastPlayedCells(gs) {
+  const last = gs?.moves?.at?.(-1);
+  return last?.kind === 'play' && Array.isArray(last.cells) ? last.cells : null;
 }

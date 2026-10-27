@@ -39,6 +39,10 @@
 #        un chevalet vide disparaissait → « Chargement du plateau… » sans fin.
 #        Fix : _rtdb_payload() envoie chaque état sous forme de texte JSON
 #              ({state: "<json>", v: 2}) ; le client le décode tel quel.
+#   A1 : actions manquantes par rapport au solo.
+#        Fix : POST /rooms/{id}/shuffle (son chevalet, à tout moment, sans
+#              consommer le tour) ; POST /rooms/{id}/rematch (revanche) ;
+#              historique des coups dans l'état (GameState.moves, moteur).
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -57,6 +61,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from api.game_logic import GameEngine
 from app.auth.dependencies import get_current_user
@@ -396,21 +401,8 @@ def _masked_response(room: MultiplayerGame, viewer_user_id: int) -> RoomStateRes
     return response
 
 
-# ── Routes ────────────────────────────────────────────────────────
-
-@router.post(
-    "/rooms",
-    response_model=CreateRoomResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Créer une salle multijoueur",
-)
-async def create_room(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    _get_engine(request)  # vérifie que le moteur est prêt
-
+async def _create_waiting_room(db: AsyncSession, current_user: User) -> CreateRoomResponse:
+    """Crée une salle en attente (ou renvoie celle qui attend déjà) — POST /rooms, revanche."""
     # Une seule partie à la fois par joueur
     if await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE]):
         raise HTTPException(
@@ -446,19 +438,8 @@ async def create_room(
     )
 
 
-@router.post(
-    "/rooms/{room_id}/join",
-    response_model=RoomStateResponse,
-    summary="Rejoindre une salle et démarrer la partie",
-)
-async def join_room(
-    room_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    engine = _get_engine(request)
-    room_id = _normalize_room_id(room_id)  # C1
+async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession, engine: GameEngine) -> RoomStateResponse:
+    """Rejoint une salle en attente et démarre la partie — POST /rooms/{id}/join, revanche."""
     room = await _get_room_or_404(room_id, db, for_update=True)  # B6
 
     if room.status != RoomStatus.WAITING:
@@ -506,6 +487,38 @@ async def join_room(
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=1)
     return response
+
+
+# ── Routes ────────────────────────────────────────────────────────
+
+@router.post(
+    "/rooms",
+    response_model=CreateRoomResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Créer une salle multijoueur",
+)
+async def create_room(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _get_engine(request)  # vérifie que le moteur est prêt
+    return await _create_waiting_room(db, current_user)
+
+
+@router.post(
+    "/rooms/{room_id}/join",
+    response_model=RoomStateResponse,
+    summary="Rejoindre une salle et démarrer la partie",
+)
+async def join_room(
+    room_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    engine = _get_engine(request)
+    return await _join_waiting_room(_normalize_room_id(room_id), current_user, db, engine)
 
 
 @router.get(
@@ -730,6 +743,95 @@ async def claim_win(
     return _masked_response(room, current_user.id)
 
 
+@router.post(
+    "/rooms/{room_id}/shuffle",
+    response_model=RoomStateResponse,
+    summary="Mélanger son chevalet (à tout moment, ne consomme pas le tour)",
+)
+async def shuffle_rack(
+    room_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    engine = _get_engine(request)
+    room = await _get_room_or_404(_normalize_room_id(room_id), db, for_update=True)
+    if current_user.id not in (room.host_user_id, room.guest_user_id):
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
+    if room.status != RoomStatus.ACTIVE:
+        raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
+
+    from api.models import GameState as GSModel
+    gs = GSModel.model_validate(room.game_state)
+    player_idx = _player_index_for_user(room.game_state, current_user.id, room)
+    engine.shuffle_rack(gs, gs.players[player_idx].id)   # agit sur l'objet, rien en mémoire
+
+    # Le tour et le délai d'inactivité ne changent pas : seul l'ordre du chevalet bouge
+    gs_dict = _game_state_to_dict(gs)
+    room.game_state = gs_dict
+    # Sans ceci, onupdate=func.now() remettrait le délai d'inactivité à zéro
+    flag_modified(room, "updated_at")
+    await db.flush()
+    await asyncio.to_thread(_sync_rtdb, room.room_id, await _player_uids(db, room), gs_dict)
+    return _masked_response(room, current_user.id)
+
+
+class RematchResponse(RoomStateResponse):
+    """Revanche : `action` = created (salle créée, en attente de l'adversaire) ou joined."""
+    action: str = "created"
+
+
+@router.post(
+    "/rooms/{room_id}/rematch",
+    response_model=RematchResponse,
+    summary="Proposer ou accepter une revanche après une partie terminée",
+)
+async def rematch(
+    room_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Premier joueur à demander : une nouvelle salle est créée à son nom, et son
+    code est inscrit dans l'état de la partie terminée (gs.rematch) pour que
+    l'adversaire le voie sur son écran de fin. Second joueur : il rejoint
+    cette salle et la nouvelle partie démarre.
+    """
+    engine = _get_engine(request)
+    room = await _get_room_or_404(_normalize_room_id(room_id), db, for_update=True)
+    if current_user.id not in (room.host_user_id, room.guest_user_id):
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
+    if room.status != RoomStatus.FINISHED or not room.game_state:
+        raise HTTPException(status_code=409, detail="La partie n'est pas terminée.")
+
+    me = 0 if current_user.id == room.host_user_id else 1
+    offer = (room.game_state or {}).get("rematch")
+
+    # L'adversaire a déjà proposé : on rejoint sa salle si elle attend toujours
+    if offer and offer.get("by") != me:
+        waiting = await db.execute(
+            select(MultiplayerGame).where(MultiplayerGame.room_id == offer.get("code"))
+        )
+        target = waiting.scalars().first()
+        if target is not None and target.status == RoomStatus.WAITING:
+            joined = await _join_waiting_room(target.room_id, current_user, db, engine)
+            return RematchResponse(**joined.model_dump(), action="joined")
+
+    # Sinon (ou proposition expirée) : nouvelle salle à mon nom, annoncée à l'adversaire
+    created = await _create_waiting_room(db, current_user)
+    gs_dict = copy.deepcopy(room.game_state)
+    gs_dict["rematch"] = {"code": created.room_id, "by": me}
+    room.game_state = gs_dict
+    await db.flush()
+    await asyncio.to_thread(_sync_rtdb, room.room_id, await _player_uids(db, room), gs_dict)
+    return RematchResponse(
+        room_id=created.room_id, status=RoomStatus.WAITING, host_user_id=current_user.id,
+        current_user_id=None, winner_user_id=None, host_score=None, guest_score=None,
+        game_state=None, action="created",
+    )
+
+
 @router.delete(
     "/rooms/{room_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -750,4 +852,4 @@ async def cancel_room(
     await db.delete(room)
     await db.flush()
     await asyncio.to_thread(_delete_rtdb, room_id)
-    logger.info("Salle %s annulée par user %d", room_id, current_user.id)
+    logger.info("Salle %s annulée par user %d", room_id, current_user.id)
