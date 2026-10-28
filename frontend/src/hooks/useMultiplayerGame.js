@@ -6,6 +6,9 @@
 //   - Fallback polling REST toutes les 5 s si RTDB indisponible, injoignable
 //     (aucun événement après 8 s) ou lecture refusée
 //   - Actions : playMove, passTurn, swapTiles, resign, claimWin, shuffleRack
+//   - Minuteur (G1) : compte à rebours tiré de gameState.turn_deadline (fixé
+//     par le serveur) corrigé de l'écart entre l'horloge locale et celle du
+//     serveur ; le serveur joue lui-même la passe à l'échéance
 //   - Délai d'inactivité : canClaim passe à true quand l'adversaire n'a pas
 //     joué depuis claim_after_s (le serveur vérifie de son côté)
 //   - Placement côté client (même logique que useGameLogic.js)
@@ -37,6 +40,7 @@ import { decodeLiveState, normalizeGameState } from '../utils/gameState';
 import { useLanguage } from '../context/LanguageContext';
 
 const DEFAULT_CLAIM_AFTER_MS = 10 * 60 * 1000;
+const NONE = [];
 const RTDB_TIMEOUT_MS = 8000;
 
 /** Empreinte d'un état : change à chaque coup (sert à dater la dernière action). */
@@ -76,12 +80,29 @@ export function useMultiplayerGame({
 
   // État rangé avec sa salle : après une revanche (nouvelle salle), l'état de
   // la partie terminée n'est plus servi, sans effet de réinitialisation
-  const [live, setLive] = useState({ roomId: null, gameState: null, status: 'ACTIVE' });
-  const gameState  = live.roomId === roomId ? live.gameState : null;
-  const roomStatus = live.roomId === roomId ? live.status : 'ACTIVE';
-  const [placements, setPlacements] = useState([]);
+  // settings : règles de la salle ; clockOffset : heure du serveur − heure locale (ms)
+  const [live, setLive] = useState({ roomId: null, gameState: null, status: 'ACTIVE', settings: null, clockOffset: 0 });
+  const sameRoom   = live.roomId === roomId;
+  const gameState  = sameRoom ? live.gameState : null;
+  const roomStatus = sameRoom ? live.status : 'ACTIVE';
+  const settings   = sameRoom ? live.settings : null;
+
+  // Lettres posées et sélection d'échange : propres au tour en cours. Un tour
+  // qui change sans nous (temps écoulé) les annule d'elles-mêmes.
+  const turnKey = gameState ? `${roomId}|${gameState.moves?.length ?? 0}|${gameState.status}` : '';
+  const [placementBox, setPlacementBox] = useState({ key: '', list: NONE });
+  const [swapBox, setSwapBox] = useState({ key: '', list: NONE });
+  const placements          = placementBox.key === turnKey ? placementBox.list : NONE;
+  const selectedTilesToSwap = swapBox.key === turnKey ? swapBox.list : NONE;
+  const setPlacements = useCallback((update) => setPlacementBox(box => {
+    const current = box.key === turnKey ? box.list : NONE;
+    return { key: turnKey, list: typeof update === 'function' ? update(current) : update };
+  }), [turnKey]);
+  const setSelectedTilesToSwap = useCallback((update) => setSwapBox(box => {
+    const current = box.key === turnKey ? box.list : NONE;
+    return { key: turnKey, list: typeof update === 'function' ? update(current) : update };
+  }), [turnKey]);
   const [pendingJoker, setPendingJoker] = useState(null); // { tile, r, c }
-  const [selectedTilesToSwap, setSelectedTilesToSwap] = useState([]);
   const [isLoading,  setIsLoading]  = useState(false);
 
   // Délai d'inactivité : date de la dernière action (ms) et délai du serveur
@@ -120,7 +141,7 @@ export function useMultiplayerGame({
     if (!data) return;
     setLive(prev => prev.roomId === rid
       ? { ...prev, gameState: keepIfSame(prev.gameState, data) }
-      : { roomId: rid, gameState: data, status: 'ACTIVE' });
+      : { roomId: rid, gameState: data, status: 'ACTIVE', settings: null, clockOffset: prev.clockOffset });
     const signature = stateSignature(data);
     if (signature !== signatureRef.current) {
       signatureRef.current = signature;
@@ -134,12 +155,16 @@ export function useMultiplayerGame({
     const rid = roomData.room_id;
     const gs  = roomData.game_state ? normalizeGameState(roomData.game_state) : null;
     if (gs) signatureRef.current = stateSignature(gs);
+    // Écart d'horloge : l'heure du serveur fait foi pour le minuteur
+    const offset = roomData.server_now ? Date.parse(roomData.server_now) - Date.now() : null;
     setLive(prev => {
       const same = prev.roomId === rid;
       return {
         roomId: rid,
         gameState: gs ? keepIfSame(same ? prev.gameState : null, gs) : (same ? prev.gameState : null),
         status: roomData.status ?? (same ? prev.status : 'ACTIVE'),
+        settings: roomData.settings ?? (same ? prev.settings : null),
+        clockOffset: offset ?? prev.clockOffset,
       };
     });
     if (roomData.last_action_at) setLastActionAt(Date.parse(roomData.last_action_at));
@@ -223,16 +248,29 @@ export function useMultiplayerGame({
   // ── Délai d'inactivité de l'adversaire ────────────────────────
   const isActive = !!gameState && gameState.status !== 'FINISHED' && roomStatus !== 'FINISHED';
   const waitingForOpponent = isActive && !isMyTurn;
+
+  // Minuteur (G1) : échéance du tour, fixée par le serveur
+  const turnSeconds = settings?.turn_seconds ?? 0;
+  const deadlineMs  = isActive && gameState?.turn_deadline ? Date.parse(gameState.turn_deadline) : null;
+  const timerOn     = isActive && turnSeconds > 0 && !!deadlineMs;
+
+  // Horloge locale : chaque seconde avec un minuteur, toutes les 5 s sinon
+  // (délai d'inactivité de l'adversaire)
   useEffect(() => {
-    if (!waitingForOpponent) return;
+    if (!waitingForOpponent && !timerOn) return;
     const tick = () => setNow(Date.now());
     const first = setTimeout(tick, 0);
-    const timer = setInterval(tick, 5000);
+    const timer = setInterval(tick, timerOn ? 1000 : 5000);
     return () => { clearTimeout(first); clearInterval(timer); };
-  }, [waitingForOpponent]);
+  }, [waitingForOpponent, timerOn]);
+
+  const turnRemaining = timerOn && now
+    ? Math.max(0, Math.min(turnSeconds, Math.ceil((deadlineMs - (now + live.clockOffset)) / 1000)))
+    : null;
 
   const opponentIdleMs = waitingForOpponent && lastActionAt && now ? Math.max(0, now - lastActionAt) : 0;
-  const canClaim = waitingForOpponent && opponentIdleMs >= claimAfterMs;
+  // Avec un minuteur, le tour passe tout seul : rien à réclamer
+  const canClaim = waitingForOpponent && turnSeconds === 0 && opponentIdleMs >= claimAfterMs;
   //            ↑ myPlayerIndex ajouté : recrée le listener si le rôle change
 
   // ── Placement côté client (identique à useGameLogic) ──────────
@@ -258,7 +296,7 @@ export function useMultiplayerGame({
       originalTile: tile,
       rackIndex,
     }]);
-  }, [isMyTurn, gameState, placements, availableRackTiles]);
+  }, [isMyTurn, gameState, placements, availableRackTiles, setPlacements]);
 
   /** Lettre choisie pour le joker : envoyée en minuscule (convention backend). */
   const chooseJokerLetter = useCallback((letter) => {
@@ -270,7 +308,7 @@ export function useMultiplayerGame({
         ? prev
         : [...prev, { letter: letter.toLowerCase(), r, c, originalTile: tile }]
     );
-  }, [pendingJoker]);
+  }, [pendingJoker, setPlacements]);
 
   const cancelJoker = useCallback(() => setPendingJoker(null), []);
 
@@ -282,15 +320,15 @@ export function useMultiplayerGame({
     setPlacements(prev => prev.map(p =>
       p.r === fromR && p.c === fromC ? { ...p, r: toR, c: toC } : p
     ));
-  }, [gameState, placements]);
+  }, [gameState, placements, setPlacements]);
 
   const handleReturnTile = useCallback((r, c) => {
     setPlacements(prev => prev.filter(p => !(p.r === r && p.c === c)));
-  }, []);
+  }, [setPlacements]);
 
   const handleClearPlacements = useCallback(() => {
     setPlacements([]);
-  }, []);
+  }, [setPlacements]);
 
   // ── Actions réseau ────────────────────────────────────────────
 
@@ -310,7 +348,7 @@ export function useMultiplayerGame({
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, placements, isMyTurn, applyRoomState, addToast, t]);
+  }, [roomId, placements, isMyTurn, applyRoomState, addToast, t, setPlacements]);
 
   const handlePassTurn = useCallback(async () => {
     if (!roomId || !isMyTurn) return;
@@ -324,7 +362,7 @@ export function useMultiplayerGame({
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, isMyTurn, applyRoomState, addToast, t]);
+  }, [roomId, isMyTurn, applyRoomState, addToast, t, setPlacements]);
 
   const handleSwapTiles = useCallback(async () => {
     if (!roomId || !isMyTurn || selectedTilesToSwap.length === 0) return;
@@ -343,7 +381,7 @@ export function useMultiplayerGame({
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, isMyTurn, selectedTilesToSwap, myRack, applyRoomState, addToast, t]);
+  }, [roomId, isMyTurn, selectedTilesToSwap, myRack, applyRoomState, addToast, t, setPlacements, setSelectedTilesToSwap]);
 
   const handleResign = useCallback(async () => {
     if (!roomId) return;
@@ -356,7 +394,7 @@ export function useMultiplayerGame({
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, applyRoomState, addToast, t]);
+  }, [roomId, applyRoomState, addToast, t, setPlacements]);
 
   const handleClaimWin = useCallback(async () => {
     if (!roomId) return;
@@ -383,7 +421,7 @@ export function useMultiplayerGame({
     } catch (err) {
       addToast(err?.response?.data?.detail || t('toast_network_error'), 'error');
     }
-  }, [roomId, isActive, applyRoomState, addToast, t]);
+  }, [roomId, isActive, applyRoomState, addToast, t, setPlacements, setSelectedTilesToSwap]);
 
   // B4 : index de rack au lieu de la lettre — deux tuiles identiques sélectionnables indépendamment.
   const toggleTileForSwap = useCallback((rackIndex) => {
@@ -392,7 +430,7 @@ export function useMultiplayerGame({
         ? prev.filter(i => i !== rackIndex)
         : [...prev, rackIndex]
     );
-  }, []);
+  }, [setSelectedTilesToSwap]);
 
   // ── API publique ──────────────────────────────────────────────
   return {
@@ -409,6 +447,9 @@ export function useMultiplayerGame({
     pendingJoker,
     opponentIdleMs,
     canClaim,
+    settings,          // règles de la salle (RoomSettings) ou null
+    turnSeconds,       // durée d'un tour (s), 0 = sans minuteur
+    turnRemaining,     // secondes restantes du tour en cours, ou null
 
     // Actions placement
     handleDropTile,

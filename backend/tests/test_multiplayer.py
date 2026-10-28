@@ -687,3 +687,182 @@ async def test_rematch_when_offer_expired_creates_a_new_room(client, login, play
     r = await client.post(f"{API}/rooms/{room_id}/rematch")
     assert r.status_code == 200, r.text
     assert r.json()["action"] == "created" and r.json()["room_id"] != code
+
+
+# ── G1 : règles de partie et minuteur ────────────────────────────
+
+async def _start_with(client, login, players, **settings):
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms", json={"settings": settings})
+    assert r.status_code == 201, r.text
+    room_id = r.json()["room_id"]
+    login(players["bruno"])
+    r = await client.post(f"{API}/rooms/{room_id}/join")
+    assert r.status_code == 200, r.text
+    return room_id, r.json()
+
+
+def _later(seconds):
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc) + mp_router.timedelta(seconds=seconds)
+
+
+async def test_host_rules_are_shown_before_joining(client, login, players, rtdb):
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms", json={"settings": {
+        "name": "  Soirée   du jeudi ", "visibility": "public", "turn_seconds": 60,
+        "allow_swap": False, "max_passes": 4, "target_score": 250,
+    }})
+    assert r.status_code == 201, r.text
+    created = r.json()
+    assert created["settings"]["name"] == "Soirée du jeudi"
+    code = created["room_id"]
+
+    login(players["bruno"])                         # l'invité voit les règles avant d'entrer
+    r = await client.get(f"{API}/rooms/{code.lower()}/preview")
+    assert r.status_code == 200, r.text
+    preview = r.json()
+    assert preview["host_name"] == "Alice" and preview["can_join"] is True
+    assert preview["settings"]["turn_seconds"] == 60
+    assert preview["settings"]["allow_swap"] is False
+    assert "game_state" not in preview
+
+    login(players["alice"])                         # l'hôte ne peut pas rejoindre sa salle
+    assert (await client.get(f"{API}/rooms/{code}/preview")).json()["can_join"] is False
+
+
+async def test_invalid_rules_are_refused(client, login, players, rtdb):
+    login(players["alice"])
+    for bad in ({"turn_seconds": 45}, {"max_passes": 5}, {"target_score": 100},
+                {"visibility": "secret"}, {"name": "x" * 41}):
+        r = await client.post(f"{API}/rooms", json={"settings": bad})
+        assert r.status_code == 422, (bad, r.text)
+    r = await client.post(f"{API}/rooms")            # sans corps : règles par défaut
+    assert r.status_code == 201
+    assert r.json()["settings"] == {
+        "name": None, "visibility": "private", "turn_seconds": 0, "allow_swap": True,
+        "show_preview": True, "max_passes": 6, "target_score": None,
+    }
+
+
+async def test_room_created_before_rules_gets_defaults(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    from sqlalchemy import update
+    async with sqlite_db() as session:
+        async with session.begin():
+            await session.execute(update(MultiplayerGame).values(settings=None))
+    login(players["alice"])
+    r = await client.get(f"{API}/rooms/{room_id}")
+    assert r.json()["settings"]["turn_seconds"] == 0 and r.json()["turn_deadline"] is None
+    assert (await client.post(f"{API}/rooms/{room_id}/pass")).status_code == 200
+
+
+async def test_timer_sets_a_deadline_each_turn(client, login, players, rtdb):
+    from datetime import datetime
+    room_id, joined = await _start_with(client, login, players, turn_seconds=30)
+    deadline = datetime.fromisoformat(joined["turn_deadline"])
+    server_now = datetime.fromisoformat(joined["server_now"])
+    assert 29 <= (deadline - server_now).total_seconds() <= 30
+    assert joined["game_state"]["turn_deadline"] == deadline.isoformat()
+    _, live = rtdb["set"][-1]                       # les deux joueurs reçoivent l'échéance
+    assert live["for_guest"]["turn_deadline"] == deadline.isoformat()
+
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms/{room_id}/pass")
+    new_deadline = datetime.fromisoformat(r.json()["turn_deadline"])
+    assert new_deadline > deadline
+
+    login(players["alice"])                         # avec un minuteur, rien à réclamer
+    r = await client.post(f"{API}/rooms/{room_id}/claim-win")
+    assert r.status_code == 409 and "minuteur" in r.json()["detail"]
+
+
+async def test_expired_turn_is_passed_automatically(client, login, players, rtdb, monkeypatch):
+    from datetime import datetime
+    room_id, joined = await _start_with(client, login, players, turn_seconds=30)
+    deadline = datetime.fromisoformat(joined["turn_deadline"])
+
+    monkeypatch.setattr(mp_router, "_utcnow", lambda: deadline + mp_router.timedelta(seconds=5))
+    login(players["alice"])                         # trop tard : son coup est refusé
+    r = await client.post(f"{API}/rooms/{room_id}/move",
+                          json={"placements": [{"r": 7, "c": 7, "letter": "A"}]})
+    assert r.status_code == 403
+
+    login(players["bruno"])
+    body = (await client.get(f"{API}/rooms/{room_id}")).json()
+    gs = body["game_state"]
+    assert gs["current_player_index"] == 1          # c'est à Bruno
+    assert gs["moves"][-1] == {**gs["moves"][-1], "kind": "timeout", "player_id": 0}
+    # Bruno a un tour complet à partir de la passe automatique
+    assert datetime.fromisoformat(body["turn_deadline"]) == deadline + mp_router.timedelta(seconds=35)
+    _, live = rtdb["set"][-1]
+    assert live["for_host"]["current_player_index"] == 1
+
+
+async def test_long_absence_ends_the_game_by_passes(client, login, players, rtdb, monkeypatch, sqlite_db):
+    from datetime import datetime
+    room_id, joined = await _start_with(client, login, players, turn_seconds=30, max_passes=4)
+    deadline = datetime.fromisoformat(joined["turn_deadline"])
+    monkeypatch.setattr(mp_router, "_utcnow", lambda: deadline + mp_router.timedelta(hours=1))
+    login(players["alice"])
+    body = (await client.get(f"{API}/rooms/{room_id}")).json()
+    assert body["status"] == "FINISHED"
+    assert [m["kind"] for m in body["game_state"]["moves"]] == ["timeout"] * 4
+    assert body["turn_deadline"] is None
+    assert len(await _history(sqlite_db)) == 2      # statistiques enregistrées
+
+
+async def test_background_timer_passes_expired_turns(client, app, login, players, rtdb, sqlite_db):
+    from datetime import datetime
+    from app.multiplayer.timer import expire_due_turns
+    room_id, joined = await _start_with(client, login, players, turn_seconds=60)
+    deadline = datetime.fromisoformat(joined["turn_deadline"])
+    engine = app.state.game_engine
+
+    assert await expire_due_turns(engine, now=deadline - mp_router.timedelta(seconds=10)) == 0
+    assert await expire_due_turns(engine, now=deadline + mp_router.timedelta(seconds=3)) == 1
+    _, live = rtdb["set"][-1]
+    assert live["for_guest"]["current_player_index"] == 1
+    assert live["for_guest"]["moves"][-1]["kind"] == "timeout"
+
+
+async def test_swaps_can_be_forbidden(client, login, players, rtdb):
+    room_id, _ = await _start_with(client, login, players, allow_swap=False)
+    login(players["alice"])
+    r = await client.get(f"{API}/rooms/{room_id}")
+    letter = r.json()["game_state"]["players"][0]["rack"][0]["letter"]
+    r = await client.post(f"{API}/rooms/{room_id}/swap", json={"letters": [letter]})
+    assert r.status_code == 403
+    assert "interdits" in r.json()["detail"]
+
+
+async def test_fewer_passes_end_the_game(client, login, players, rtdb):
+    room_id, _ = await _start_with(client, login, players, max_passes=4)
+    r = None
+    for i in range(4):
+        login((players["alice"], players["bruno"])[i % 2])
+        r = await client.post(f"{API}/rooms/{room_id}/pass")
+    assert r.json()["status"] == "FINISHED"
+
+
+async def test_target_score_ends_the_game_at_once(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_with(client, login, players, target_score=150)
+    await _set_scores(sqlite_db, room_id, 145, 100, racks=("CHATXYZ", "QQQ"))
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms/{room_id}/move",
+                          json={"placements": [{"r": 7, "c": 7 + i, "letter": l} for i, l in enumerate("CHAT")]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "FINISHED"
+    assert body["winner_user_id"] == players["alice"].id
+    assert body["guest_score"] == 100                # pas de décompte des chevalets
+
+
+async def test_rematch_keeps_the_rules(client, login, players, rtdb):
+    room_id, _ = await _start_with(client, login, players, turn_seconds=120, allow_swap=False)
+    login(players["alice"])
+    await client.post(f"{API}/rooms/{room_id}/resign")
+    code = (await client.post(f"{API}/rooms/{room_id}/rematch")).json()["room_id"]
+    login(players["bruno"])
+    preview = (await client.get(f"{API}/rooms/{code}/preview")).json()
+    assert preview["settings"]["turn_seconds"] == 120 and preview["settings"]["allow_swap"] is False

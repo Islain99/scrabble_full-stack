@@ -8,11 +8,18 @@ const BASE = '/multiplayer';
 
 // ── Salles ────────────────────────────────────────────────────────
 
-/** Crée une nouvelle salle. Retourne { room_id, status, host_name } */
+/** Crée une nouvelle salle. Retourne { room_id, status, host_name, settings } */
 // L'erreur axios est propagée telle quelle : la page lit `response.data.detail`
 // et affiche sinon un message traduit (mp_create_error).
-export const createRoom = async () => {
-  const { data } = await api.post(`${BASE}/rooms`);
+export const createRoom = async (settings = null) => {
+  // Règles choisies par l'hôte (voir RoomSettings côté serveur) ; sans elles : défauts
+  const { data } = await api.post(`${BASE}/rooms`, settings ? { settings } : undefined);
+  return data;
+};
+
+/** Règles et hôte d'une salle, avant de la rejoindre : { room_id, status, host_name, settings, can_join } */
+export const previewRoom = async (roomId) => {
+  const { data } = await api.get(`${BASE}/rooms/${encodeURIComponent(roomId)}/preview`);
   return data;
 };
 /**

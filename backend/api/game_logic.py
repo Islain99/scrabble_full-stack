@@ -712,13 +712,15 @@ class GameEngine:
     # ------------------------------------------------------------------
     # Fin de partie
     # ------------------------------------------------------------------
-    def _finalize_scores(self, current_game: GameState) -> Optional[Player]:
+    def _finalize_scores(self, current_game: GameState, deduct_racks: bool = True) -> Optional[Player]:
         """
         Décompte final (règle officielle) :
           - chaque joueur retire de son score la valeur des lettres restées
             sur son chevalet ;
           - le joueur qui a vidé son chevalet (sac vide) ajoute à son score
             la somme des lettres restées chez les autres.
+        deduct_racks=False (score à atteindre) : la partie s'arrête net, les
+        scores restent ceux du plateau.
         Le gagnant est désigné par son identifiant. Égalité de score en tête :
         match nul (is_draw), sans gagnant. Retourne le gagnant ou None.
         """
@@ -730,11 +732,11 @@ class GameEngine:
             None,
         )
         leftover = 0
-        for player in current_game.players:
+        for player in (current_game.players if deduct_racks else []):
             rack_points = sum(tile.score for tile in player.rack)
             player.score -= rack_points
             leftover += rack_points
-        if went_out is not None:
+        if went_out is not None and deduct_racks:
             # Avant : la prime additionnait les chevalets vides, donc valait toujours 0
             went_out.score += leftover
 
@@ -762,9 +764,15 @@ class GameEngine:
                     current_game.status = GameStatus.FINISHED
                     return self._finalize_scores(current_game)
 
-        if current_game.passes_count >= 6:
+        if current_game.passes_count >= (current_game.max_passes or 6):
             current_game.status = GameStatus.FINISHED
             return self._finalize_scores(current_game)
+
+        # Score à atteindre (règle de partie) : fin dès qu'un joueur l'atteint
+        target = current_game.target_score
+        if target and any(p.score >= target for p in current_game.players):
+            current_game.status = GameStatus.FINISHED
+            return self._finalize_scores(current_game, deduct_racks=False)
 
         return None
 

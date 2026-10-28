@@ -2,7 +2,7 @@
 //
 // Historique des coups d'une partie (solo et multijoueur) : fenêtre qui liste
 // les coups du plus récent au plus ancien, à partir de gameState.moves
-// (rempli par le serveur : mots posés, passes, échanges).
+// (rempli par le serveur : mots posés, passes, échanges, temps écoulé).
 import React, { useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { RetroButton } from './ui';
@@ -12,6 +12,7 @@ function MoveLine({ move, name, number, isLast }) {
   let detail;
   if (move.kind === 'play')      detail = (move.words ?? []).join(' · ');
   else if (move.kind === 'swap') detail = tp('mh_swap', move.count ?? 0);
+  else if (move.kind === 'timeout') detail = t('mh_timeout');
   else                           detail = t('mh_pass');
 
   return (
