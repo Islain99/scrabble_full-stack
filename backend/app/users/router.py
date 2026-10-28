@@ -226,7 +226,30 @@ async def save_game(
     return game
 
 
-@router.get("/{user_id}/profile", response_model=UserOut)
+class PublicProfileOut(BaseModel):
+    """
+    Profil public : ce que tout le monde peut lire (classement, amis).
+    Avant : UserOut complet, e-mail, identifiant Firebase, âge et nom compris,
+    lisible sans authentification par simple numéro de joueur.
+    """
+    id: int
+    display_name: str
+    avatar_url: str | None
+    bio: str | None
+    country: str | None
+    friend_code: str | None = None
+    games_played: int
+    games_won: int
+    total_score: int
+    best_score: int
+    best_word: str | None
+    best_word_score: int
+    average_score: float
+    win_rate: float
+    created_at: datetime
+
+
+@router.get("/{user_id}/profile", response_model=PublicProfileOut)
 async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db)):
     """Profil public d'un joueur (accessible sans auth — pour le classement)."""
     result = await db.execute(
@@ -235,7 +258,8 @@ async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
-    return UserOut.from_user(user)
+    full = UserOut.from_user(user).model_dump()
+    return PublicProfileOut.model_validate({**full, "friend_code": user.friend_code})
 
 
 # ── Préférences de jeu ─────────────────────────────────────────────

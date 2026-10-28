@@ -101,9 +101,13 @@ export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostNam
             label={t('rr_visibility')}
             value={form.visibility}
             onChange={set('visibility')}
-            options={[{ value: 'private', label: t('rr_private') }, { value: 'public', label: t('rr_public') }]}
+            options={[
+              { value: 'private', label: t('rr_private') },
+              { value: 'friends', label: t('rr_friends') },
+              { value: 'public', label: t('rr_public') },
+            ]}
           />
-          <p className="rr-hint">{form.visibility === 'public' ? t('rr_public_hint') : t('rr_private_hint')}</p>
+          <p className="rr-hint">{t({ public: 'rr_public_hint', friends: 'rr_friends_hint' }[form.visibility] ?? 'rr_private_hint')}</p>
           <Chips
             label={t('rr_turn')}
             value={form.turn_seconds}
@@ -155,7 +159,11 @@ export function RoomPreviewModal({ preview, onJoin, onCancel, busy = false }) {
   if (!preview) return null;
 
   const blocked = !preview.can_join;
-  const reason = preview.status !== 'WAITING' ? t('rr_full') : t('rr_own_room');
+  const reason = {
+    started: t('rr_full'),
+    own: t('rr_own_room'),
+    friends_only: t('rr_friends_only', { name: preview.host_name }),
+  }[preview.reason ?? (preview.status !== 'WAITING' ? 'started' : 'own')];
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="rr-preview-title" className="mh-backdrop" onClick={onCancel}>

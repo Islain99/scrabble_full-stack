@@ -3,6 +3,20 @@
     ".read": false,
     ".write": false,
 
+    "presence": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('friends').child($uid).child(auth.uid).exists())",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['state', 'last_active']) && newData.child('state').isString() && newData.child('state').val().matches(/^(online|playing|offline)$/) && newData.child('last_active').isNumber()"
+      }
+    },
+
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+
     "lobby": {
       ".read": "auth != null"
     },

@@ -24,14 +24,19 @@ export default app;
 
 // ── Base temps réel (multijoueur seulement) ───────────────────────
 // Chargée à la première demande, pas au démarrage : le module Firebase
-// Database pèse ~125 ko et ne sert qu'au multijoueur.
+// Database pèse ~125 ko. Il sert au multijoueur et à la présence des amis,
+// chargé une fois connecté (voir utils/presence.js).
 let rtdbPromise = null;
 
-/** @returns {Promise<{ db, ref, onValue }>} */
+/** @returns {Promise<{ db, ref, onValue, set, onDisconnect, serverTimestamp }>} */
 export function getRtdb() {
   if (!rtdbPromise) {
     rtdbPromise = import('firebase/database')
-      .then(({ getDatabase, ref, onValue }) => ({ db: getDatabase(app), ref, onValue }))
+      .then(({ getDatabase, ref, onValue, set, onDisconnect, serverTimestamp }) => ({
+        db: getDatabase(app), ref, onValue,
+        // Présence (lot 4) : seule écriture faite par le navigateur, sous son propre uid
+        set, onDisconnect, serverTimestamp,
+      }))
       .catch((err) => {
         rtdbPromise = null;   // nouvel essai possible au prochain appel
         throw err;

@@ -4,6 +4,7 @@ import { useIsMobile } from '../hooks/useViewport';
 import { useAuth }     from '../context/AuthContext';
 import { useTheme }    from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { stopPresence } from '../utils/presence';
 
 // Icônes thème (inchangées)
 const ThemeIcons = { light: '☀️', dark: '🌙', system: '⚙️' };
@@ -26,6 +27,7 @@ export default function Navbar() {
   const NAV_LINKS = [
     { label: t('nav_play'),      hash: '#/'            },
     { label: t('nav_multiplayer'), hash: '#/multiplayer', authOnly: true },
+    { label: t('nav_friends'),   hash: '#/friends', authOnly: true },
     { label: t('nav_leaderboard'), hash: '#/leaderboard' },
     { label: t('nav_profile'),   hash: '#/profile', authOnly: true },
     { label: t('nav_settings'),  hash: '#/settings'  },
@@ -37,6 +39,7 @@ export default function Navbar() {
   ];
 
   const handleLogout = async () => {
+    await stopPresence();   // tant que le jeton est valide : « hors ligne » pour les amis
     await logout();
     window.location.hash = '#/login';
   };
@@ -444,4 +447,3 @@ function MobileNavbar({
     </>
   );
 }
-

@@ -54,6 +54,8 @@
 #              (nom, hôte, règles, date ; ni chevalet ni e-mail), retirée dès
 #              qu'elle n'attend plus personne (arrivée, annulation, expiration).
 #              GET /rooms/public sert de repli quand RTDB est injoignable.
+#   F2 : salle « Amis seulement » : seul un ami de l'hôte (lot 4) peut la
+#        rejoindre ; l'aperçu le dit (reason = friends_only).
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -78,6 +80,7 @@ from api.game_logic import GameEngine
 from app.auth.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import GameHistory, User
+from app.friends.router import are_friends, is_blocked_between
 from app.multiplayer.models import (
     CreateRoomRequest,
     CreateRoomResponse,
@@ -595,6 +598,11 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
         raise HTTPException(status_code=409, detail="Cette salle vient d'être complétée.")
     if room.host_user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Vous êtes déjà l'hôte de cette salle.")
+    if await is_blocked_between(db, room.host_user_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas rejoindre cette salle.")
+    if (_room_settings(room).visibility == "friends"
+            and not await are_friends(db, room.host_user_id, current_user.id)):
+        raise HTTPException(status_code=403, detail="Cette salle est réservée aux amis de l'hôte.")
     if await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE]):
         raise HTTPException(
             status_code=409,
@@ -676,12 +684,21 @@ async def preview_room(
     """G1 : ce que voit l'invité avant de rejoindre (code saisi ou lien d'invitation)."""
     room = await _get_room_or_404(_normalize_room_id(room_id), db)
     host = (await db.execute(select(User).where(User.id == room.host_user_id))).scalar_one()
+    rules = _room_settings(room)
+    reason = None
+    if room.status != RoomStatus.WAITING:
+        reason = "started"
+    elif room.host_user_id == current_user.id:
+        reason = "own"
+    elif rules.visibility == "friends" and not await are_friends(db, room.host_user_id, current_user.id):
+        reason = "friends_only"   # F2
     return RoomPreviewResponse(
         room_id=room.room_id,
         status=room.status,
         host_name=host.display_name,
-        settings=_room_settings(room),
-        can_join=room.status == RoomStatus.WAITING and room.host_user_id != current_user.id,
+        settings=rules,
+        can_join=reason is None,
+        reason=reason,
     )
 
 

@@ -4,7 +4,8 @@
 // Tout le rendu du jeu est dans src/pages/GamePage.jsx
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { AuthProvider }     from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { startPresence, stopPresence } from './utils/presence';
 import { ThemeProvider }    from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -24,6 +25,7 @@ const LoginPage       = lazy(() => import('./pages/LoginPage'));
 const RegisterPage    = lazy(() => import('./pages/RegisterPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const MultiplayerPage = lazy(() => import('./pages/MultiplayerPage'));
+const FriendsPage     = lazy(() => import('./pages/FriendsPage'));
 
 import './index.css';
 import './styles/mobile.css';
@@ -59,6 +61,18 @@ function PageLoader() {
   );
 }
 
+// Présence en ligne (lot 4) : visible des amis tant que le joueur est connecté
+function PresenceKeeper() {
+  const { user } = useAuth();
+  const uid = user?.firebase_uid ?? null;
+  useEffect(() => {
+    if (!uid) return undefined;
+    startPresence(uid);
+    return () => stopPresence();
+  }, [uid]);
+  return null;
+}
+
 function Router() {
   const hash = useHashRoute();
   // Paramètres après « ? » ignorés pour le choix de la page (ex. #/multiplayer?code=ABC234)
@@ -74,6 +88,11 @@ function Router() {
         <MultiplayerPage />
       </ProtectedRoute>
     );
+    if (route === '#/friends') return (
+      <ProtectedRoute>
+        <FriendsPage />
+      </ProtectedRoute>
+    );
 
     return (
       <ProtectedRoute>
@@ -84,6 +103,7 @@ function Router() {
 
   return (
     <div>
+      <PresenceKeeper />
       <Navbar />
       <Suspense fallback={<PageLoader />}>
         {renderPage()}

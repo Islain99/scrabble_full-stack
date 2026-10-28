@@ -25,6 +25,7 @@ import { outcomeFor } from '../utils/gameResult';
 import DesktopGameLayout, { Legend } from '../components/DesktopGameLayout';
 import MoveHistory, { HistoryButton } from '../components/MoveHistory';
 import { lastPlayedCells } from '../utils/gameState';
+import { setPresenceActivity } from '../utils/presence';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -150,6 +151,14 @@ export default function GamePage() {
     addToast,
   });
   const isMobile = useIsMobile();
+
+  // Présence (lot 4) : « en partie » pour les amis tant qu'une partie est en cours
+  const soloPlaying = game.gameState?.status === 'ACTIVE';
+  React.useEffect(() => {
+    if (!soloPlaying) return undefined;
+    setPresenceActivity('playing');
+    return () => setPresenceActivity('online');
+  }, [soloPlaying]);
 
   // Sélection « toucher une lettre, puis une case » (écrans tactiles)
   // La sélection est liée à l'état de partie courant : elle s'annule d'elle-même

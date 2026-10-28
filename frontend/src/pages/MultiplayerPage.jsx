@@ -21,6 +21,8 @@ import { useMultiplayerGame } from '../hooks/useMultiplayerGame';
 import { outcomeFor, isWinner } from '../utils/gameResult';
 import { lastPlayedCells } from '../utils/gameState';
 import * as mpService  from '../api/multiplayerService';
+import { getFriends, sendFriendRequest } from '../api/friendsService';
+import { setPresenceActivity } from '../utils/presence';
 
 import Board      from '../components/Board';
 import TileRack   from '../components/TileRack';
@@ -262,12 +264,13 @@ function ClaimBanner({ name, idleMs, onClaim, busy, compact = false }) {
 
 // ── PlayingScreen ─────────────────────────────────────────────────
 
-function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
+function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {} }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
   const [confirmResign,    setConfirmResign]     = useState(false);
   const [showHistory,      setShowHistory]       = useState(false);
+  const [friendAsked,      setFriendAsked]       = useState(null);   // 'pending' | 'accepted'
   const isMobile = useIsMobile();
   const { t, tp } = useLanguage();
 
@@ -285,6 +288,28 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
   const showPreview = settings?.show_preview ?? true;
   const closeResign  = useCallback(() => setConfirmResign(false), []);
   const closeHistory = useCallback(() => setShowHistory(false), []);
+
+  // Fin de partie : l'adversaire est-il déjà un ami ? (bouton « Ajouter en ami »)
+  const finished = gameState?.status === 'FINISHED';
+  const opponentId = mp.opponentUserId;
+  const [alreadyFriend, setAlreadyFriend] = useState(null);   // { id, value }
+  useEffect(() => {
+    if (!finished || !opponentId) return undefined;
+    let cancelled = false;
+    getFriends()
+      .then(d => { if (!cancelled) setAlreadyFriend({ id: opponentId, value: d.friends.some(f => f.user_id === opponentId) }); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [finished, opponentId]);
+  const opponentIsFriend = alreadyFriend?.id === opponentId ? alreadyFriend.value : null;
+
+  // Présence (lot 4) : « en partie » pour les amis tant que la partie dure
+  const inGame = !!gameState && gameState.status !== 'FINISHED';
+  useEffect(() => {
+    if (!inGame) return undefined;
+    setPresenceActivity('playing');
+    return () => setPresenceActivity('online');
+  }, [inGame]);
 
   if (!gameState) return (
     <div style={{ padding: '3rem', textAlign: 'center' }}><Spinner size="lg" /></div>
@@ -358,6 +383,24 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
             </Card>
           ))}
         </div>
+        {mp.opponentUserId && opponentIsFriend === false && (
+          friendAsked ? (
+            <MonoLabel size="sm" color="var(--olive)">
+              ✓ {friendAsked === 'accepted' ? t('fr_now_friends', { name: opponentName }) : t('fr_request_sent', { name: opponentName })}
+            </MonoLabel>
+          ) : (
+            <RetroButton variant="default" onClick={async () => {
+              try {
+                const res = await sendFriendRequest({ userId: mp.opponentUserId });
+                setFriendAsked(res.status);
+              } catch (err) {
+                addToast(err?.response?.data?.detail || t('fr_error'), 'error');
+              }
+            }}>
+              + {t('fr_add_named', { name: opponentName })}
+            </RetroButton>
+          )
+        )}
         {offeredByOpponent && (
           <div className="mp-rematch-offer" role="status">
             {t('mp_rematch_offered', { name: opponentName })}
@@ -830,7 +873,7 @@ export default function MultiplayerPage() {
       {currentPhase === 'WAITING' && (
         <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} settings={mp.settings} hostName={user?.display_name ?? ''} />
       )}
-      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} onRematch={handleRematch} rematchBusy={rematchBusy} />}
+      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} onRematch={handleRematch} rematchBusy={rematchBusy} addToast={addToast} />}
     </div>
   );
 }
