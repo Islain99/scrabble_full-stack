@@ -73,7 +73,8 @@ class RoomSettings(BaseModel):
     (créée avant la migration 0006) prend ces défauts.
     """
     name:         Optional[str] = None                       # None → « Partie de {hôte} » (client)
-    visibility:   Literal["private", "public"] = "private"   # « public » : salons publics (lot 3)
+    # private : code ou lien ; public : salons publics (lot 3) ; friends : amis de l'hôte seulement (lot 4)
+    visibility:   Literal["private", "public", "friends"] = "private"
     turn_seconds: Literal[0, 30, 60, 120, 180, 300] = 0       # 0 = sans minuteur ; dépassement = passe
     allow_swap:   bool = True                                # échanges de lettres
     show_preview: bool = True                                # aperçu du score avant validation (client)
@@ -104,6 +105,9 @@ class RoomPreviewResponse(BaseModel):
     host_name: str
     settings:  RoomSettings
     can_join:  bool
+    # Pourquoi on ne peut pas rejoindre : started (déjà commencée), own (sa propre
+    # salle), friends_only (réservée aux amis de l'hôte)
+    reason:    Optional[str] = None
 
 class PublicRoom(BaseModel):
     """Salle publique en attente d'un adversaire (salons publics, lot 3)."""

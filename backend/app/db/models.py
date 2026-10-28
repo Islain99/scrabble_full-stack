@@ -58,6 +58,9 @@ class User(Base):
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     profile_complete: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Code ami unique (ex. ALEX-4821), affiché dans la page Amis (lot 4)
+    friend_code: Mapped[str | None] = mapped_column(String(12), unique=True, nullable=True, index=True)
+
     game_histories: Mapped[list["GameHistory"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )

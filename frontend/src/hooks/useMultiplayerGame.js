@@ -81,7 +81,7 @@ export function useMultiplayerGame({
   // État rangé avec sa salle : après une revanche (nouvelle salle), l'état de
   // la partie terminée n'est plus servi, sans effet de réinitialisation
   // settings : règles de la salle ; clockOffset : heure du serveur − heure locale (ms)
-  const [live, setLive] = useState({ roomId: null, gameState: null, status: 'ACTIVE', settings: null, clockOffset: 0 });
+  const [live, setLive] = useState({ roomId: null, gameState: null, status: 'ACTIVE', settings: null, clockOffset: 0, guestUserId: null });
   const sameRoom   = live.roomId === roomId;
   const gameState  = sameRoom ? live.gameState : null;
   const roomStatus = sameRoom ? live.status : 'ACTIVE';
@@ -141,7 +141,7 @@ export function useMultiplayerGame({
     if (!data) return;
     setLive(prev => prev.roomId === rid
       ? { ...prev, gameState: keepIfSame(prev.gameState, data) }
-      : { roomId: rid, gameState: data, status: 'ACTIVE', settings: null, clockOffset: prev.clockOffset });
+      : { roomId: rid, gameState: data, status: 'ACTIVE', settings: null, clockOffset: prev.clockOffset, guestUserId: null });
     const signature = stateSignature(data);
     if (signature !== signatureRef.current) {
       signatureRef.current = signature;
@@ -165,6 +165,7 @@ export function useMultiplayerGame({
         status: roomData.status ?? (same ? prev.status : 'ACTIVE'),
         settings: roomData.settings ?? (same ? prev.settings : null),
         clockOffset: offset ?? prev.clockOffset,
+        guestUserId: roomData.guest_user_id ?? (same ? prev.guestUserId : null),
       };
     });
     if (roomData.last_action_at) setLastActionAt(Date.parse(roomData.last_action_at));
@@ -448,6 +449,8 @@ export function useMultiplayerGame({
     opponentIdleMs,
     canClaim,
     settings,          // règles de la salle (RoomSettings) ou null
+    // Compte de l'adversaire (ajout en ami depuis l'écran de fin)
+    opponentUserId: myPlayerIndex === 0 ? (sameRoom ? live.guestUserId : null) : hostUserId,
     turnSeconds,       // durée d'un tour (s), 0 = sans minuteur
     turnRemaining,     // secondes restantes du tour en cours, ou null
 
