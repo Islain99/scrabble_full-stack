@@ -23,6 +23,7 @@ from sqlalchemy import and_, delete, select
 
 from app.db import database as db
 from app.multiplayer.models import MultiplayerGame, RoomStatus
+from app.notifications.service import expire_room_invitations, remove_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ async def cleanup_rooms(now: Optional[datetime] = None) -> dict:
     now = now or datetime.now(timezone.utc)
     rtdb_to_delete: list[str] = []
     rtdb_to_sync: list[tuple[str, dict, dict]] = []
+    stale_invites: list[tuple[str, str]] = []
 
     async with db.AsyncSessionLocal() as session:
         async with session.begin():
@@ -56,6 +58,7 @@ async def cleanup_rooms(now: Optional[datetime] = None) -> dict:
             )).scalars().all()
             for room in stale_waiting:
                 rtdb_to_delete.append(room.room_id)
+                stale_invites += await expire_room_invitations(session, room.room_id)   # lot 5
                 await session.delete(room)
             counts["waiting_deleted"] = len(stale_waiting)
 
@@ -100,6 +103,7 @@ async def cleanup_rooms(now: Optional[datetime] = None) -> dict:
         await asyncio.to_thread(mp._sync_rtdb, room_id, players, gs_dict)
     for room_id in rtdb_to_delete:
         await asyncio.to_thread(mp._delete_rtdb, room_id)
+    await remove_notifications(stale_invites)
 
     if any(counts.values()):
         logger.info("Nettoyage multijoueur : %s", counts)

@@ -14,6 +14,7 @@ from app.friends.codes import code_prefix, normalize_code
 from app.friends.models import FriendGroup, FriendGroupMember, Friendship, UserBlock
 from app.multiplayer import router as mp_router
 from app.multiplayer.models import MultiplayerGame
+from app.notifications.models import GameInvitation
 
 pytestmark = pytest.mark.anyio
 
@@ -27,7 +28,7 @@ async def sqlite_db():
 
     engine = create_async_engine("sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     async with engine.begin() as conn:
-        for model in (User, GameHistory, MultiplayerGame, Friendship, FriendGroup, FriendGroupMember, UserBlock):
+        for model in (User, GameHistory, MultiplayerGame, Friendship, FriendGroup, FriendGroupMember, UserBlock, GameInvitation):
             await conn.run_sync(model.__table__.create)
     previous = db.AsyncSessionLocal
     db.AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)

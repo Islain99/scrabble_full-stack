@@ -23,6 +23,8 @@ import { lastPlayedCells } from '../utils/gameState';
 import * as mpService  from '../api/multiplayerService';
 import { getFriends, sendFriendRequest } from '../api/friendsService';
 import { setPresenceActivity } from '../utils/presence';
+import { ROOM_JOINED_EVENT } from '../context/NotificationsContext';
+import { InvitationsStatus, InviteFriendsModal } from '../components/InviteFriends';
 
 import Board      from '../components/Board';
 import TileRack   from '../components/TileRack';
@@ -143,6 +145,9 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading, initialCode = null }
 function WaitingScreen({ roomId, onCancel, settings = null, hostName = '' }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(null);   // 'code' | 'link' | null
+  const [inviteOpen, setInviteOpen] = useState(false);     // lot 5 : inviter des amis
+  const [invitesKey, setInvitesKey] = useState(0);
+  const closeInvite = useCallback(() => setInviteOpen(false), []);
   const link = inviteLink(roomId);
   const canShare = typeof navigator !== 'undefined' && !!navigator.share;
 
@@ -182,7 +187,10 @@ function WaitingScreen({ roomId, onCancel, settings = null, hostName = '' }) {
             <RetroButton variant="primary" onClick={share}>{t('mp_share')}</RetroButton>
           )}
         </div>
+        <RetroButton variant="tobacco" onClick={() => setInviteOpen(true)}>👥 {t('iv_invite_friends')}</RetroButton>
+        <InvitationsStatus roomId={roomId} refreshKey={invitesKey} />
       </Card>
+      <InviteFriendsModal open={inviteOpen} onClose={closeInvite} onInvited={() => setInvitesKey(k => k + 1)} />
 
       {settings && (
         <Card className="mp-waiting-rules" style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -771,6 +779,21 @@ export default function MultiplayerPage() {
     return () => { cancelled = true; };
     // Une seule fois au chargement de la page
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Invitation acceptée depuis la cloche ou le bandeau (lot 5) : la partie démarre
+  useEffect(() => {
+    const onJoined = (e) => {
+      const room = e.detail;
+      if (!room?.room_id) return;
+      setPreview(null);
+      setSetupOpen(false);
+      setRoomId(room.room_id);
+      setHostUserId(room.host_user_id);
+      setPhase('PLAYING');
+    };
+    window.addEventListener(ROOM_JOINED_EVENT, onJoined);
+    return () => window.removeEventListener(ROOM_JOINED_EVENT, onJoined);
   }, []);
 
   // Passage WAITING → PLAYING dès que l'invité rejoint (RTDB pousse le game_state)

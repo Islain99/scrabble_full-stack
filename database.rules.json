@@ -11,6 +11,12 @@
       }
     },
 
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+
     "friends": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"

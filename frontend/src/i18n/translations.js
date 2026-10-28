@@ -237,6 +237,26 @@ export const translations = {
     fr_unblock:         'Débloquer',
     fr_error:           'Une erreur est survenue. Réessayez.',
 
+    // Notifications et invitations (lot 5)
+    nt_title:           'Notifications',
+    nt_title_count:     'Notifications ({{count}})',
+    nt_empty:           'Rien de neuf pour le moment.',
+    nt_invite:          '{{name}} vous invite à jouer',
+    nt_join:            'Rejoindre',
+    nt_later:           'Plus tard',
+    nt_friend_request:  '{{name}} vous demande en ami',
+    nt_friend_accepted: '{{name}} a accepté votre demande d’ami.',
+    nt_invite_declined: '{{name}} a refusé votre invitation.',
+    iv_title:           'Invitations envoyées',
+    iv_invite:          'Inviter',
+    iv_invite_friends:  'Inviter des amis',
+    iv_invite_title:    'Inviter {{name}} à jouer',
+    iv_send:            'Envoyer l’invitation',
+    iv_pending:         'Invitation envoyée',
+    iv_declined:        'A refusé',
+    iv_accepted:        'A accepté',
+    iv_expired:         'Expirée',
+
     // Salons publics
     pr_title:           'Salons publics',
     pr_live:            'En direct',
@@ -736,6 +756,26 @@ export const translations = {
     fr_blocked:         'Blocked players',
     fr_unblock:         'Unblock',
     fr_error:           'Something went wrong. Try again.',
+
+    // Notifications and invitations (lot 5)
+    nt_title:           'Notifications',
+    nt_title_count:     'Notifications ({{count}})',
+    nt_empty:           'Nothing new right now.',
+    nt_invite:          '{{name}} invites you to play',
+    nt_join:            'Join',
+    nt_later:           'Later',
+    nt_friend_request:  '{{name}} sent you a friend request',
+    nt_friend_accepted: '{{name}} accepted your friend request.',
+    nt_invite_declined: '{{name}} declined your invitation.',
+    iv_title:           'Invitations sent',
+    iv_invite:          'Invite',
+    iv_invite_friends:  'Invite friends',
+    iv_invite_title:    'Invite {{name}} to play',
+    iv_send:            'Send invitation',
+    iv_pending:         'Invitation sent',
+    iv_declined:        'Declined',
+    iv_accepted:        'Accepted',
+    iv_expired:         'Expired',
 
     // Public rooms
     pr_title:           'Public rooms',

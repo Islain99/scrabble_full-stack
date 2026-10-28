@@ -36,6 +36,7 @@ from app.auth.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import User
 from app.friends.codes import normalize_code, random_code
+from app.notifications.service import notify
 from app.friends.models import (
     FriendGroup, FriendGroupMember, Friendship, FriendshipStatus, UserBlock,
 )
@@ -394,6 +395,7 @@ async def send_request(
         row.requester_id, row.addressee_id = me, target.id
         row.status, row.created_at, row.responded_at = FriendshipStatus.PENDING, _utcnow(), None
         await db.flush()
+        await _notify_request(row, current_user, target)
         return FriendRequestResult(status="pending", request_id=row.id, user=_public(target))
 
     await _check_limits(db, me, target.id)
@@ -403,7 +405,16 @@ async def send_request(
     db.add(row)
     await db.flush()
     logger.info("Demande d'ami %d → %d", me, target.id)
+    await _notify_request(row, current_user, target)
     return FriendRequestResult(status="pending", request_id=row.id, user=_public(target))
+
+
+async def _notify_request(row: Friendship, requester: User, target: User) -> None:
+    """Lot 5 : la demande apparaît tout de suite dans la cloche du destinataire."""
+    await notify(target.firebase_uid, f"fr-{row.id}", {
+        "type": "friend_request", "request_id": row.id,
+        "from_user_id": requester.id, "from_name": requester.display_name,
+    })
 
 
 async def _check_limits(db: AsyncSession, me: int, target_id: int) -> None:
@@ -428,6 +439,11 @@ async def _accept(db: AsyncSession, row: Friendship, me: User, other: User) -> F
     row.responded_at = _utcnow()
     await db.flush()
     await asyncio.to_thread(_friend_link_write, me.firebase_uid, other.firebase_uid, True)
+    # Lot 5 : la demande quitte ma cloche ; le demandeur est averti
+    await notify(me.firebase_uid, f"fr-{row.id}", None)
+    await notify(other.firebase_uid, f"fra-{row.id}", {
+        "type": "friend_accepted", "from_user_id": me.id, "from_name": me.display_name,
+    })
     logger.info("Amis : %d ↔ %d", me.id, other.id)
     return FriendRequestResult(status="accepted", request_id=row.id, user=_public(other))
 
@@ -454,6 +470,7 @@ async def decline_request(request_id: int, current_user: User = Depends(get_curr
     row.status = FriendshipStatus.DECLINED
     row.responded_at = _utcnow()
     await db.flush()
+    await notify(current_user.firebase_uid, f"fr-{row.id}", None)   # le demandeur n'est pas averti
 
 
 @router.delete("/requests/{request_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Annuler sa demande")
@@ -461,8 +478,11 @@ async def cancel_request(request_id: int, current_user: User = Depends(get_curre
     row = await db.get(Friendship, request_id)
     if row is None or row.requester_id != current_user.id or row.status == FriendshipStatus.ACCEPTED:
         raise HTTPException(status_code=404, detail="Demande introuvable.")
+    addressee_id, key = row.addressee_id, f"fr-{row.id}"
     await db.delete(row)
     await db.flush()
+    uid = (await db.execute(select(User.firebase_uid).where(User.id == addressee_id))).scalar_one_or_none()
+    await notify(uid, key, None)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Retirer un ami")
@@ -584,6 +604,11 @@ async def block_user(user_id: int, current_user: User = Depends(get_current_user
     exists = await db.get(UserBlock, (current_user.id, user_id))
     if exists is None:
         db.add(UserBlock(blocker_id=current_user.id, blocked_id=user_id, created_at=_utcnow()))
+    pending = await _relation_row(db, current_user.id, user_id)
+    if pending is not None and pending.status != FriendshipStatus.ACCEPTED:
+        # Lot 5 : une demande en attente disparaît aussi de la cloche du destinataire
+        uid = (await db.execute(select(User.firebase_uid).where(User.id == pending.addressee_id))).scalar_one_or_none()
+        await notify(uid, f"fr-{pending.id}", None)
     was_friend = await _end_friendship(db, current_user.id, user_id)
     if was_friend:
         await _mirror_link(db, current_user.id, user_id, False)

@@ -5,6 +5,7 @@ import { useAuth }     from '../context/AuthContext';
 import { useTheme }    from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { stopPresence } from '../utils/presence';
+import { NotificationBell } from './Notifications';
 
 // Icônes thème (inchangées)
 const ThemeIcons = { light: '☀️', dark: '🌙', system: '⚙️' };
@@ -120,6 +121,7 @@ export default function Navbar() {
 
       {/* ── Right zone ─────────────────────────────────────── */}
       <div className="app-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+        {isAuthenticated && <NotificationBell />}
 
         {/* ── Sélecteur de langue ────────────────────────── */}
         <div style={{ display: 'flex', gap: '4px' }}>
@@ -364,6 +366,8 @@ function MobileNavbar({
           <a href="#/" className="mnav-logo">SCRABBLE</a>
           {current && <span className="mnav-page">{current.label}</span>}
         </div>
+        <div className="mnav-right">
+        {isAuthenticated && <NotificationBell variant="mobile" />}
         <button
           type="button"
           className="mnav-toggle"
@@ -374,6 +378,7 @@ function MobileNavbar({
         >
           {open ? '✕' : '☰'}
         </button>
+        </div>
       </nav>
 
       {open && (

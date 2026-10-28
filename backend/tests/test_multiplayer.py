@@ -38,7 +38,8 @@ async def sqlite_db():
         await conn.run_sync(MultiplayerGame.__table__.create)
         await conn.run_sync(GameHistory.__table__.create)
         from app.friends.models import FriendGroup, FriendGroupMember, Friendship, UserBlock
-        for model in (Friendship, FriendGroup, FriendGroupMember, UserBlock):
+        from app.notifications.models import GameInvitation
+        for model in (Friendship, FriendGroup, FriendGroupMember, UserBlock, GameInvitation):
             await conn.run_sync(model.__table__.create)
 
     previous = db.AsyncSessionLocal

@@ -56,6 +56,9 @@
 #              GET /rooms/public sert de repli quand RTDB est injoignable.
 #   F2 : salle « Amis seulement » : seul un ami de l'hôte (lot 4) peut la
 #        rejoindre ; l'aperçu le dit (reason = friends_only).
+#   I1 : invitations à jouer (lot 5) : elles expirent dès que la salle n'attend
+#        plus (partie démarrée, salle annulée ou nettoyée) et leur notification
+#        disparaît chez l'invité (app/notifications).
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -81,6 +84,7 @@ from app.auth.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import GameHistory, User
 from app.friends.router import are_friends, is_blocked_between
+from app.notifications.service import expire_room_invitations, remove_notifications
 from app.multiplayer.models import (
     CreateRoomRequest,
     CreateRoomResponse,
@@ -610,8 +614,10 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
         )
 
     # Rejoindre une partie annule la salle que ce joueur attendait lui-même
+    stale_invites = []
     for own in await _user_rooms(db, current_user.id, [RoomStatus.WAITING]):
         if own.host_user_id == current_user.id:
+            stale_invites += await expire_room_invitations(db, own.room_id)   # I1
             await db.delete(own)
             await asyncio.to_thread(_delete_rtdb, own.room_id)
 
@@ -637,12 +643,14 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
     room.updated_at      = _utcnow()
     _start_turn_clock(room, gs_dict, room.updated_at)   # G1 : le premier tour démarre
     room.game_state      = gs_dict
+    stale_invites += await expire_room_invitations(db, room_id)   # I1 : la salle est complète
     await db.flush()
 
     players = {"host": host.firebase_uid, "guest": current_user.firebase_uid}
     await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
     if rules.visibility == "public":
         await asyncio.to_thread(_lobby_write, room_id, None)        # P1 : plus personne à attendre
+    await remove_notifications(stale_invites)
     logger.info(
         "Partie démarrée : room %s | %s vs %s",
         room_id, host.display_name, current_user.display_name,
@@ -1098,7 +1106,9 @@ async def cancel_room(
     if room.status != RoomStatus.WAITING:
         raise HTTPException(status_code=409, detail="Impossible d'annuler une partie déjà démarrée.")
 
+    stale_invites = await expire_room_invitations(db, room_id)   # I1
     await db.delete(room)
     await db.flush()
     await asyncio.to_thread(_delete_rtdb, room_id)
+    await remove_notifications(stale_invites)
     logger.info("Salle %s annulée par user %d", room_id, current_user.id)

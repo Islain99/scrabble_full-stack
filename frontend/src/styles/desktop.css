@@ -481,3 +481,65 @@
   .fr-actions { width: 100%; justify-content: flex-start; }
   .fr-code { font-size: 1.5rem; }
 }
+
+/* ── Notifications et invitations (lot 5) ────────────────────────── */
+.nt-bell { position: relative; }
+.nt-bell-btn {
+  position: relative; width: 38px; height: 38px; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-card); color: var(--text-primary); font-size: 1.05rem;
+  border: 2px solid var(--border-primary); border-radius: 50%;
+  box-shadow: 2px 2px 0 var(--border-primary);
+}
+.nt-bell-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.nt-badge {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  background: var(--brick); color: #fff; border-radius: 999px; border: 2px solid var(--bg-card);
+  font-family: 'DM Mono', monospace; font-size: 0.62rem; font-weight: 700;
+}
+.nt-panel {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 300;
+  width: min(360px, calc(100vw - 24px)); max-height: min(70vh, 520px); overflow-y: auto; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 8px; padding: 12px;
+  background: var(--bg-page); border: 3px solid var(--border-primary); border-radius: 3px;
+  box-shadow: 6px 6px 0 var(--border-primary); text-align: left;
+}
+.nt-bell--mobile .nt-panel { position: fixed; top: 64px; right: 12px; }
+.nt-panel-title {
+  font-family: 'Playfair Display', Georgia, serif; font-size: 1.1rem; font-weight: 900; color: var(--text-primary);
+}
+.nt-empty { margin: 0; font-family: 'Libre Baskerville', Georgia, serif; font-style: italic; font-size: 0.85rem; color: var(--text-muted); }
+.nt-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px; background: var(--bg-card); border: 2px solid var(--border-muted); border-radius: 3px;
+}
+.nt-item--invite { border-color: var(--gold); }
+.nt-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 12rem;
+  font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.88rem; color: var(--text-primary); }
+.nt-text strong { font-family: 'Playfair Display', Georgia, serif; }
+.nt-sub { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text-muted); }
+.nt-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.nt-banner {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 250;   /* sous le panneau de la cloche */
+  width: min(520px, calc(100vw - 24px)); box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 6px; padding: 10px;
+  background: var(--bg-page); border: 3px solid var(--gold); border-radius: 4px;
+  box-shadow: 6px 6px 0 var(--border-primary);
+  animation: nt-in 0.25s ease-out;
+}
+.nt-banner .nt-item { border: none; background: transparent; padding: 4px; }
+.nt-banner-later {
+  align-self: flex-end; background: none; border: none; cursor: pointer; padding: 2px 6px;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.06em; color: var(--text-muted);
+  text-decoration: underline;
+}
+@keyframes nt-in { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .nt-banner { animation: none; } }
+/* Au-dessus de la barre d'actions du jeu sur téléphone */
+@media (max-width: 640px) { .nt-banner { bottom: auto; top: 70px; } }
+.iv-status { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 4px; }
+.iv-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.iv-row--declined .pr-tag { color: var(--brick); border-color: var(--brick); }
+.iv-row--accepted .pr-tag { color: var(--olive); border-color: var(--olive); }
+.mnav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }

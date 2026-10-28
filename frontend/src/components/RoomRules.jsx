@@ -69,9 +69,10 @@ export function RulesSummary({ settings }) {
 
 // ── Formulaire de l'hôte ───────────────────────────────────────────
 
-export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostName = '' }) {
+// title / submitLabel / initial : réutilisé pour « Inviter un ami à jouer » (lot 5)
+export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostName = '', title = null, submitLabel = null, initial = null }) {
   const { t } = useLanguage();
-  const [form, setForm] = useState(DEFAULT_SETTINGS);
+  const [form, setForm] = useState(() => ({ ...DEFAULT_SETTINGS, ...(initial ?? {}) }));
   useEscape(open, onCancel);
   if (!open) return null;
 
@@ -85,7 +86,7 @@ export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostNam
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="rr-setup-title" className="mh-backdrop" onClick={onCancel}>
       <form className="mh-panel rr-panel" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <h2 id="rr-setup-title" className="mh-title">{t('rr_setup_title')}</h2>
+        <h2 id="rr-setup-title" className="mh-title">{title ?? t('rr_setup_title')}</h2>
         <div className="rr-body">
           <label className="rr-field">
             <span className="rr-label">{t('rr_name')}</span>
@@ -143,7 +144,7 @@ export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostNam
         <div className="rr-actions">
           <RetroButton type="button" variant="default" onClick={onCancel}>{t('btn_cancel')}</RetroButton>
           <RetroButton type="submit" variant="primary" disabled={busy}>
-            {busy ? <Spinner size="sm" /> : t('rr_create')}
+            {busy ? <Spinner size="sm" /> : (submitLabel ?? t('rr_create'))}
           </RetroButton>
         </div>
       </form>
