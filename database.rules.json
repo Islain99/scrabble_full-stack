@@ -3,6 +3,10 @@
     ".read": false,
     ".write": false,
 
+    "lobby": {
+      ".read": "auth != null"
+    },
+
     "games": {
       "$roomId": {
         "for_host": {

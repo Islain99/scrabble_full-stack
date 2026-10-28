@@ -2,7 +2,8 @@
 //
 // Écran unique avec 4 phases :
 //   CHECKING → recherche d'une salle ou d'une partie à reprendre (actualisation)
-//   LOBBY    → créer une salle (règles choisies par l'hôte) ou saisir un code ;
+//   LOBBY    → créer une salle (règles choisies par l'hôte), saisir un code ou
+//              choisir dans les salons publics (liste en direct) ;
 //              les règles de la salle sont montrées avant de la rejoindre
 //   WAITING  → hôte attend l'adversaire (code à partager, rappel des règles)
 //   PLAYING  → plateau de jeu (réutilise Board, ScorePanel, etc.)
@@ -28,6 +29,7 @@ import ScorePanel from '../components/ScorePanel';
 import { Toast }  from '../components/Toast';
 import JokerPicker from '../components/JokerPicker';
 import MoveHistory, { HistoryButton } from '../components/MoveHistory';
+import PublicRooms from '../components/PublicRooms';
 import TurnTimer from '../components/TurnTimer';
 import { RoomSetupModal, RoomPreviewModal, RulesSummary } from '../components/RoomRules';
 import { roomDisplayName } from '../utils/roomRules';
@@ -87,7 +89,7 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading, initialCode = null }
         <MonoLabel size="sm" color="var(--text-muted)">{t('mp_subtitle')}</MonoLabel>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', width: '100%', maxWidth: '600px' }}>
+      <div className="mp-lobby-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', width: '100%', maxWidth: '600px' }}>
         <Card style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', lineHeight: 1 }}>🎲</div>
           <div>
@@ -130,6 +132,8 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading, initialCode = null }
           </RetroButton>
         </Card>
       </div>
+
+      <PublicRooms onSelect={onJoinRoom} />
     </div>
   );
 }

@@ -181,6 +181,24 @@ export const translations = {
     rr_full:            'Cette salle a déjà commencé ou n’existe plus.',
     rr_own_room:        'C’est votre propre salle.',
     rr_rules:           'Règles',
+    rr_visibility:      'Visibilité',
+    rr_private:         'Privée',
+    rr_public:          'Publique',
+    rr_private_hint:    'Seuls ceux qui ont le code ou le lien peuvent entrer.',
+    rr_public_hint:     'La salle apparaît dans les salons publics jusqu’à l’arrivée d’un adversaire.',
+
+    // Salons publics
+    pr_title:           'Salons publics',
+    pr_live:            'En direct',
+    pr_polling:         'Mise à jour toutes les 10 s',
+    pr_search:          'Chercher un nom ou un hôte',
+    pr_all:             'Toutes',
+    pr_no_timer:        'Sans minuteur',
+    pr_empty:           'Aucune salle publique pour le moment. Créez la vôtre !',
+    pr_no_match:        'Aucune salle ne correspond à ces filtres.',
+    pr_no_swap:         'Sans échange',
+    pr_just_now:        'à l’instant',
+    pr_ago:             'il y a {{time}}',
 
     // Erreurs de connexion (Firebase)
     auth_err_email_in_use:     'Cette adresse email est déjà utilisée.',
@@ -613,6 +631,24 @@ export const translations = {
     rr_full:            'This room has already started or no longer exists.',
     rr_own_room:        'This is your own room.',
     rr_rules:           'Rules',
+    rr_visibility:      'Visibility',
+    rr_private:         'Private',
+    rr_public:          'Public',
+    rr_private_hint:    'Only people with the code or link can join.',
+    rr_public_hint:     'The room is listed in public rooms until an opponent joins.',
+
+    // Public rooms
+    pr_title:           'Public rooms',
+    pr_live:            'Live',
+    pr_polling:         'Updated every 10 s',
+    pr_search:          'Search a name or host',
+    pr_all:             'All',
+    pr_no_timer:        'No timer',
+    pr_empty:           'No public rooms right now. Create yours!',
+    pr_no_match:        'No room matches these filters.',
+    pr_no_swap:         'No swaps',
+    pr_just_now:        'just now',
+    pr_ago:             '{{time}} ago',
 
     // Sign-in errors (Firebase)
     auth_err_email_in_use:     'This email address is already in use.',

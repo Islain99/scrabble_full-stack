@@ -335,3 +335,64 @@
 .rr-summary-row dd { margin: 0; color: var(--text-primary); font-weight: 600; text-align: right; }
 .mp-waiting-rules { width: 100%; max-width: 380px; box-sizing: border-box; text-align: left; }
 .mp-timer { min-width: 160px; }
+
+/* ── Salons publics (lobby multijoueur) ──────────────────────────── */
+.pr {
+  width: 100%; max-width: 600px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.pr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pr-title {
+  margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 1.35rem; font-weight: 900;
+  color: var(--text-primary);
+}
+.pr-live {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'DM Mono', monospace; font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.pr-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+.pr-dot--live { background: var(--olive); box-shadow: 0 0 0 3px color-mix(in srgb, var(--olive) 25%, transparent); }
+.pr-filters { display: flex; flex-direction: column; gap: 8px; }
+.pr-search { font-family: 'DM Mono', monospace; font-size: 0.85rem; }
+.pr-empty {
+  margin: 0; padding: 1.25rem 1rem; text-align: center;
+  border: 2px dashed var(--border-muted); border-radius: 3px;
+  font-family: 'Libre Baskerville', Georgia, serif; font-style: italic; font-size: 0.88rem; color: var(--text-muted);
+}
+.pr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pr-row {
+  width: 100%; box-sizing: border-box;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  padding: 10px 12px; text-align: left; cursor: pointer;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 2px solid var(--border-primary); border-radius: 3px; box-shadow: 3px 3px 0 var(--shadow-card);
+  font: inherit;
+}
+.pr-row:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--shadow-card); }
+.pr-row:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pr-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: 'Playfair Display', Georgia, serif; font-size: 1rem; font-weight: 700;
+}
+.pr-meta {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text-muted);
+}
+.pr-tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 14rem; }
+.pr-tag {
+  padding: 2px 6px; border: 1.5px solid var(--border-muted); border-radius: 2px; white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.66rem; color: var(--text-secondary);
+}
+.pr-go { font-size: 1.4rem; line-height: 1; color: var(--text-muted); }
+@media (max-width: 480px) {
+  .pr-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .pr-tags { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; max-width: none; }
+  .pr-go { grid-column: 2; grid-row: 1; }
+}
+/* Téléphone : les salons publics avant les cartes Créer / Rejoindre */
+@media (max-width: 640px) {
+  .mp-lobby-cards { order: 2; }
+  .pr { order: 1; }
+}

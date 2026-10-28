@@ -105,6 +105,15 @@ class RoomPreviewResponse(BaseModel):
     settings:  RoomSettings
     can_join:  bool
 
+class PublicRoom(BaseModel):
+    """Salle publique en attente d'un adversaire (salons publics, lot 3)."""
+    room_id:    str
+    host_name:  str
+    settings:   RoomSettings
+    created_at: Optional[datetime] = None
+    is_mine:    bool = False
+
+
 class CreateRoomResponse(BaseModel):
     room_id:    str
     status:     str

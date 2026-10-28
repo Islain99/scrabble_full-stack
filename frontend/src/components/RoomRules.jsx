@@ -98,6 +98,13 @@ export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostNam
             />
           </label>
           <Chips
+            label={t('rr_visibility')}
+            value={form.visibility}
+            onChange={set('visibility')}
+            options={[{ value: 'private', label: t('rr_private') }, { value: 'public', label: t('rr_public') }]}
+          />
+          <p className="rr-hint">{form.visibility === 'public' ? t('rr_public_hint') : t('rr_private_hint')}</p>
+          <Chips
             label={t('rr_turn')}
             value={form.turn_seconds}
             onChange={set('turn_seconds')}
