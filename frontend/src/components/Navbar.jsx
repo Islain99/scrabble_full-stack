@@ -6,6 +6,7 @@ import { useTheme }    from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { stopPresence } from '../utils/presence';
 import { NotificationBell } from './Notifications';
+import { useNotifications } from '../context/NotificationsContext';
 
 // Icônes thème (inchangées)
 const ThemeIcons = { light: '☀️', dark: '🌙', system: '⚙️' };
@@ -15,6 +16,7 @@ export default function Navbar() {
   const { preference, setTheme, THEMES, resolvedTheme } = useTheme();
   const { t, language, setLanguage }                    = useLanguage();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const { unreadMessages } = useNotifications();   // lot 6 : non-lus de la messagerie
   const isMobile = useIsMobile();
   const currentHash = (window.location.hash || '#/').split('?')[0];
 
@@ -29,6 +31,7 @@ export default function Navbar() {
     { label: t('nav_play'),      hash: '#/'            },
     { label: t('nav_multiplayer'), hash: '#/multiplayer', authOnly: true },
     { label: t('nav_friends'),   hash: '#/friends', authOnly: true },
+    { label: t('nav_messages'),  hash: '#/messages', authOnly: true, badge: unreadMessages },
     { label: t('nav_leaderboard'), hash: '#/leaderboard' },
     { label: t('nav_profile'),   hash: '#/profile', authOnly: true },
     { label: t('nav_settings'),  hash: '#/settings'  },
@@ -115,6 +118,7 @@ export default function Navbar() {
             }}
           >
             {link.label}
+            {link.badge > 0 && <span className="nav-badge" aria-label={t('msg_unread', { count: link.badge })}>{link.badge > 99 ? '99+' : link.badge}</span>}
           </a>
         ))}
       </div>
@@ -124,7 +128,7 @@ export default function Navbar() {
         {isAuthenticated && <NotificationBell />}
 
         {/* ── Sélecteur de langue ────────────────────────── */}
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div className="app-nav-lang" style={{ display: 'flex', gap: '4px' }}>
           {LANGUAGES.map(l => (
             <button
               key={l.value}
@@ -148,7 +152,7 @@ export default function Navbar() {
         </div>
 
         {/* ── Theme toggle ───────────────────────────────── */}
-        <div style={{ position: 'relative' }}>
+        <div className="app-nav-theme" style={{ position: 'relative' }}>
           <button
             onClick={() => setShowThemeMenu(v => !v)}
             title={`${t('section_appearance')} : ${ThemeLabels[preference]}`}
@@ -395,6 +399,7 @@ function MobileNavbar({
                   onClick={() => setOpen(false)}
                 >
                   {link.label}
+            {link.badge > 0 && <span className="nav-badge" aria-label={t('msg_unread', { count: link.badge })}>{link.badge > 99 ? '99+' : link.badge}</span>}
                 </a>
               ))}
             </div>

@@ -25,6 +25,8 @@ import { getFriends, sendFriendRequest } from '../api/friendsService';
 import { setPresenceActivity } from '../utils/presence';
 import { ROOM_JOINED_EVENT } from '../context/NotificationsContext';
 import { InvitationsStatus, InviteFriendsModal } from '../components/InviteFriends';
+import GameChat from '../components/chat/GameChat';
+import { useGameChatUnread } from '../hooks/useGameChatUnread';
 
 import Board      from '../components/Board';
 import TileRack   from '../components/TileRack';
@@ -272,13 +274,16 @@ function ClaimBanner({ name, idleMs, onClaim, busy, compact = false }) {
 
 // ── PlayingScreen ─────────────────────────────────────────────────
 
-function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {} }) {
+function PlayingScreen({ mp, roomId = null, onRematch, rematchBusy = false, addToast = () => {} }) {
   const [selectedRackTile, setSelectedRackTile] = useState(null);
   const [showSwapPanel,    setShowSwapPanel]    = useState(false);
   const [confirmPass,      setConfirmPass]       = useState(false);
   const [confirmResign,    setConfirmResign]     = useState(false);
   const [showHistory,      setShowHistory]       = useState(false);
   const [friendAsked,      setFriendAsked]       = useState(null);   // 'pending' | 'accepted'
+  const [chatOpen,         setChatOpen]          = useState(false);  // lot 6 : chat de la partie
+  const chatUnread = useGameChatUnread(roomId);
+  const closeChat  = useCallback(() => setChatOpen(false), []);
   const isMobile = useIsMobile();
   const { t, tp } = useLanguage();
 
@@ -428,6 +433,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {}
           </RetroButton>
         </div>
         {historyModal}
+        <GameChat roomId={roomId} open={chatOpen} onClose={closeChat} />
       </div>
     );
   }
@@ -448,6 +454,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {}
         <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
         {resignModal}
         {historyModal}
+        <GameChat roomId={roomId} open={chatOpen} onClose={closeChat} />
         <MobileGameLayout
           top={
             <ScoreStrip
@@ -462,6 +469,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {}
                   items={[
                     { icon: '⇅', label: t('mg_shuffle'), onSelect: shuffle },
                     { icon: '☰', label: t('mh_open'), onSelect: () => setShowHistory(true) },
+                    { icon: '💬', label: chatUnread ? `${t('msg_game_chat')} (${chatUnread})` : t('msg_game_chat'), onSelect: () => setChatOpen(true) },
                     { icon: '✕', label: t('mp_resign'), danger: true, onSelect: () => setConfirmResign(true) },
                   ]}
                 />
@@ -574,6 +582,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {}
       <JokerPicker open={!!pendingJoker} onPick={chooseJokerLetter} onCancel={cancelJoker} />
       {resignModal}
       {historyModal}
+      <GameChat roomId={roomId} open={chatOpen} onClose={closeChat} />
 
       <header className="game-header mp-header" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
@@ -588,6 +597,11 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false, addToast = () => {}
         </span>
         {turnTimer && <div className="mp-timer">{turnTimer}</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button type="button" className="pause-btn history-btn gc-btn" onClick={() => setChatOpen(true)}
+            aria-label={chatUnread ? t('msg_unread', { count: chatUnread }) : t('msg_game_chat')} title={t('msg_game_chat')}>
+            <span aria-hidden="true">💬</span>
+            {chatUnread > 0 && <span className="nt-badge">{chatUnread}</span>}
+          </button>
           <HistoryButton onClick={() => setShowHistory(true)} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-invert)', borderRadius: '2px', padding: '4px 12px', border: '1.5px solid var(--border-gold)' }}>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
@@ -896,7 +910,7 @@ export default function MultiplayerPage() {
       {currentPhase === 'WAITING' && (
         <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} settings={mp.settings} hostName={user?.display_name ?? ''} />
       )}
-      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} onRematch={handleRematch} rematchBusy={rematchBusy} addToast={addToast} />}
+      {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} roomId={roomId} onRematch={handleRematch} rematchBusy={rematchBusy} addToast={addToast} />}
     </div>
   );
 }

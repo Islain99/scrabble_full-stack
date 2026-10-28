@@ -5,6 +5,7 @@
 //   - en direct : /notifications/{uid} dans la base temps réel (écrit par le serveur) ;
 //   - repli : GET /notifications toutes les 15 s (invitations et demandes seulement).
 // Actions : accepter / refuser une invitation ou une demande, fermer un avis.
+// Lot 6 : écoute aussi /inbox/{uid} (non-lus de la messagerie, badge « Messages »).
 // Accepter une invitation ouvre la partie : on va sur #/multiplayer, et la page
 // déjà ouverte est prévenue par l'événement « scrabble:room-joined ».
 
@@ -46,6 +47,27 @@ export function NotificationsProvider({ children }) {
   const uid = user?.firebase_uid ?? null;
   const [state, setState] = useState({ uid: null, items: [], live: false });
   const [hidden, setHidden] = useState({});        // clés retirées localement (réponse en cours)
+  // Messagerie (lot 6) : /inbox/{uid} → { [conversation]: { unread, muted, title, preview, last_at } }
+  const [inboxState, setInboxState] = useState({ uid: null, inbox: {} });
+
+  useEffect(() => {
+    if (!uid) return undefined;
+    let cancelled = false;
+    let unsubscribe = null;
+    getRtdb()
+      .then(({ db, ref, onValue }) => {
+        if (cancelled) return;
+        unsubscribe = onValue(
+          ref(db, `/inbox/${uid}`),
+          (snap) => setInboxState({ uid, inbox: snap.val() && typeof snap.val() === 'object' ? snap.val() : {} }),
+          () => { unsubscribe = null; },
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [uid]);
+  const inbox = useMemo(() => (inboxState.uid === uid ? inboxState.inbox : {}), [inboxState, uid]);
+  const unreadMessages = Object.values(inbox).reduce((sum, e) => sum + (e && !e.muted ? Number(e.unread) || 0 : 0), 0);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -125,7 +147,8 @@ export function NotificationsProvider({ children }) {
   const value = useMemo(() => ({
     items, count: items.length, live: state.live, error, clearError: () => setError(null),
     acceptInvite, declineInvite, acceptFriend, declineFriend, dismiss,
-  }), [items, state.live, error, acceptInvite, declineInvite, acceptFriend, declineFriend, dismiss]);
+    inbox, unreadMessages,
+  }), [items, state.live, error, acceptInvite, declineInvite, acceptFriend, declineFriend, dismiss, inbox, unreadMessages]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -136,5 +159,6 @@ export function useNotifications() {
     items: [], count: 0, live: false, error: null, clearError: () => {},
     acceptInvite: async () => null, declineInvite: async () => null,
     acceptFriend: async () => null, declineFriend: async () => null, dismiss: async () => null,
+    inbox: {}, unreadMessages: 0,
   };
 }

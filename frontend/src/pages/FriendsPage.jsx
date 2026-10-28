@@ -13,6 +13,7 @@ import { Toast } from '../components/Toast';
 import { Card, PageHeader, RetroButton, Spinner } from '../components/ui';
 import { RoomSetupModal } from '../components/RoomRules';
 import { inviteFriend } from '../api/notificationsService';
+import { openPrivate } from '../api/chatService';
 import { useAuth } from '../context/AuthContext';
 import { FRIENDS_CHANGED_EVENT, useNotifications } from '../context/NotificationsContext';
 
@@ -212,6 +213,9 @@ function FriendMenu({ friend, groups, onToggleGroup, onRemove, onBlock, onClose 
             </>
           ) : (
             <>
+              <RetroButton variant="primary" onClick={() => openPrivate(friend.user_id)
+                .then(c => { window.location.hash = `#/messages?c=${c.id}`; })
+                .catch(() => {})}>✉ {t('msg_write')}</RetroButton>
               <RetroButton variant="default" onClick={() => onRemove(friend)}>{t('fr_remove')}</RetroButton>
               <RetroButton variant="danger" onClick={() => setConfirmBlock(true)}>{t('fr_block')}</RetroButton>
               <RetroButton variant="primary" onClick={onClose}>{t('mh_close')}</RetroButton>
