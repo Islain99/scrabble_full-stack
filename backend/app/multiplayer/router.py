@@ -49,6 +49,11 @@
 #              minuteur est tenu par le serveur : échéance turn_deadline,
 #              passe automatique à l'expiration (tâche de fond app/multiplayer/
 #              timer.py + vérification à chaque requête sur la salle).
+#   P1 : pas de salons publics : il fallait se passer le code.
+#        Fix : une salle « publique » est annoncée dans RTDB sous /lobby/{salle}
+#              (nom, hôte, règles, date ; ni chevalet ni e-mail), retirée dès
+#              qu'elle n'attend plus personne (arrivée, annulation, expiration).
+#              GET /rooms/public sert de repli quand RTDB est injoignable.
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -78,6 +83,7 @@ from app.multiplayer.models import (
     CreateRoomResponse,
     MultiplayerGame,
     PlayMoveRequest,
+    PublicRoom,
     RoomPreviewResponse,
     RoomSettings,
     RoomStateResponse,
@@ -95,6 +101,10 @@ CLAIM_AFTER = timedelta(minutes=10)
 
 # Minuteur : marge accordée au réseau avant de jouer la passe automatique
 DEADLINE_GRACE = timedelta(seconds=2)
+
+
+# Salons publics (P1) : au plus ce nombre de salles listées
+PUBLIC_LIST_LIMIT = 50
 
 
 # Code de salle (C1) : 6 caractères, alphabet sans caractères ambigus
@@ -269,12 +279,42 @@ def _sync_rtdb(room_id: str, players: dict, gs_dict: Optional[dict] = None) -> N
 
 
 def _delete_rtdb(room_id: str) -> None:
-    """Supprime le nœud RTDB d'une salle (fonction synchrone, erreurs ignorées)."""
+    """Supprime le nœud RTDB d'une salle et sa fiche de salon public (synchrone, erreurs ignorées)."""
     try:
         from firebase_admin import db as rtdb
         rtdb.reference(f"/games/{room_id}").delete()
     except Exception as exc:
         logger.warning("Suppression RTDB ignorée (room=%s) : %s", room_id, exc)
+    _lobby_write(room_id, None)
+
+
+def _lobby_entry(room: MultiplayerGame, host_name: str) -> dict:
+    """
+    Fiche publique d'une salle (P1) : ce que tout joueur connecté peut lire.
+    Pas de chevalet, pas d'adresse e-mail, pas d'identifiant de compte.
+    Firebase ne stocke pas null : les valeurs absentes sont omises.
+    """
+    rules = _room_settings(room).model_dump()
+    rules.pop("visibility", None)
+    entry = {
+        "host_name":  host_name,
+        "created_at": int((_as_utc(room.created_at) or _utcnow()).timestamp() * 1000),
+        **rules,
+    }
+    return {k: v for k, v in entry.items() if v is not None}
+
+
+def _lobby_write(room_id: str, entry: Optional[dict]) -> None:
+    """Publie (entry) ou retire (None) la fiche /lobby/{room_id} (synchrone, erreurs ignorées)."""
+    try:
+        from firebase_admin import db as rtdb
+        node = rtdb.reference(f"/lobby/{room_id}")
+        if entry is None:
+            node.delete()
+        else:
+            node.set(entry)
+    except Exception as exc:
+        logger.warning("Salon public : écriture RTDB ignorée (room=%s) : %s", room_id, exc)
 
 
 def _game_state_to_dict(game_state) -> dict:
@@ -534,6 +574,8 @@ async def _create_waiting_room(
     db.add(room)
     await db.flush()
     await asyncio.to_thread(_sync_rtdb, room_id, {"host": current_user.firebase_uid})
+    if settings.visibility == "public":   # P1 : annoncée dans les salons publics
+        await asyncio.to_thread(_lobby_write, room_id, _lobby_entry(room, current_user.display_name))
     logger.info("Salle créée : %s par user %d", room_id, current_user.id)
 
     return CreateRoomResponse(
@@ -549,7 +591,8 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
     room = await _get_room_or_404(room_id, db, for_update=True)  # B6
 
     if room.status != RoomStatus.WAITING:
-        raise HTTPException(status_code=409, detail=f"La salle est déjà {room.status}.")
+        # P1 : deux joueurs sur la même salle publique, le premier l'a eue
+        raise HTTPException(status_code=409, detail="Cette salle vient d'être complétée.")
     if room.host_user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Vous êtes déjà l'hôte de cette salle.")
     if await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE]):
@@ -590,6 +633,8 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
 
     players = {"host": host.firebase_uid, "guest": current_user.firebase_uid}
     await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
+    if rules.visibility == "public":
+        await asyncio.to_thread(_lobby_write, room_id, None)        # P1 : plus personne à attendre
     logger.info(
         "Partie démarrée : room %s | %s vs %s",
         room_id, host.display_name, current_user.display_name,
@@ -653,6 +698,43 @@ async def join_room(
 ):
     engine = _get_engine(request)
     return await _join_waiting_room(_normalize_room_id(room_id), current_user, db, engine)
+
+
+@router.get(
+    "/rooms/public",
+    response_model=list[PublicRoom],
+    summary="Salles publiques en attente d'un adversaire (repli du temps réel)",
+)
+async def list_public_rooms(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    P1 : même liste que /lobby dans RTDB, pour le client qui ne peut pas
+    l'écouter. Les plus récentes d'abord, PUBLIC_LIST_LIMIT au plus.
+    """
+    rows = (await db.execute(
+        select(MultiplayerGame, User.display_name)
+        .join(User, User.id == MultiplayerGame.host_user_id)
+        .where(MultiplayerGame.status == RoomStatus.WAITING.value)
+        .order_by(MultiplayerGame.created_at.desc(), MultiplayerGame.id.desc())
+        .limit(PUBLIC_LIST_LIMIT * 4)
+    )).all()
+    public = []
+    for room, host_name in rows:
+        rules = _room_settings(room)
+        if rules.visibility != "public":
+            continue
+        public.append(PublicRoom(
+            room_id=room.room_id,
+            host_name=host_name,
+            settings=rules,
+            created_at=_as_utc(room.created_at),
+            is_mine=room.host_user_id == current_user.id,
+        ))
+        if len(public) >= PUBLIC_LIST_LIMIT:
+            break
+    return public
 
 
 @router.get(
@@ -966,7 +1048,10 @@ async def rematch(
             return RematchResponse(**joined.model_dump(), action="joined")
 
     # Sinon (ou proposition expirée) : nouvelle salle à mon nom, annoncée à l'adversaire
-    created = await _create_waiting_room(db, current_user, _room_settings(room))  # mêmes règles
+    # Mêmes règles, mais la revanche n'est pas annoncée dans les salons publics :
+    # elle est destinée à l'adversaire
+    rules = _room_settings(room).model_copy(update={"visibility": "private"})
+    created = await _create_waiting_room(db, current_user, rules)
     gs_dict = copy.deepcopy(room.game_state)
     gs_dict["rematch"] = {"code": created.room_id, "by": me}
     room.game_state = gs_dict

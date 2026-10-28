@@ -866,3 +866,117 @@ async def test_rematch_keeps_the_rules(client, login, players, rtdb):
     login(players["bruno"])
     preview = (await client.get(f"{API}/rooms/{code}/preview")).json()
     assert preview["settings"]["turn_seconds"] == 120 and preview["settings"]["allow_swap"] is False
+
+
+# ── P1 : salons publics ──────────────────────────────────────────
+
+@pytest.fixture
+def lobby(monkeypatch, rtdb):
+    """Fiches /lobby écrites par le serveur ({salle: fiche}) ; la suppression d'une salle les retire aussi."""
+    entries = {}
+
+    def fake_write(room_id, entry):
+        if entry is None:
+            entries.pop(room_id, None)
+        else:
+            entries[room_id] = entry
+    monkeypatch.setattr(mp_router, "_lobby_write", fake_write)
+
+    def fake_delete(room_id):
+        rtdb["delete"].append(room_id)
+        fake_write(room_id, None)
+    monkeypatch.setattr(mp_router, "_delete_rtdb", fake_delete)
+    return entries
+
+
+async def _carl(sqlite_db):
+    async with sqlite_db() as session:
+        async with session.begin():
+            carl = User(firebase_uid="uid-carl", email="carl@test.dev", display_name="Carl")
+            session.add(carl)
+    return carl
+
+
+async def test_public_room_is_announced_then_withdrawn(client, login, players, lobby):
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms", json={"settings": {
+        "visibility": "public", "name": "Ouverte à tous", "turn_seconds": 60, "allow_swap": False}})
+    code = r.json()["room_id"]
+    entry = lobby[code]
+    assert entry["host_name"] == "Alice" and entry["name"] == "Ouverte à tous"
+    assert entry["turn_seconds"] == 60 and entry["allow_swap"] is False
+    assert isinstance(entry["created_at"], int)
+    assert None not in entry.values()                       # Firebase ne garde pas null
+    assert not {"visibility", "email", "rack", "host_user_id"} & set(entry)
+
+    login(players["bruno"])                                  # complète : retirée
+    assert (await client.post(f"{API}/rooms/{code}/join")).status_code == 200
+    assert code not in lobby
+
+
+async def test_private_room_is_not_announced(client, login, players, lobby):
+    login(players["alice"])
+    await client.post(f"{API}/rooms", json={"settings": {"turn_seconds": 30}})
+    assert lobby == {}
+
+
+async def test_cancelled_public_room_is_withdrawn(client, login, players, lobby):
+    login(players["alice"])
+    code = (await client.post(f"{API}/rooms", json={"settings": {"visibility": "public"}})).json()["room_id"]
+    assert code in lobby
+    assert (await client.delete(f"{API}/rooms/{code}")).status_code in (200, 204)
+    assert code not in lobby
+
+
+async def test_expired_public_room_is_withdrawn(client, login, players, lobby, sqlite_db):
+    from datetime import datetime, timezone
+    from app.multiplayer.cleanup import WAITING_TTL, cleanup_rooms
+    login(players["alice"])
+    code = (await client.post(f"{API}/rooms", json={"settings": {"visibility": "public"}})).json()["room_id"]
+    await cleanup_rooms(now=datetime.now(timezone.utc) + WAITING_TTL + mp_router.timedelta(minutes=1))
+    assert code not in lobby
+
+
+async def test_public_list_fallback(client, login, players, lobby, sqlite_db):
+    carl = await _carl(sqlite_db)
+    login(players["alice"])
+    pub = (await client.post(f"{API}/rooms", json={"settings": {"visibility": "public", "turn_seconds": 120}})).json()["room_id"]
+    login(players["bruno"])
+    await client.post(f"{API}/rooms")                       # privée : jamais listée
+
+    login(carl)
+    rooms = (await client.get(f"{API}/rooms/public")).json()
+    assert [r["room_id"] for r in rooms] == [pub]
+    assert rooms[0]["host_name"] == "Alice" and rooms[0]["settings"]["turn_seconds"] == 120
+    assert rooms[0]["is_mine"] is False
+    login(players["alice"])
+    assert (await client.get(f"{API}/rooms/public")).json()[0]["is_mine"] is True
+
+    login(carl)                                              # partie commencée : plus listée
+    await client.post(f"{API}/rooms/{pub}/join")
+    login(players["bruno"])
+    assert (await client.get(f"{API}/rooms/public")).json() == []
+
+
+async def test_second_player_is_told_the_room_is_taken(client, login, players, lobby, sqlite_db):
+    carl = await _carl(sqlite_db)
+    login(players["alice"])
+    code = (await client.post(f"{API}/rooms", json={"settings": {"visibility": "public"}})).json()["room_id"]
+    login(players["bruno"])
+    assert (await client.post(f"{API}/rooms/{code}/join")).status_code == 200
+    login(carl)
+    r = await client.post(f"{API}/rooms/{code}/join")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Cette salle vient d'être complétée."
+
+
+async def test_rematch_of_public_game_stays_private(client, login, players, lobby):
+    login(players["alice"])
+    code = (await client.post(f"{API}/rooms", json={"settings": {"visibility": "public"}})).json()["room_id"]
+    login(players["bruno"])
+    await client.post(f"{API}/rooms/{code}/join")
+    await client.post(f"{API}/rooms/{code}/resign")
+    new_code = (await client.post(f"{API}/rooms/{code}/rematch")).json()["room_id"]
+    assert new_code not in lobby
+    preview = (await client.get(f"{API}/rooms/{new_code}/preview")).json()
+    assert preview["settings"]["visibility"] == "private"

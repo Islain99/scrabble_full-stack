@@ -106,3 +106,9 @@ export const rematch = async (roomId) => {
   const { data } = await api.post(`${BASE}/rooms/${roomId}/rematch`);
   return data;
 };
+
+/** Salles publiques en attente (repli quand la base temps réel est injoignable). */
+export const listPublicRooms = async () => {
+  const { data } = await api.get(`${BASE}/rooms/public`);
+  return data;
+};

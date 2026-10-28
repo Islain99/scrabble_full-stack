@@ -41,6 +41,11 @@ async def app():
     sans quoi le moteur de jeu ne serait jamais chargé.
     """
     from api.index import app as fastapi_app
+    # Minuteur multijoueur : sa tâche de fond (toutes les 3 s) partagerait la
+    # connexion SQLite unique des tests et pourrait annuler leurs écritures.
+    # Les tests l'appellent directement (expire_due_turns).
+    from app.multiplayer import timer as mp_timer
+    mp_timer.TIMER_INTERVAL_S = 24 * 3600
 
     async with fastapi_app.router.lifespan_context(fastapi_app):
         yield fastapi_app

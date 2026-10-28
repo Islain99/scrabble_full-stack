@@ -7,7 +7,7 @@ export const TURN_CHOICES   = [0, 30, 60, 120, 180, 300];
 export const PASS_CHOICES   = [6, 4];
 export const TARGET_CHOICES = [null, 150, 250, 400];
 export const DEFAULT_SETTINGS = {
-  name: '', turn_seconds: 0, allow_swap: true, show_preview: true, max_passes: 6, target_score: null,
+  name: '', visibility: 'private', turn_seconds: 0, allow_swap: true, show_preview: true, max_passes: 6, target_score: null,
 };
 export const NAME_MAX = 40;
 
