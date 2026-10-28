@@ -4,10 +4,6 @@ Revision ID: 0007_friends
 Revises: 0006_room_settings
 Create Date: 2026-10-28
 """
-import re
-import secrets
-import unicodedata
-
 from alembic import op
 import sqlalchemy as sa
 
@@ -17,27 +13,37 @@ branch_labels = None
 depends_on = None
 
 
-def _prefix(name: str) -> str:
-    # Même règle que app/friends/codes.py (copiée : une migration ne dépend pas du code applicatif)
-    ascii_name = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
-    letters = re.sub(r"[^A-Za-z]", "", ascii_name).upper()[:4]
-    return letters if len(letters) >= 2 else "JOUE"
+# Lettres accentuées → lettres simples (Élodie → ELOD), comme app/friends/codes.py
+_ACCENTED = "ÀÂÄÁÃÅÉÈÊËÍÌÎÏÓÒÔÖÕÚÙÛÜÝÇÑàâäáãåéèêëíìîïóòôöõúùûüýÿçñ"
+_PLAIN    = "AAAAAAEEEEIIIIOOOOOUUUUYCNaaaaaaeeeeiiiiooooouuuuyycn"
 
 
 def upgrade() -> None:
     op.add_column("users", sa.Column("friend_code", sa.String(12), nullable=True))
 
-    # Code ami pour chaque compte existant
-    conn = op.get_bind()
-    taken = set()
-    for user_id, name in conn.execute(sa.text("SELECT id, display_name FROM users ORDER BY id")).all():
-        for attempt in range(50):
-            digits = 4 if attempt < 30 else 6
-            code = f"{_prefix(name)}-{secrets.randbelow(10 ** digits):0{digits}d}"
-            if code not in taken:
-                break
-        taken.add(code)
-        conn.execute(sa.text("UPDATE users SET friend_code = :c WHERE id = :i"), {"c": code, "i": user_id})
+    # Code ami pour chaque compte existant, en SQL pur : la migration doit aussi
+    # fonctionner en mode hors ligne (alembic upgrade --sql, utilisé par la CI),
+    # où aucune requête ne renvoie de résultat.
+    # Préfixe : 4 premières lettres du pseudo (JOUE s'il en a moins de 2).
+    # Nombre : id × 7919 modulo 10⁶ sur 6 chiffres. 7919 étant premier avec 10⁶,
+    # deux comptes (id < 1 000 000) n'ont jamais le même nombre, donc jamais le
+    # même code ; les nouveaux comptes reçoivent un code à 4 chiffres (codes.py),
+    # qui ne peut pas coïncider avec ces codes à 6 chiffres.
+    op.execute(
+        f"""
+        UPDATE users AS u
+        SET friend_code =
+            (CASE WHEN length(s.prefix) >= 2 THEN s.prefix ELSE 'JOUE' END)
+            || '-' || lpad(((u.id::bigint * 7919) % 1000000)::text, 6, '0')
+        FROM (
+            SELECT id,
+                   upper(left(regexp_replace(translate(display_name, '{_ACCENTED}', '{_PLAIN}'),
+                                             '[^A-Za-z]', '', 'g'), 4)) AS prefix
+            FROM users
+        ) AS s
+        WHERE s.id = u.id
+        """
+    )
     op.create_index("ix_users_friend_code", "users", ["friend_code"], unique=True)
 
     op.create_table(
