@@ -76,3 +76,8 @@ class GameState(BaseModel):
     moves: List[Move] = []
     # Multijoueur : revanche proposée après la fin { "code": salle, "by": index du joueur }
     rematch: Optional[Dict[str, int | str]] = None
+    # Règles de la partie (multijoueur : choisies par l'hôte)
+    max_passes: int = 6                   # fin après N passes successives
+    target_score: Optional[int] = None    # fin dès qu'un joueur atteint ce score
+    # Multijoueur, minuteur : fin du tour en cours (ISO 8601, UTC), fixée par le serveur
+    turn_deadline: Optional[str] = None

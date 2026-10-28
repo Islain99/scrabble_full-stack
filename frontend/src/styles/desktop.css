@@ -287,3 +287,51 @@
   background: var(--bg-card); border: 2px solid var(--gold); border-radius: 4px;
   font-family: 'DM Mono', monospace; font-size: 0.85rem; color: var(--text-primary);
 }
+
+/* ── Règles de salle multijoueur (formulaire, aperçu, résumé) ────── */
+.rr-panel { max-width: 480px; max-height: min(90vh, 760px); }
+.rr-body  { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; padding-right: 2px; }
+.rr-field { display: flex; flex-direction: column; gap: 6px; }
+.rr-label {
+  font-family: 'DM Mono', monospace; font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rr-input {
+  width: 100%; box-sizing: border-box; padding: 0.5rem 0.75rem;
+  font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.95rem;
+  background: var(--bg-page); color: var(--text-primary);
+  border: 2px solid var(--border-primary); border-radius: 3px; outline: none;
+}
+.rr-input:focus-visible { border-color: var(--gold); }
+.rr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rr-chip {
+  min-height: 36px; padding: 6px 12px;
+  font-family: 'DM Mono', monospace; font-size: 0.74rem; letter-spacing: 0.04em;
+  background: transparent; color: var(--text-secondary);
+  border: 2px solid var(--border-muted); border-radius: 2px; cursor: pointer;
+}
+.rr-chip[aria-checked="true"] {
+  background: var(--bg-invert); color: var(--text-invert); border-color: var(--border-primary);
+  box-shadow: 2px 2px 0 var(--border-gold-dk);
+}
+.rr-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.rr-hint, .rr-host {
+  margin: 0; font-family: 'Libre Baskerville', Georgia, serif; font-style: italic; font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.rr-host { margin-top: 4px; }
+.rr-blocked {
+  margin: 0; padding: 0.5rem 0.75rem; border: 2px solid var(--brick); border-radius: 3px;
+  font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--brick);
+}
+.rr-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.rr-summary { margin: 0; display: flex; flex-direction: column; border-top: 1.5px solid var(--border-muted); }
+.rr-summary-row {
+  display: flex; justify-content: space-between; gap: 12px; padding: 7px 2px;
+  border-bottom: 1px solid var(--border-muted);
+  font-family: 'DM Mono', monospace; font-size: 0.8rem;
+}
+.rr-summary-row dt { color: var(--text-muted); }
+.rr-summary-row dd { margin: 0; color: var(--text-primary); font-weight: 600; text-align: right; }
+.mp-waiting-rules { width: 100%; max-width: 380px; box-sizing: border-box; text-align: left; }
+.mp-timer { min-width: 160px; }

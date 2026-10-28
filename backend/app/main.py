@@ -96,12 +96,17 @@ async def lifespan(application: FastAPI):
     # … et des salles multijoueur — app/multiplayer/cleanup.py
     from app.multiplayer.cleanup import run_cleanup_loop as run_mp_cleanup
     mp_cleanup_task = asyncio.create_task(run_mp_cleanup())
+    # … et minuteur des parties multijoueur (passe automatique) — app/multiplayer/timer.py
+    from app.multiplayer.timer import run_timer_loop
+    mp_timer_task = asyncio.create_task(
+        run_timer_loop(lambda: getattr(application.state, "game_engine", None))
+    )
 
     logger.info("Application prête.")
     yield
 
     # ── Arrêt ──────────────────────────────────────────────────────
-    for task in (cleanup_task, mp_cleanup_task):
+    for task in (cleanup_task, mp_cleanup_task, mp_timer_task):
         task.cancel()
         try:
             await task

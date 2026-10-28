@@ -43,6 +43,12 @@
 #        Fix : POST /rooms/{id}/shuffle (son chevalet, à tout moment, sans
 #              consommer le tour) ; POST /rooms/{id}/rematch (revanche) ;
 #              historique des coups dans l'état (GameState.moves, moteur).
+#   G1 : règles de partie et minuteur.
+#        Fix : l'hôte choisit ses règles (RoomSettings, colonne settings) ;
+#              GET /rooms/{id}/preview les montre avant de rejoindre. Le
+#              minuteur est tenu par le serveur : échéance turn_deadline,
+#              passe automatique à l'expiration (tâche de fond app/multiplayer/
+#              timer.py + vérification à chaque requête sur la salle).
 #   S2 : rien n'empêchait l'invité de lire /games/{room}/for_host dans RTDB.
 #        Fix : le nœud porte les uid Firebase des joueurs (players/host,
 #              players/guest) ; database.rules.json limite chaque chemin à
@@ -68,9 +74,12 @@ from app.auth.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import GameHistory, User
 from app.multiplayer.models import (
+    CreateRoomRequest,
     CreateRoomResponse,
     MultiplayerGame,
     PlayMoveRequest,
+    RoomPreviewResponse,
+    RoomSettings,
     RoomStateResponse,
     RoomStatus,
     SwapRequest,
@@ -82,6 +91,10 @@ router = APIRouter(prefix="/multiplayer", tags=["Multijoueur"])
 
 # L'adversaire peut réclamer la victoire après ce délai sans coup du joueur au trait
 CLAIM_AFTER = timedelta(minutes=10)
+
+
+# Minuteur : marge accordée au réseau avant de jouer la passe automatique
+DEADLINE_GRACE = timedelta(seconds=2)
 
 
 # Code de salle (C1) : 6 caractères, alphabet sans caractères ambigus
@@ -112,6 +125,14 @@ def _get_engine(request: Request) -> GameEngine:
     return engine
 
 
+def _room_settings(room: MultiplayerGame) -> RoomSettings:
+    """Règles de la salle (défauts pour une salle créée avant la migration 0006)."""
+    try:
+        return RoomSettings.model_validate(room.settings or {})
+    except Exception:          # réglages illisibles : on ne bloque pas la partie
+        return RoomSettings()
+
+
 def _room_to_response(room: MultiplayerGame) -> RoomStateResponse:
     return RoomStateResponse(
         room_id=room.room_id,
@@ -125,6 +146,9 @@ def _room_to_response(room: MultiplayerGame) -> RoomStateResponse:
         game_state=room.game_state,
         last_action_at=_as_utc(room.updated_at),
         claim_after_s=int(CLAIM_AFTER.total_seconds()),
+        settings=_room_settings(room),
+        turn_deadline=_as_utc(room.turn_deadline),
+        server_now=_utcnow(),
     )
 
 
@@ -333,6 +357,76 @@ async def _record_stats(db: AsyncSession, room: MultiplayerGame) -> None:
         user.update_stats_after_game(score=int(me.get("score", 0)), won=won)
 
 
+def _start_turn_clock(room: MultiplayerGame, gs_dict: dict, start: datetime) -> None:
+    """
+    G1 : nouveau tour → nouvelle échéance (si la salle a un minuteur), écrite
+    dans la colonne (lue par la tâche de fond) et dans l'état (lu par les clients).
+    """
+    seconds = _room_settings(room).turn_seconds
+    if seconds and gs_dict.get("status") != "FINISHED":
+        room.turn_deadline = start + timedelta(seconds=seconds)
+        gs_dict["turn_deadline"] = room.turn_deadline.isoformat()
+    else:
+        room.turn_deadline = None
+        gs_dict["turn_deadline"] = None
+
+
+def _expire_turns(room: MultiplayerGame, engine: GameEngine, now: datetime) -> Optional[dict]:
+    """
+    G1 : joue la passe automatique de chaque tour dont l'échéance est dépassée
+    (plusieurs si le serveur a pris beaucoup de retard : les tours manqués
+    partent alors de l'échéance précédente, jusqu'à la fin par passes
+    successives au besoin).
+    Retourne le nouvel état, ou None si rien n'a expiré. La salle doit être
+    verrouillée par l'appelant.
+    """
+    from api.models import GameState as GSModel
+    gs_dict = None
+    for _ in range(64):   # garde-fou : la fin par passes arrive bien avant
+        deadline = _as_utc(room.turn_deadline)
+        if room.status != RoomStatus.ACTIVE or deadline is None or now < deadline + DEADLINE_GRACE:
+            break
+        gs = GSModel.model_validate(room.game_state)
+        player_id = gs.players[gs.current_player_index].id
+        with _on_engine(engine, gs) as gs_updated:  # S1
+            ok, _ = engine.pass_turn(gs.game_id, player_id)
+        if not ok:
+            break
+        gs_updated.moves[-1].kind = "timeout"          # « temps écoulé » dans l'historique
+        gs_dict = _apply_result(room, gs_updated)
+        if room.status == RoomStatus.ACTIVE:
+            # Le joueur suivant a un tour complet à partir de maintenant ; après
+            # une longue absence du serveur, les tours manqués s'enchaînent à
+            # partir des échéances successives (rattrapage).
+            seconds = _room_settings(room).turn_seconds
+            catching_up = now - deadline >= timedelta(seconds=seconds)
+            _start_turn_clock(room, gs_dict, deadline if catching_up else now)
+            room.game_state = gs_dict
+    return gs_dict
+
+
+async def _expire_and_sync(db: AsyncSession, room: MultiplayerGame, engine: Optional[GameEngine], locked: bool) -> None:
+    """
+    Vérifie l'échéance à chaque requête sur la salle, au cas où la tâche de
+    fond aurait du retard. Sans verrou (lecture), la ligne est relue verrouillée
+    avant de jouer la passe : la tâche de fond ne peut pas la jouer en même temps.
+    """
+    deadline = _as_utc(room.turn_deadline)
+    if engine is None or room.status != RoomStatus.ACTIVE or deadline is None:
+        return
+    now = _utcnow()
+    if now < deadline + DEADLINE_GRACE:
+        return
+    if not locked:
+        await db.refresh(room, with_for_update=True)
+    gs_dict = _expire_turns(room, engine, now)
+    if gs_dict is None:
+        return
+    await _record_stats(db, room)   # C2 (si la partie est finie)
+    await db.flush()
+    await asyncio.to_thread(_sync_rtdb, room.room_id, await _player_uids(db, room), gs_dict)
+
+
 def _apply_result(room: MultiplayerGame, game_state) -> dict:
     """
     Reporte sur la salle l'état produit par le moteur après un coup, une passe
@@ -346,10 +440,14 @@ def _apply_result(room: MultiplayerGame, game_state) -> dict:
     room.current_user_id = _current_user_id_from_state(gs_dict, room)
     room.updated_at      = _utcnow()
 
+    _start_turn_clock(room, gs_dict, room.updated_at)   # G1
+
     if game_state.status.value == "FINISHED":
         room.status          = RoomStatus.FINISHED
         room.finished_at     = room.updated_at
         room.current_user_id = None
+        room.turn_deadline   = None
+        gs_dict["turn_deadline"] = None
         if game_state.is_draw or game_state.winner_id is None:
             room.winner_user_id = None                  # égalité
         else:
@@ -377,6 +475,8 @@ def _finish_by_forfeit(room: MultiplayerGame, winner_user_id: int, now: Optional
     room.current_user_id = None
     room.finished_at     = now
     room.updated_at      = now
+    room.turn_deadline   = None
+    gs_dict["turn_deadline"] = None
     return gs_dict
 
 
@@ -401,7 +501,9 @@ def _masked_response(room: MultiplayerGame, viewer_user_id: int) -> RoomStateRes
     return response
 
 
-async def _create_waiting_room(db: AsyncSession, current_user: User) -> CreateRoomResponse:
+async def _create_waiting_room(
+    db: AsyncSession, current_user: User, settings: Optional[RoomSettings] = None,
+) -> CreateRoomResponse:
     """Crée une salle en attente (ou renvoie celle qui attend déjà) — POST /rooms, revanche."""
     # Une seule partie à la fois par joueur
     if await _user_rooms(db, current_user.id, [RoomStatus.ACTIVE]):
@@ -418,13 +520,16 @@ async def _create_waiting_room(db: AsyncSession, current_user: User) -> CreateRo
             room_id=waiting[0].room_id,
             status=RoomStatus.WAITING,
             host_name=current_user.display_name,
+            settings=_room_settings(waiting[0]),
         )
 
     room_id = await _new_room_code(db)  # C1
+    settings = settings or RoomSettings()
     room = MultiplayerGame(
         room_id=room_id,
         host_user_id=current_user.id,
         status=RoomStatus.WAITING,
+        settings=settings.model_dump(),   # G1 : figées dès la création
     )
     db.add(room)
     await db.flush()
@@ -435,6 +540,7 @@ async def _create_waiting_room(db: AsyncSession, current_user: User) -> CreateRo
         room_id=room_id,
         status=RoomStatus.WAITING,
         host_name=current_user.display_name,
+        settings=settings,
     )
 
 
@@ -466,6 +572,9 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
         difficulty="medium",
     )
     engine.forget_game(game_state.game_id)  # S1 : la référence est en base
+    rules = _room_settings(room)              # G1 : règles de fin appliquées par le moteur
+    game_state.max_passes   = rules.max_passes
+    game_state.target_score = rules.target_score
     gs_dict = _game_state_to_dict(game_state)
 
     room.guest_user_id   = current_user.id
@@ -475,6 +584,8 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
     room.host_score      = 0
     room.guest_score     = 0
     room.updated_at      = _utcnow()
+    _start_turn_clock(room, gs_dict, room.updated_at)   # G1 : le premier tour démarre
+    room.game_state      = gs_dict
     await db.flush()
 
     players = {"host": host.firebase_uid, "guest": current_user.firebase_uid}
@@ -499,11 +610,34 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
 )
 async def create_room(
     request: Request,
+    body: Optional[CreateRoomRequest] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     _get_engine(request)  # vérifie que le moteur est prêt
-    return await _create_waiting_room(db, current_user)
+    return await _create_waiting_room(db, current_user, body.settings if body else None)
+
+
+@router.get(
+    "/rooms/{room_id}/preview",
+    response_model=RoomPreviewResponse,
+    summary="Règles et hôte d'une salle, avant de la rejoindre",
+)
+async def preview_room(
+    room_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """G1 : ce que voit l'invité avant de rejoindre (code saisi ou lien d'invitation)."""
+    room = await _get_room_or_404(_normalize_room_id(room_id), db)
+    host = (await db.execute(select(User).where(User.id == room.host_user_id))).scalar_one()
+    return RoomPreviewResponse(
+        room_id=room.room_id,
+        status=room.status,
+        host_name=host.display_name,
+        settings=_room_settings(room),
+        can_join=room.status == RoomStatus.WAITING and room.host_user_id != current_user.id,
+    )
 
 
 @router.post(
@@ -527,6 +661,7 @@ async def join_room(
     summary="Salle en attente ou partie en cours de l'utilisateur (reprise)",
 )
 async def get_current_room(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -539,6 +674,8 @@ async def get_current_room(
     active  = [r for r in rooms if r.status == RoomStatus.ACTIVE]
     waiting = [r for r in rooms if r.status == RoomStatus.WAITING and r.host_user_id == current_user.id]
     room = (active or waiting or [None])[0]
+    if room is not None:
+        await _expire_and_sync(db, room, getattr(request.app.state, "game_engine", None), locked=False)
     return _masked_response(room, current_user.id) if room else None
 
 
@@ -549,14 +686,16 @@ async def get_current_room(
 )
 async def get_room(
     room_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lecture seule — pas de verrou nécessaire."""
+    """Lecture — verrou pris seulement si une échéance de minuteur est dépassée."""
     room = await _get_room_or_404(room_id, db)
 
     if current_user.id not in (room.host_user_id, room.guest_user_id):
         raise HTTPException(status_code=403, detail="Vous n'êtes pas dans cette partie.")
+    await _expire_and_sync(db, room, getattr(request.app.state, "game_engine", None), locked=False)
 
     return _masked_response(room, current_user.id)
 
@@ -575,6 +714,7 @@ async def play_move(
 ):
     engine = _get_engine(request)
     room   = await _get_room_or_404(room_id, db, for_update=True)  # B6
+    await _expire_and_sync(db, room, engine, locked=True)           # G1 : tour expiré ?
 
     if room.status != RoomStatus.ACTIVE:
         raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
@@ -616,6 +756,7 @@ async def pass_turn(
 ):
     engine = _get_engine(request)
     room   = await _get_room_or_404(room_id, db, for_update=True)  # B6
+    await _expire_and_sync(db, room, engine, locked=True)           # G1 : tour expiré ?
 
     if room.status != RoomStatus.ACTIVE:
         raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
@@ -657,6 +798,7 @@ async def swap_tiles(
 ):
     engine = _get_engine(request)
     room   = await _get_room_or_404(room_id, db, for_update=True)  # B6
+    await _expire_and_sync(db, room, engine, locked=True)           # G1 : tour expiré ?
 
     if room.status != RoomStatus.ACTIVE:
         raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
@@ -669,6 +811,8 @@ async def swap_tiles(
     player_idx = _player_index_for_user(room.game_state, current_user.id, room)
     player_id  = gs.players[player_idx].id
 
+    if not _room_settings(room).allow_swap:   # G1
+        raise HTTPException(status_code=403, detail="Les échanges sont interdits dans cette partie.")
     with _on_engine(engine, gs) as gs_updated:  # S1
         success, message = engine.swap_tiles(gs.game_id, player_id, body.letters)
     if not success:
@@ -726,6 +870,9 @@ async def claim_win(
         raise HTTPException(status_code=409, detail="La partie n'est pas en cours.")
     if room.current_user_id == current_user.id:
         raise HTTPException(status_code=409, detail="C'est à vous de jouer.")
+    if _room_settings(room).turn_seconds:
+        # G1 : avec un minuteur, le tour passe tout seul ; rien à réclamer
+        raise HTTPException(status_code=409, detail="Cette partie a un minuteur : le tour passe automatiquement.")
 
     idle = _utcnow() - (_as_utc(room.updated_at) or _utcnow())
     if idle < CLAIM_AFTER:
@@ -819,7 +966,7 @@ async def rematch(
             return RematchResponse(**joined.model_dump(), action="joined")
 
     # Sinon (ou proposition expirée) : nouvelle salle à mon nom, annoncée à l'adversaire
-    created = await _create_waiting_room(db, current_user)
+    created = await _create_waiting_room(db, current_user, _room_settings(room))  # mêmes règles
     gs_dict = copy.deepcopy(room.game_state)
     gs_dict["rematch"] = {"code": created.room_id, "by": me}
     room.game_state = gs_dict

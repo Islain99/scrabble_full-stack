@@ -45,6 +45,7 @@ const VARIANTS = {
  *   onClick?: () => void,
  *   children: React.ReactNode,
  *   style?: React.CSSProperties,
+ *   type?: 'button' | 'submit',
  * }} props
  */
 export default function RetroButton({
@@ -54,6 +55,7 @@ export default function RetroButton({
   variant = 'default',
   fullWidth = false,
   style = {},
+  type,
 }) {
   const [hovered, setHovered] = useState(false);
   const v = VARIANTS[variant] ?? VARIANTS.default;
@@ -83,6 +85,7 @@ export default function RetroButton({
 
   return (
     <button
+      type={type}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={baseStyle}

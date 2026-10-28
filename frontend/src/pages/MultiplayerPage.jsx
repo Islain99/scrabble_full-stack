@@ -2,8 +2,9 @@
 //
 // Écran unique avec 4 phases :
 //   CHECKING → recherche d'une salle ou d'une partie à reprendre (actualisation)
-//   LOBBY    → créer une salle ou saisir un code pour rejoindre
-//   WAITING  → hôte attend l'adversaire (affiche room_id à partager)
+//   LOBBY    → créer une salle (règles choisies par l'hôte) ou saisir un code ;
+//              les règles de la salle sont montrées avant de la rejoindre
+//   WAITING  → hôte attend l'adversaire (code à partager, rappel des règles)
 //   PLAYING  → plateau de jeu (réutilise Board, ScorePanel, etc.)
 //
 // FIX B1 : roomId toujours passé au hook (plus de conditional phase === 'PLAYING').
@@ -27,6 +28,9 @@ import ScorePanel from '../components/ScorePanel';
 import { Toast }  from '../components/Toast';
 import JokerPicker from '../components/JokerPicker';
 import MoveHistory, { HistoryButton } from '../components/MoveHistory';
+import TurnTimer from '../components/TurnTimer';
+import { RoomSetupModal, RoomPreviewModal, RulesSummary } from '../components/RoomRules';
+import { roomDisplayName } from '../utils/roomRules';
 import { useIsMobile } from '../hooks/useViewport';
 import {
   MobileGameLayout, ScoreStrip, MobileRack, ActionButton, PlayButton, MoreMenu, StatusLine,
@@ -57,6 +61,7 @@ function inviteCodeFromHash(hash) {
 // ── Sous-composants ───────────────────────────────────────────────
 
 function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading, initialCode = null }) {
+  // onCreateRoom : ouvre le formulaire des règles ; onJoinRoom(code) : montre les règles de la salle
   const { t } = useLanguage();
   const [code, setCode] = useState(initialCode ?? '');
   const [joining, setJoining] = useState(false);
@@ -129,7 +134,7 @@ function LobbyScreen({ onCreateRoom, onJoinRoom, isLoading, initialCode = null }
   );
 }
 
-function WaitingScreen({ roomId, onCancel }) {
+function WaitingScreen({ roomId, onCancel, settings = null, hostName = '' }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(null);   // 'code' | 'link' | null
   const link = inviteLink(roomId);
@@ -172,6 +177,15 @@ function WaitingScreen({ roomId, onCancel }) {
           )}
         </div>
       </Card>
+
+      {settings && (
+        <Card className="mp-waiting-rules" style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+            {roomDisplayName(settings, hostName, t)}
+          </div>
+          <RulesSummary settings={settings} />
+        </Card>
+      )}
 
       <RetroButton variant="danger" onClick={onCancel}>{t('btn_cancel')}</RetroButton>
     </div>
@@ -260,7 +274,11 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
     toggleTileForSwap, selectedTilesToSwap, isLoading,
     pendingJoker, chooseJokerLetter, cancelJoker, handleClearPlacements,
     canClaim, opponentIdleMs, handleResign, handleClaimWin, handleShuffleRack,
+    settings, turnSeconds, turnRemaining,
   } = mp;
+  // Règles de la salle (G1) : échanges autorisés, aperçu du score affiché
+  const allowSwap   = settings?.allow_swap ?? true;
+  const showPreview = settings?.show_preview ?? true;
   const closeResign  = useCallback(() => setConfirmResign(false), []);
   const closeHistory = useCallback(() => setShowHistory(false), []);
 
@@ -286,6 +304,10 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
   const lastMove = lastPlayedCells(gameState);
   // Mélange : à tout moment (même pendant le tour adverse), hors mode échange
   const shuffle = () => { setSelectedRackTile(null); handleShuffleRack(); };
+
+  const turnTimer = turnSeconds > 0 && turnRemaining !== null && (
+    <TurnTimer duration={turnSeconds} remaining={turnRemaining} />
+  );
 
   const claimBanner = (compact) => canClaim && (
     <ClaimBanner name={opponentName} idleMs={opponentIdleMs} onClaim={handleClaimWin} busy={isLoading} compact={compact} />
@@ -389,7 +411,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
                   ]}
                 />
               }
-              below={claimBanner(true)}
+              below={turnTimer || claimBanner(true)}
             />
           }
           board={
@@ -408,7 +430,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
           status={
             <StatusLine
               thinking={!isMyTurn}
-              points={isMyTurn && placed > 0 ? previewScore : null}
+              points={isMyTurn && placed > 0 && showPreview ? previewScore : null}
               text={statusText}
             />
           }
@@ -456,15 +478,17 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
                     ) : (
                       <ActionButton icon="→" label={t('btn_pass')} disabled={!isMyTurn || isLoading} onClick={() => setConfirmPass(true)} />
                     )}
-                    <ActionButton
-                      icon="⇄"
-                      label={t('mg_swap')}
-                      disabled={!isMyTurn || isLoading || placed > 0}
-                      onClick={() => { setShowSwapPanel(true); setSelectedRackTile(null); }}
-                    />
+                    {allowSwap && (
+                      <ActionButton
+                        icon="⇄"
+                        label={t('mg_swap')}
+                        disabled={!isMyTurn || isLoading || placed > 0}
+                        onClick={() => { setShowSwapPanel(true); setSelectedRackTile(null); }}
+                      />
+                    )}
                     <PlayButton
                       label={isLoading ? '…' : t('mg_play')}
-                      points={placed > 0 ? previewScore : null}
+                      points={placed > 0 && showPreview ? previewScore : null}
                       disabled={placed === 0 || isLoading || !isMyTurn}
                       onClick={handleValidate}
                     />
@@ -507,6 +531,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
         }}>
           {isMyTurn ? `● ${t('mp_your_turn')}` : `⏳ ${t('mg_waiting', { name: currentPlayer.name })}`}
         </span>
+        {turnTimer && <div className="mp-timer">{turnTimer}</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <HistoryButton onClick={() => setShowHistory(true)} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-invert)', borderRadius: '2px', padding: '4px 12px', border: '1.5px solid var(--border-gold)' }}>
@@ -570,7 +595,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
           </div>
 
           <div className="dg-preview">
-            {isMyTurn && placed > 0 && (
+            {isMyTurn && placed > 0 && showPreview && (
               <div className="dg-preview-card">
                 <div className="dg-preview-text">
                   <span className="dg-preview-label">{t('game_score_preview')}</span>
@@ -604,7 +629,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
               ⇅ {t('game_shuffle')}
             </RetroButton>
 
-            <div className={showSwapPanel ? 'dg-swap dg-swap--open' : 'dg-swap'}>
+            {allowSwap && <div className={showSwapPanel ? 'dg-swap dg-swap--open' : 'dg-swap'}>
               {showSwapPanel ? (
                 <>
                   <div className="dg-swap-hint">{t('game_swap_hint')}</div>
@@ -630,7 +655,7 @@ function PlayingScreen({ mp, onRematch, rematchBusy = false }) {
                   ⇄ {t('game_swap_mode')}
                 </RetroButton>
               )}
-            </div>
+            </div>}
 
             <div className="dg-resign">
               <RetroButton variant="danger" fullWidth disabled={isLoading} onClick={() => setConfirmResign(true)}>
@@ -657,6 +682,9 @@ export default function MultiplayerPage() {
   const [roomId,     setRoomId]     = useState(null);
   const [hostUserId, setHostUserId] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [setupOpen,  setSetupOpen]  = useState(false);   // formulaire des règles (hôte)
+  const [preview,    setPreview]    = useState(null);    // règles d'une salle avant de la rejoindre
+  const [isJoining,  setIsJoining]  = useState(false);
 
   // FIX B1 : roomId toujours passé (pas de conditional phase === 'PLAYING').
   // Pendant LOBBY, roomId est null — le hook fait `if (!roomId) return` sans effet.
@@ -679,19 +707,14 @@ export default function MultiplayerPage() {
           setHostUserId(room.host_user_id);
           setPhase(room.status === 'WAITING' ? 'WAITING' : 'PLAYING');
         } else if (inviteCode) {
-          // Lien d'invitation : on rejoint directement, puis on nettoie l'adresse
+          // Lien d'invitation : on montre d'abord les règles de la salle (G1),
+          // puis on nettoie l'adresse
           window.history.replaceState(null, '', '#/multiplayer');
-          mpService.joinRoom(inviteCode)
-            .then((joined) => {
-              if (cancelled) return;
-              setRoomId(joined.room_id);
-              setHostUserId(joined.host_user_id);
-              setPhase('PLAYING');
-            })
+          setPhase('LOBBY');
+          mpService.previewRoom(inviteCode)
+            .then((data) => { if (!cancelled) setPreview(data); })
             .catch((err) => {
-              if (cancelled) return;
-              addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
-              setPhase('LOBBY');
+              if (!cancelled) addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
             });
         } else {
           setPhase('LOBBY');
@@ -706,10 +729,11 @@ export default function MultiplayerPage() {
   // Passage WAITING → PLAYING dès que l'invité rejoint (RTDB pousse le game_state)
   const currentPhase = phase === 'WAITING' && mp.gameState ? 'PLAYING' : phase;
 
-  const handleCreateRoom = useCallback(async () => {
+  const handleCreateRoom = useCallback(async (settings) => {
     setIsCreating(true);
     try {
-      const room = await mpService.createRoom();
+      const room = await mpService.createRoom(settings);
+      setSetupOpen(false);
       setRoomId(room.room_id);
       setHostUserId(user?.id);
       setPhase('WAITING');
@@ -720,16 +744,34 @@ export default function MultiplayerPage() {
     }
   }, [user, addToast, t]);
 
-  const handleJoinRoom = useCallback(async (code) => {
+  // Code saisi : on montre les règles de la salle avant de la rejoindre (G1)
+  const handleRequestJoin = useCallback(async (code) => {
     try {
-      const room = await mpService.joinRoom(code);
-      setRoomId(room.room_id ?? code);
-      setHostUserId(room.host_user_id ?? room.current_user_id);
-      setPhase('PLAYING');
+      setPreview(await mpService.previewRoom(code));
     } catch (err) {
       addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
     }
   }, [addToast, t]);
+
+  const handleConfirmJoin = useCallback(async () => {
+    if (!preview) return;
+    setIsJoining(true);
+    try {
+      const room = await mpService.joinRoom(preview.room_id);
+      setPreview(null);
+      setRoomId(room.room_id ?? preview.room_id);
+      setHostUserId(room.host_user_id ?? room.current_user_id);
+      setPhase('PLAYING');
+    } catch (err) {
+      addToast(err?.response?.data?.detail || t('mp_join_error'), 'error');
+      // La salle a pu être complétée entre-temps : règles et état à jour
+      mpService.previewRoom(preview.room_id).then(setPreview).catch(() => setPreview(null));
+    } finally {
+      setIsJoining(false);
+    }
+  }, [preview, addToast, t]);
+  const closePreview = useCallback(() => setPreview(null), []);
+  const closeSetup   = useCallback(() => setSetupOpen(false), []);
 
   // Revanche : salle créée (on attend l'adversaire) ou rejointe (la partie démarre)
   const [rematchBusy, setRematchBusy] = useState(false);
@@ -774,8 +816,16 @@ export default function MultiplayerPage() {
           <MonoLabel size="sm" color="var(--text-muted)">{t('mp_resuming')}</MonoLabel>
         </div>
       )}
-      {currentPhase === 'LOBBY'   && <LobbyScreen onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} isLoading={isCreating} initialCode={inviteCode} />}
-      {currentPhase === 'WAITING' && <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} />}
+      {currentPhase === 'LOBBY' && (
+        <>
+          <LobbyScreen onCreateRoom={() => setSetupOpen(true)} onJoinRoom={handleRequestJoin} isLoading={isCreating} initialCode={inviteCode} />
+          <RoomSetupModal open={setupOpen} onCancel={closeSetup} onCreate={handleCreateRoom} busy={isCreating} hostName={user?.display_name ?? ''} />
+          <RoomPreviewModal preview={preview} onJoin={handleConfirmJoin} onCancel={closePreview} busy={isJoining} />
+        </>
+      )}
+      {currentPhase === 'WAITING' && (
+        <WaitingScreen roomId={roomId} onCancel={handleCancelRoom} settings={mp.settings} hostName={user?.display_name ?? ''} />
+      )}
       {currentPhase === 'PLAYING' && <PlayingScreen mp={mp} onRematch={handleRematch} rematchBusy={rematchBusy} />}
     </div>
   );
