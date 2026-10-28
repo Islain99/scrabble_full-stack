@@ -107,6 +107,7 @@ class UserOut(BaseModel):
     best_word_score: int
     average_score: float
     win_rate: float
+    is_admin: bool = False      # messagerie : modération du salon universel
     created_at: datetime
     last_login_at: datetime
 
@@ -137,6 +138,7 @@ class UserOut(BaseModel):
             best_word_score=user.best_word_score,
             average_score=user.average_score,
             win_rate=user.win_rate,
+            is_admin=bool(getattr(user, "is_admin", False)),
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )

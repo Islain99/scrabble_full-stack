@@ -11,6 +11,18 @@
       }
     },
 
+    "chat": {
+      "$conv": {
+        ".read": "auth != null && ($conv === 'global' || data.child('members').child(auth.uid).exists())"
+      }
+    },
+
+    "inbox": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+
     "notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"

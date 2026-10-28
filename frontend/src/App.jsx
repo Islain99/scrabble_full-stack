@@ -28,6 +28,7 @@ const RegisterPage    = lazy(() => import('./pages/RegisterPage'));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const MultiplayerPage = lazy(() => import('./pages/MultiplayerPage'));
 const FriendsPage     = lazy(() => import('./pages/FriendsPage'));
+const MessagesPage    = lazy(() => import('./pages/MessagesPage'));
 
 import './index.css';
 import './styles/mobile.css';
@@ -93,6 +94,11 @@ function Router() {
     if (route === '#/friends') return (
       <ProtectedRoute>
         <FriendsPage />
+      </ProtectedRoute>
+    );
+    if (route === '#/messages') return (
+      <ProtectedRoute>
+        <MessagesPage />
       </ProtectedRoute>
     );
 

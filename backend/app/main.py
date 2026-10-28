@@ -28,6 +28,7 @@ from app.leaderboard.router import router as leaderboard_router
 from app.multiplayer.router import router as multiplayer_router
 from app.friends.router import router as friends_router, users_router as friends_users_router
 from app.notifications.router import router as notifications_router
+from app.chat.router import router as chat_router
 
 # NB : les migrations Alembic sont lancées par la commande de démarrage
 # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
@@ -78,6 +79,7 @@ async def lifespan(application: FastAPI):
                     from app.solo import models as _solo_models  # noqa — table solo_games
                     from app.friends import models as _friends_models  # noqa — amis, groupes, blocages
                     from app.notifications import models as _notif_models  # noqa — invitations à jouer
+                    from app.chat import models as _chat_models  # noqa — messagerie
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -105,12 +107,15 @@ async def lifespan(application: FastAPI):
     mp_timer_task = asyncio.create_task(
         run_timer_loop(lambda: getattr(application.state, "game_engine", None))
     )
+    # … et de la messagerie (salon universel, chats de partie) — app/chat/cleanup.py
+    from app.chat.cleanup import run_chat_cleanup_loop
+    chat_cleanup_task = asyncio.create_task(run_chat_cleanup_loop())
 
     logger.info("Application prête.")
     yield
 
     # ── Arrêt ──────────────────────────────────────────────────────
-    for task in (cleanup_task, mp_cleanup_task, mp_timer_task):
+    for task in (cleanup_task, mp_cleanup_task, mp_timer_task, chat_cleanup_task):
         task.cancel()
         try:
             await task
@@ -161,6 +166,7 @@ app.include_router(multiplayer_router, prefix="/api/v2")
 app.include_router(friends_router,     prefix="/api/v2")
 app.include_router(friends_users_router, prefix="/api/v2")
 app.include_router(notifications_router, prefix="/api/v2")
+app.include_router(chat_router,          prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])

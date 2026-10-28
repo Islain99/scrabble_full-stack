@@ -61,6 +61,10 @@ class User(Base):
     # Code ami unique (ex. ALEX-4821), affiché dans la page Amis (lot 4)
     friend_code: Mapped[str | None] = mapped_column(String(12), unique=True, nullable=True, index=True)
 
+    # Messagerie (lot 6) : rôle d'administrateur (modération) et sourdine temporaire
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    chat_muted_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     game_histories: Mapped[list["GameHistory"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
