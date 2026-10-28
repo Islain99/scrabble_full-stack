@@ -27,6 +27,7 @@ from app.users.router import router as users_router
 from app.leaderboard.router import router as leaderboard_router
 from app.multiplayer.router import router as multiplayer_router
 from app.friends.router import router as friends_router, users_router as friends_users_router
+from app.notifications.router import router as notifications_router
 
 # NB : les migrations Alembic sont lancées par la commande de démarrage
 # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
@@ -76,6 +77,7 @@ async def lifespan(application: FastAPI):
                     from app.multiplayer import models as _mp_models  # noqa — table multiplayer_games
                     from app.solo import models as _solo_models  # noqa — table solo_games
                     from app.friends import models as _friends_models  # noqa — amis, groupes, blocages
+                    from app.notifications import models as _notif_models  # noqa — invitations à jouer
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -158,6 +160,7 @@ app.include_router(leaderboard_router, prefix="/api/v2")
 app.include_router(multiplayer_router, prefix="/api/v2")
 app.include_router(friends_router,     prefix="/api/v2")
 app.include_router(friends_users_router, prefix="/api/v2")
+app.include_router(notifications_router, prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])

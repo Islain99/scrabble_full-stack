@@ -4,13 +4,17 @@
 // envoyées, liste d'amis avec leur présence, groupes personnels, blocages.
 // Les groupes sont privés : un ami ne sait pas dans quel groupe il est rangé.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../hooks/useToast';
 import { useFriendsPresence } from '../hooks/useFriendsPresence';
 import * as fs from '../api/friendsService';
 import { Toast } from '../components/Toast';
 import { Card, PageHeader, RetroButton, Spinner } from '../components/ui';
+import { RoomSetupModal } from '../components/RoomRules';
+import { inviteFriend } from '../api/notificationsService';
+import { useAuth } from '../context/AuthContext';
+import { FRIENDS_CHANGED_EVENT, useNotifications } from '../context/NotificationsContext';
 
 const GROUP_COLORS = ['olive', 'gold', 'brick', 'tobacco', 'blue', 'plum'];
 
@@ -310,6 +314,22 @@ export default function FriendsPage() {
   const [filter, setFilter] = useState('all');           // 'all' | 'online' | id de groupe
   const [menuFor, setMenuFor] = useState(null);          // user_id
   const [groupsOpen, setGroupsOpen] = useState(false);
+  const [inviteFor, setInviteFor] = useState(null);      // ami à inviter (lot 5)
+  const [inviting, setInviting] = useState(false);
+  const { user } = useAuth();
+  const closeInvite = useCallback(() => setInviteFor(null), []);
+  const sendInvite = async (settings) => {
+    setInviting(true);
+    try {
+      await inviteFriend(inviteFor.user_id, settings);
+      setInviteFor(null);
+      window.location.hash = '#/multiplayer';        // salle d'attente : suivi de l'invitation
+    } catch (err) {
+      addToast(errorOf(err, t('fr_error')), 'error');
+    } finally {
+      setInviting(false);
+    }
+  };
   const now = useNow();
 
   const reload = useCallback(async () => {
@@ -327,6 +347,20 @@ export default function FriendsPage() {
       .catch(err => { if (!cancelled) addToast(errorOf(err, t('fr_error')), 'error'); });
     return () => { cancelled = true; };
   }, [addToast, t]);
+
+  // Lot 5 : une demande reçue, acceptée ou traitée depuis la cloche met la page à jour
+  const { items: notifications } = useNotifications();
+  const friendSignal = notifications.filter(n => n.type?.startsWith('friend')).map(n => n.key).join(',');
+  const lastSignal = useRef(friendSignal);
+  useEffect(() => {
+    if (lastSignal.current === friendSignal) return;
+    lastSignal.current = friendSignal;
+    reload();
+  }, [friendSignal, reload]);
+  useEffect(() => {
+    window.addEventListener(FRIENDS_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(FRIENDS_CHANGED_EVENT, reload);
+  }, [reload]);
 
   const presence = useFriendsPresence(data?.friends.map(f => f.firebase_uid));
   const stateOf = (f) => presence[f.firebase_uid]?.state ?? 'offline';
@@ -441,6 +475,9 @@ export default function FriendsPage() {
                       </span>
                       <span className={`fr-meta fr-status--${stateOf(f)}`}>{statusText(f)}</span>
                     </span>
+                    <RetroButton variant={stateOf(f) === 'online' ? 'primary' : 'default'} onClick={() => setInviteFor(f)}>
+                      {t('iv_invite')}
+                    </RetroButton>
                     <button type="button" className="fr-icon-btn" aria-label={t('fr_options', { name: f.display_name })}
                       onClick={() => setMenuFor(f.user_id)}>⋯</button>
                   </li>
@@ -490,6 +527,18 @@ export default function FriendsPage() {
           onRemove={(f) => { setMenuFor(null); act(() => fs.removeFriend(f.user_id)); }}
           onBlock={(f) => { setMenuFor(null); act(() => fs.blockUser(f.user_id)); }}
           onClose={() => setMenuFor(null)}
+        />
+      )}
+      {inviteFor && (
+        <RoomSetupModal
+          open
+          onCancel={closeInvite}
+          onCreate={sendInvite}
+          busy={inviting}
+          hostName={user?.display_name ?? ''}
+          title={t('iv_invite_title', { name: inviteFor.display_name })}
+          submitLabel={t('iv_send')}
+          initial={{ visibility: 'friends' }}
         />
       )}
       {groupsOpen && (

@@ -6,6 +6,8 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { startPresence, stopPresence } from './utils/presence';
+import { NotificationsProvider } from './context/NotificationsContext';
+import { InviteBanner } from './components/Notifications';
 import { ThemeProvider }    from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -105,6 +107,7 @@ function Router() {
     <div>
       <PresenceKeeper />
       <Navbar />
+      <InviteBanner />
       <Suspense fallback={<PageLoader />}>
         {renderPage()}
       </Suspense>
@@ -130,7 +133,9 @@ export default function App() {
         <AuthProvider>
           <SettingsProvider>
             <AppWithTutorial>
-              <Router />
+              <NotificationsProvider>
+                <Router />
+              </NotificationsProvider>
             </AppWithTutorial>
           </SettingsProvider>
         </AuthProvider>
