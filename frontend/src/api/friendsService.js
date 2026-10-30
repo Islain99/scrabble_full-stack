@@ -6,6 +6,9 @@ import { api } from './axiosInstance';
 
 /** { my_code, friends, incoming, outgoing, groups, blocked } */
 export const getFriends = async () => (await api.get('/friends')).data;
+// Liste légère (identifiant, pseudo, avatar, uid) : sélecteurs d'invitation et messagerie
+export const getFriendsList = async () => (await api.get('/friends/list')).data;
+export const getMyBlocks    = async () => (await api.get('/users/me/blocks')).data.blocked_ids;
 
 /** Demande par code ami ou identifiant → { status: 'pending' | 'accepted', request_id, user } */
 export const sendFriendRequest = async ({ friendCode, userId }) =>

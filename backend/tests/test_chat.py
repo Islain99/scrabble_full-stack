@@ -89,6 +89,8 @@ def live(monkeypatch):
         else:
             box[conv_id] = entry
     monkeypatch.setattr(realtime, "set_inbox", inbox)
+    monkeypatch.setattr(realtime, "set_inboxes",
+                        lambda conv_id, entries: [inbox(uid, conv_id, e) for uid, e in entries.items()])
     monkeypatch.setattr(realtime, "drop_conversation", lambda key: tree["chat"].pop(key, None))
     monkeypatch.setattr(realtime, "_update", lambda *a, **k: None)
     monkeypatch.setattr(chat_router, "MIN_INTERVAL", timedelta(0))     # cadence testée à part

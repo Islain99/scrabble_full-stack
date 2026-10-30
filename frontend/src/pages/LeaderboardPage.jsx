@@ -48,15 +48,9 @@ const Stat = ({ value, highlight = false, isMe }) => (
 // nom. Chaque joueur tient sur deux lignes : rang, nom et la valeur triée en
 // grand, puis les cinq statistiques avec leur libellé.
 
-const MobileRow = ({ entry, isMe, sortBy, labels, t }) => {
-  const stats = [
-    { k: 'games_played',  l: labels[0], v: entry.games_played },
-    { k: 'games_won',     l: labels[1], v: entry.games_won },
-    { k: 'win_rate',      l: labels[2], v: `${entry.win_rate}%` },
-    { k: 'best_score',    l: labels[3], v: entry.best_score },
-    { k: 'average_score', l: labels[4], v: Math.round(entry.average_score) },
-  ];
-  const main = stats.find(s => s.k === sortBy) ?? stats[3];
+const MobileRow = ({ entry, isMe, sortBy, columns, t }) => {
+  const stats = columns.map(c => ({ k: c.k, l: c.l, v: c.v(entry) }));
+  const main = stats.find(s => s.k === sortBy) ?? stats.find(s => s.k === 'best_score') ?? stats[0];
   const ink   = isMe ? 'var(--gold)' : 'var(--text-primary)';
   const quiet = isMe ? 'var(--text-invert-muted)' : 'var(--text-muted)';
 
@@ -110,8 +104,12 @@ export default function LeaderboardPage() {
   // Résultat de la dernière requête, étiqueté par ses filtres : on charge
   // tant que le résultat affiché ne correspond pas aux filtres courants.
   const [result, setResult] = useState(null);   // { key, data }
+  const [mode,   setMode]   = useState('solo');  // solo (contre l'IA) | multi (contre des joueurs)
   const [period, setPeriod] = useState('all');
-  const [sortBy, setSortBy] = useState('best_score');
+  // Tri mémorisé par mode : la cote Elo n'existe qu'en multijoueur
+  const [sorts, setSorts]   = useState({ solo: 'best_score', multi: 'rating' });
+  const sortBy    = sorts[mode];
+  const setSortBy = (v) => setSorts(prev => ({ ...prev, [mode]: v }));
 
   // Options traduites — déclarées dans le composant pour réactivité
   const PERIODS = [
@@ -119,34 +117,52 @@ export default function LeaderboardPage() {
     { v: 'month', l: t('lb_period_month') },
     { v: 'week',  l: t('lb_period_week')  },
   ];
-  const SORTS = [
+  const MODES = [
+    { v: 'solo',  l: t('lb_mode_solo')  },
+    { v: 'multi', l: t('lb_mode_multi') },
+  ];
+  const SORTS = mode === 'multi' ? [
+    { v: 'rating',        l: t('lb_sort_rating')  },
+    { v: 'games_won',     l: t('lb_sort_wins')    },
+    { v: 'games_played',  l: t('lb_sort_played')  },
+    { v: 'best_score',    l: t('lb_sort_best')    },
+  ] : [
     { v: 'best_score',    l: t('lb_sort_best')    },
     { v: 'average_score', l: t('lb_sort_avg')     },
     { v: 'games_won',     l: t('lb_sort_wins')    },
     { v: 'games_played',  l: t('lb_sort_played')  },
   ];
-  const COL_HEADERS = [
-    t('lb_col_played'),
-    t('lb_col_wins'),
-    t('lb_col_winrate'),
-    t('lb_col_best'),
-    t('lb_col_avg'),
+  // Colonnes du tableau : k = clé de tri correspondante, v = valeur affichée
+  const COLUMNS = mode === 'multi' ? [
+    { k: 'rating',        l: t('lb_col_rating'),  v: e => e.rating ?? 1200 },
+    { k: 'games_played',  l: t('lb_col_played'),  v: e => e.games_played },
+    { k: 'games_won',     l: t('lb_col_wins'),    v: e => e.games_won },
+    { k: 'win_rate',      l: t('lb_col_winrate'), v: e => `${e.win_rate}%` },
+    { k: 'best_score',    l: t('lb_col_best'),    v: e => e.best_score },
+  ] : [
+    { k: 'games_played',  l: t('lb_col_played'),  v: e => e.games_played },
+    { k: 'games_won',     l: t('lb_col_wins'),    v: e => e.games_won },
+    { k: 'win_rate',      l: t('lb_col_winrate'), v: e => `${e.win_rate}%` },
+    { k: 'best_score',    l: t('lb_col_best'),    v: e => e.best_score },
+    { k: 'average_score', l: t('lb_col_avg'),     v: e => Math.round(e.average_score) },
   ];
+  const highlightKey = mode === 'multi' ? 'rating' : 'best_score';
 
-  const queryKey = `${period}|${sortBy}`;
+  const queryKey = `${mode}|${period}|${sortBy}`;
   const loading  = result?.key !== queryKey;
   const data     = result?.data ?? null;
 
   useEffect(() => {
     let cancelled = false;   // ignore une réponse arrivée après un changement de filtre
-    getLeaderboard({ period, sortBy })
-      .then(d => { if (!cancelled) setResult({ key: `${period}|${sortBy}`, data: d }); })
+    const key = `${mode}|${period}|${sortBy}`;
+    getLeaderboard({ mode, period, sortBy })
+      .then(d => { if (!cancelled) setResult({ key, data: d }); })
       .catch(err => {
         console.error(err);
-        if (!cancelled) setResult({ key: `${period}|${sortBy}`, data: null });
+        if (!cancelled) setResult({ key, data: null });
       });
     return () => { cancelled = true; };
-  }, [period, sortBy]);
+  }, [mode, period, sortBy]);
 
   return (
     <div className="s-page">
@@ -158,6 +174,17 @@ export default function LeaderboardPage() {
             ? `${data.total_players} ${t('lb_subtitle_players')}`
             : ' '}
         />
+
+        {/* Solo / multijoueur (lot 7 : classements séparés) */}
+        <div className="lb-modes" role="tablist" aria-label={t('lb_mode_label')}>
+          {MODES.map(m => (
+            <button key={m.v} type="button" role="tab" aria-selected={mode === m.v}
+              className="lb-mode" data-active={mode === m.v || undefined} onClick={() => setMode(m.v)}>
+              {m.l}
+            </button>
+          ))}
+        </div>
+        {mode === 'multi' && <p className="lb-mode-hint">{t('lb_multi_hint')}</p>}
 
         {/* Filtres */}
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -205,7 +232,7 @@ export default function LeaderboardPage() {
                 entry={entry}
                 isMe={!!user && entry.user_id === user.id}
                 sortBy={sortBy}
-                labels={COL_HEADERS}
+                columns={COLUMNS}
                 t={t}
               />
             ))}
@@ -223,9 +250,9 @@ export default function LeaderboardPage() {
             }}>
               <MonoLabel color="var(--gold)" style={{ width: '3rem', textAlign: 'center', fontSize: '0.58rem' }}>#</MonoLabel>
               <MonoLabel color="var(--gold)" style={{ flex: 1, fontSize: '0.58rem' }}>{t('lb_col_player')}</MonoLabel>
-              {COL_HEADERS.map(h => (
-                <MonoLabel key={h} color="var(--gold)" style={{ width: '80px', textAlign: 'right', fontSize: '0.58rem' }}>
-                  {h}
+              {COLUMNS.map(c => (
+                <MonoLabel key={c.k} color="var(--gold)" style={{ width: '80px', textAlign: 'right', fontSize: '0.58rem' }}>
+                  {c.l}
                 </MonoLabel>
               ))}
             </div>
@@ -316,11 +343,9 @@ export default function LeaderboardPage() {
                   </div>
 
                   {/* Stats */}
-                  <Stat value={entry.games_played}                isMe={isMe} />
-                  <Stat value={entry.games_won}                   isMe={isMe} />
-                  <Stat value={`${entry.win_rate}%`}              isMe={isMe} />
-                  <Stat value={entry.best_score}    highlight      isMe={isMe} />
-                  <Stat value={Math.round(entry.average_score)}   isMe={isMe} />
+                  {COLUMNS.map(c => (
+                    <Stat key={c.k} value={c.v(entry)} highlight={c.k === highlightKey} isMe={isMe} />
+                  ))}
                 </div>
               );
             })}

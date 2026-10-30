@@ -8,6 +8,8 @@
 #   POST   /friends/requests/{id}/decline    refuser (destinataire ; le demandeur n'en sait rien)
 #   DELETE /friends/requests/{id}            annuler sa demande (demandeur)
 #   DELETE /friends/{user_id}                retirer un ami
+#   GET    /friends/list                     liste légère des amis (sélecteurs d'invitation, messagerie)
+#   GET    /users/me/blocks                  identifiants des joueurs que j'ai bloqués
 #   POST   /friends/groups                   créer un groupe
 #   PATCH  /friends/groups/{id}              renommer, changer la couleur ou l'ordre
 #   DELETE /friends/groups/{id}              supprimer un groupe
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
@@ -180,6 +183,29 @@ def _friends_write(owner_uid: str, friends: dict) -> None:
         logger.warning("Amis : écriture RTDB ignorée (uid=%s) : %s", owner_uid, exc)
 
 
+# Copie complète de la liste : seulement si elle a changé depuis la dernière
+# écriture de ce processus, ou au plus une fois par heure (réparation).
+# Les ajouts et retraits passent déjà par _friend_link_write.
+MIRROR_REPAIR_S = 3600
+_mirror_cache: dict[str, tuple[frozenset, float]] = {}
+
+
+async def _repair_mirror(owner_uid: str, friend_uids: set[str]) -> None:
+    wanted = frozenset(friend_uids)
+    cached = _mirror_cache.get(owner_uid)
+    now = time.monotonic()
+    if cached and cached[0] == wanted and now - cached[1] < MIRROR_REPAIR_S:
+        return
+    await asyncio.to_thread(_friends_write, owner_uid, {uid: True for uid in wanted})
+    _mirror_cache[owner_uid] = (wanted, now)
+    if len(_mirror_cache) > 5000:                 # borne mémoire
+        _mirror_cache.pop(next(iter(_mirror_cache)))
+
+
+def forget_mirror(owner_uid: str) -> None:
+    _mirror_cache.pop(owner_uid, None)
+
+
 def _friend_link_write(uid_a: str, uid_b: str, linked: bool) -> None:
     """Ajoute ou retire le lien d'amitié dans les deux sens (synchrone, erreurs ignorées)."""
     try:
@@ -196,6 +222,8 @@ async def _mirror_link(db: AsyncSession, a: int, b: int, linked: bool) -> None:
     uids = {i: uid for i, uid in rows}
     if a in uids and b in uids:
         await asyncio.to_thread(_friend_link_write, uids[a], uids[b], linked)
+        forget_mirror(uids[a])
+        forget_mirror(uids[b])
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -336,7 +364,7 @@ async def overview(current_user: User = Depends(get_current_user), db: AsyncSess
     outgoing.sort(key=lambda q: q.created_at, reverse=True)
 
     # Réparation de la copie Firebase de MA liste (mes amis peuvent lire ma présence)
-    await asyncio.to_thread(_friends_write, current_user.firebase_uid, {f.firebase_uid: True for f in friends})
+    await _repair_mirror(current_user.firebase_uid, {f.firebase_uid for f in friends})
 
     return FriendsOverview(
         my_code=my_code,
@@ -347,6 +375,33 @@ async def overview(current_user: User = Depends(get_current_user), db: AsyncSess
                          member_ids=sorted(members.get(g.id, []))) for g in groups],
         blocked=[_public(users[b.blocked_id]) for b in blocks if b.blocked_id in users],
     )
+
+
+class FriendLite(BaseModel):
+    user_id:      int
+    display_name: str
+    avatar_url:   Optional[str] = None
+    firebase_uid: str
+
+
+async def friend_ids(db: AsyncSession, me: int) -> list[int]:
+    rows = (await db.execute(select(Friendship.requester_id, Friendship.addressee_id).where(
+        Friendship.status == FriendshipStatus.ACCEPTED,
+        or_(Friendship.requester_id == me, Friendship.addressee_id == me),
+    ))).all()
+    return [b if a == me else a for a, b in rows]
+
+
+@router.get("/list", response_model=list[FriendLite], summary="Liste légère des amis")
+async def friends_list(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Deux requêtes, aucune écriture : pour les sélecteurs (invitation, messagerie)."""
+    ids = await friend_ids(db, current_user.id)
+    if not ids:
+        return []
+    users = (await db.execute(select(User).where(User.id.in_(ids), User.is_active == True))).scalars().all()  # noqa: E712
+    return sorted((FriendLite(user_id=u.id, display_name=u.display_name, avatar_url=u.avatar_url,
+                              firebase_uid=u.firebase_uid) for u in users),
+                  key=lambda f: f.display_name.lower())
 
 
 # ── Demandes ──────────────────────────────────────────────────────
@@ -544,6 +599,16 @@ async def set_group_members(group_id: int, body: GroupMembersIn, current_user: U
 
 
 # ── Recherche et blocage ──────────────────────────────────────────
+
+class BlocksOut(BaseModel):
+    blocked_ids: list[int]
+
+
+@users_router.get("/me/blocks", response_model=BlocksOut, summary="Joueurs que j'ai bloqués")
+async def my_blocks(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    ids = (await db.execute(select(UserBlock.blocked_id).where(UserBlock.blocker_id == current_user.id))).scalars().all()
+    return BlocksOut(blocked_ids=sorted(ids))
+
 
 @users_router.get("/search", response_model=list[SearchResult], summary="Chercher un joueur (pseudo ou code ami)")
 async def search_users(

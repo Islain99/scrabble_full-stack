@@ -43,6 +43,11 @@ export default defineConfig([
     },
   },
   {
+    // Service worker (notifications push, lot 7) : globales du service worker
+    files: ['public/**/*.js'],
+    languageOptions: { globals: globals.serviceworker },
+  },
+  {
     // Scripts Node (CI, outils) : globales Node, pas de règles React
     files: ['scripts/**/*.js'],
     languageOptions: { globals: globals.node },

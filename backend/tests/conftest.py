@@ -60,3 +60,11 @@ async def client(app):
         base_url="http://test",
     ) as ac:
         yield ac
+
+
+@pytest.fixture(autouse=True)
+def _reset_friends_mirror_cache():
+    """La copie Firebase des amis est mémorisée par processus : on repart à vide."""
+    from app.friends import router as friends_router
+    friends_router._mirror_cache.clear()
+    yield

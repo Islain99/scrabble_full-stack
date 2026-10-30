@@ -104,9 +104,10 @@ export const saveGame = async (gameData) => {
  * Le token Firebase est automatiquement inclus dans les requêtes grâce à l'intercepteur d'axiosInstance.
  * Retourne une liste d'utilisateurs avec : { userId, displayName, bestScore, totalScore, gamesPlayed, ... }
  */
-export const getLeaderboard = async ({ period = 'all', sortBy = 'best_score', limit = 50 } = {}) => {
+export const getLeaderboard = async ({ mode = 'solo', period = 'all', sortBy = 'best_score', limit = 50 } = {}) => {
+  // mode : 'solo' (contre l'IA) ou 'multi' (contre des joueurs, cote Elo — lot 7)
   const { data } = await api.get('/leaderboard', {
-    params: { period, sort_by: sortBy, limit },
+    params: { mode, period, sort_by: sortBy, limit },
   });
   return data;
 };

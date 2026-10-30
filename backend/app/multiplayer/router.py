@@ -83,6 +83,8 @@ from api.game_logic import GameEngine
 from app.auth.dependencies import get_current_user
 from app.db.database import get_db
 from app.db.models import GameHistory, User
+from app.leaderboard import elo
+from app.push import service as push_service
 from app.friends.router import are_friends, is_blocked_between
 from app.notifications.service import expire_room_invitations, remove_notifications
 from app.multiplayer.models import (
@@ -365,43 +367,68 @@ def _normalize_room_id(raw: str) -> str:
 async def _record_stats(db: AsyncSession, room: MultiplayerGame) -> None:
     """
     C2 : enregistre la partie terminée dans l'historique des deux joueurs et
-    met à jour leurs statistiques (classement, profil). Fait par le serveur,
-    une seule fois par joueur (game_id d'historique unique).
+    met à jour leurs statistiques multijoueur et leur cote Elo (lot 7 : séparées
+    des statistiques solo). Fait par le serveur, une seule fois par joueur
+    (game_id d'historique unique).
     """
     if room.status != RoomStatus.FINISHED or not room.game_state:
         return
     players = room.game_state.get("players") or []
+    if len(players) < 2:
+        return
     sides = ((room.host_user_id, "host"), (room.guest_user_id, "guest"))
     users = {
         u.id: u for u in (await db.execute(
             select(User).where(User.id.in_([uid for uid, _ in sides if uid is not None]))
         )).scalars()
     }
+    pending = []
     for idx, (user_id, side) in enumerate(sides):
         user = users.get(user_id)
-        if user is None or len(players) < 2:
+        if user is None:
             continue
         history_id = f"mp:{room.room_id}:{side}"
         already = await db.execute(select(GameHistory.id).where(GameHistory.game_id == history_id))
-        if already.first() is not None:
-            continue
+        if already.first() is None:
+            pending.append((idx, user, history_id))
+    if not pending:
+        return
+
+    # Cote Elo : seulement quand les deux joueurs existent encore (sinon pas de variation)
+    ratings = {}
+    if len(users) == 2 and len(pending) == 2:
+        (_, a, _), (_, b, _) = pending
+        res_a = _result_for(room, a.id)
+        ratings[a.id] = elo.delta(a.mp_rating or elo.START_RATING, b.mp_rating or elo.START_RATING, res_a, a.mp_games or 0)
+        ratings[b.id] = elo.delta(b.mp_rating or elo.START_RATING, a.mp_rating or elo.START_RATING, 1 - res_a, b.mp_games or 0)
+
+    duration = None
+    if room.created_at and room.finished_at:
+        duration = int((_as_utc(room.finished_at) - _as_utc(room.created_at)).total_seconds())
+    for idx, user, history_id in pending:
         me, opponent = players[idx], players[1 - idx]
-        won = room.winner_user_id == user_id
-        duration = None
-        if room.created_at and room.finished_at:
-            duration = int((_as_utc(room.finished_at) - _as_utc(room.created_at)).total_seconds())
+        result = _result_for(room, user.id)
+        change = ratings.get(user.id, 0)
         db.add(GameHistory(
             game_id=history_id,
-            user_id=user_id,
+            user_id=user.id,
             user_score=int(me.get("score", 0)),
             ai_name=str(opponent.get("name", ""))[:64],
             ai_score=int(opponent.get("score", 0)),
             ai_difficulty=HISTORY_MODE,
-            won=won,
+            won=result == 1,
             duration_seconds=max(duration, 0) if duration is not None else None,
             turns_count=0,
+            rating_delta=change if user.id in ratings else None,
         ))
-        user.update_stats_after_game(score=int(me.get("score", 0)), won=won)
+        user.update_mp_stats_after_game(score=int(me.get("score", 0)), result=result, rating_delta=change)
+
+
+def _result_for(room: MultiplayerGame, user_id: int) -> float:
+    """1 victoire, 0.5 égalité, 0 défaite."""
+    if room.winner_user_id is None:
+        return 0.5
+    return 1.0 if room.winner_user_id == user_id else 0.0
 
 
 def _start_turn_clock(room: MultiplayerGame, gs_dict: dict, start: datetime) -> None:
@@ -471,7 +498,9 @@ async def _expire_and_sync(db: AsyncSession, room: MultiplayerGame, engine: Opti
         return
     await _record_stats(db, room)   # C2 (si la partie est finie)
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room.room_id, await _player_uids(db, room), gs_dict)
+    players = await _player_uids(db, room)
+    await asyncio.to_thread(_sync_rtdb, room.room_id, players, gs_dict)
+    push_service.game_update(room.room_id, players, gs_dict)   # lot 7
 
 
 def _apply_result(room: MultiplayerGame, game_state) -> dict:
@@ -648,6 +677,7 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
 
     players = {"host": host.firebase_uid, "guest": current_user.firebase_uid}
     await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
+    push_service.game_update(room_id, players, gs_dict, event="start")   # lot 7 : l'hôte est prévenu
     if rules.visibility == "public":
         await asyncio.to_thread(_lobby_write, room_id, None)        # P1 : plus personne à attendre
     await remove_notifications(stale_invites)
@@ -843,7 +873,9 @@ async def play_move(
     gs_dict = _apply_result(room, gs_updated)  # F1
     await _record_stats(db, room)              # C2 (si la partie est finie)
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
+    players = await _player_uids(db, room)
+    await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
+    push_service.game_update(room_id, players, gs_dict)   # lot 7
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
@@ -884,7 +916,9 @@ async def pass_turn(
     gs_dict = _apply_result(room, gs_updated)  # F1
     await _record_stats(db, room)              # C2 (si la partie est finie)
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
+    players = await _player_uids(db, room)
+    await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
+    push_service.game_update(room_id, players, gs_dict)   # lot 7
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
@@ -928,7 +962,9 @@ async def swap_tiles(
     gs_dict = _apply_result(room, gs_updated)  # F1
     await _record_stats(db, room)              # C2 (si la partie est finie)
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)  # B3
+    players = await _player_uids(db, room)
+    await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)  # B3
+    push_service.game_update(room_id, players, gs_dict)   # lot 7
 
     response = _room_to_response(room)
     response.game_state = _build_masked_state(gs_dict, viewer_index=player_idx)
@@ -955,7 +991,9 @@ async def resign(
     gs_dict = _finish_by_forfeit(room, winner)
     await _record_stats(db, room)  # C2
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)
+    players = await _player_uids(db, room)
+    await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)
+    push_service.game_update(room_id, players, gs_dict)   # lot 7
     logger.info("Salle %s : abandon de user %d", room_id, current_user.id)
     return _masked_response(room, current_user.id)
 
@@ -992,7 +1030,9 @@ async def claim_win(
     gs_dict = _finish_by_forfeit(room, current_user.id)
     await _record_stats(db, room)  # C2
     await db.flush()
-    await asyncio.to_thread(_sync_rtdb, room_id, await _player_uids(db, room), gs_dict)
+    players = await _player_uids(db, room)
+    await asyncio.to_thread(_sync_rtdb, room_id, players, gs_dict)
+    push_service.game_update(room_id, players, gs_dict)   # lot 7
     logger.info("Salle %s : victoire réclamée par user %d (adversaire inactif)", room_id, current_user.id)
     return _masked_response(room, current_user.id)
 

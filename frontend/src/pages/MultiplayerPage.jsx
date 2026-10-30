@@ -21,7 +21,7 @@ import { useMultiplayerGame } from '../hooks/useMultiplayerGame';
 import { outcomeFor, isWinner } from '../utils/gameResult';
 import { lastPlayedCells } from '../utils/gameState';
 import * as mpService  from '../api/multiplayerService';
-import { getFriends, sendFriendRequest } from '../api/friendsService';
+import { getFriendsList, sendFriendRequest } from '../api/friendsService';
 import { setPresenceActivity } from '../utils/presence';
 import { ROOM_JOINED_EVENT } from '../context/NotificationsContext';
 import { InvitationsStatus, InviteFriendsModal } from '../components/InviteFriends';
@@ -309,8 +309,8 @@ function PlayingScreen({ mp, roomId = null, onRematch, rematchBusy = false, addT
   useEffect(() => {
     if (!finished || !opponentId) return undefined;
     let cancelled = false;
-    getFriends()
-      .then(d => { if (!cancelled) setAlreadyFriend({ id: opponentId, value: d.friends.some(f => f.user_id === opponentId) }); })
+    getFriendsList()
+      .then(list => { if (!cancelled) setAlreadyFriend({ id: opponentId, value: list.some(f => f.user_id === opponentId) }); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [finished, opponentId]);

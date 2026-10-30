@@ -29,10 +29,13 @@ const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const MultiplayerPage = lazy(() => import('./pages/MultiplayerPage'));
 const FriendsPage     = lazy(() => import('./pages/FriendsPage'));
 const MessagesPage    = lazy(() => import('./pages/MessagesPage'));
+const PrivacyPage     = lazy(() => import('./pages/PrivacyPage'));
 
 import './index.css';
 import './styles/mobile.css';
 import './styles/desktop.css';
+import './styles/account.css';
+import { listenPushClicks } from './utils/push';
 import { TutorialProvider } from './context/TutorialContext';
 
 // ── Router hash-based ─────────────────────────────────────────────
@@ -76,6 +79,12 @@ function PresenceKeeper() {
   return null;
 }
 
+// Notifications push (lot 7) : un appui sur une notification ouvre la bonne page
+function PushClickListener() {
+  useEffect(() => listenPushClicks(), []);
+  return null;
+}
+
 function Router() {
   const hash = useHashRoute();
   // Paramètres après « ? » ignorés pour le choix de la page (ex. #/multiplayer?code=ABC234)
@@ -86,6 +95,7 @@ function Router() {
     if (route === '#/register')    return <RegisterPage />;
     if (route === '#/settings')    return <SettingsPage />;
     if (route === '#/leaderboard') return <LeaderboardPage />;
+    if (route === '#/privacy')     return <PrivacyPage />;
     if (route === '#/multiplayer') return (
       <ProtectedRoute>
         <MultiplayerPage />
@@ -112,6 +122,7 @@ function Router() {
   return (
     <div>
       <PresenceKeeper />
+      <PushClickListener />
       <Navbar />
       <InviteBanner />
       <Suspense fallback={<PageLoader />}>

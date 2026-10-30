@@ -11,7 +11,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { useIsMobile } from '../hooks/useViewport';
 import * as chat from '../api/chatService';
-import { getFriends } from '../api/friendsService';
+import { getFriendsList } from '../api/friendsService';
 import ChatThread from '../components/chat/ChatThread';
 import { RetroButton, Spinner } from '../components/ui';
 
@@ -45,7 +45,7 @@ function NewConversationModal({ mode, onClose, onCreated }) {
 
   useEffect(() => {
     let cancelled = false;
-    getFriends().then(d => { if (!cancelled) setFriends(d.friends); }).catch(() => { if (!cancelled) setFriends([]); });
+    getFriendsList().then(list => { if (!cancelled) setFriends(list); }).catch(() => { if (!cancelled) setFriends([]); });
     return () => { cancelled = true; };
   }, []);
 
@@ -116,7 +116,7 @@ function GroupModal({ conversation, onClose, onChanged, onLeft }) {
   useEffect(() => {
     if (!owner) return undefined;
     let cancelled = false;
-    getFriends().then(d => { if (!cancelled) setFriends(d.friends); }).catch(() => {});
+    getFriendsList().then(list => { if (!cancelled) setFriends(list); }).catch(() => {});
     return () => { cancelled = true; };
   }, [owner]);
 
@@ -298,6 +298,10 @@ export default function MessagesPage() {
                 <RetroButton variant="primary" onClick={() => setCreating('private')}>✎ {t('msg_new')}</RetroButton>
                 <RetroButton variant="default" onClick={() => setCreating('group')}>👥 {t('msg_group')}</RetroButton>
               </div>
+              {/* Lot 7 : pas de chiffrement de bout en bout, modération des signalements */}
+              <p className="ch-privacy">
+                🔓 {t('msg_privacy_note')} <a className="acc-link" href="#/privacy">{t('msg_privacy_more')}</a>
+              </p>
             </div>
             {error && <p className="rr-blocked">{error}</p>}
             {conversations === null ? <Spinner size="sm" /> : (

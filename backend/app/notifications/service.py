@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User
 from app.notifications.models import GameInvitation, InvitationStatus
+from app.push import service as push_service
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ async def notify(uid: Optional[str], key: str, payload: Optional[dict]) -> None:
     if payload is not None:
         payload = {"created_at": _now_ms(), **payload}
     await asyncio.to_thread(_notify_write, uid, key, payload)
+    push_service.from_notification(uid, key, payload)     # lot 7 : notification push (en tâche de fond)
 
 
 async def notify_user(db: AsyncSession, user_id: int, key: str, payload: Optional[dict]) -> None:

@@ -60,5 +60,16 @@ def set_inbox(uid: str, conversation_id: int, entry: Optional[dict]) -> None:
     _write(f"/inbox/{uid}/{conversation_id}", value)
 
 
+def set_inboxes(conversation_id: int, entries: dict) -> None:
+    """Toutes les boîtes d'une conversation en une seule écriture multi-chemins."""
+    if not entries:
+        return
+    values = {
+        f"inbox/{uid}/{conversation_id}": (None if e is None else {k: v for k, v in e.items() if v is not None})
+        for uid, e in entries.items()
+    }
+    _update("/", values)
+
+
 def drop_conversation(key: str) -> None:
     _write(f"/chat/{key}", None)

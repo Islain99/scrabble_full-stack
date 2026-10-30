@@ -503,14 +503,19 @@ async def test_finished_game_counts_for_both_players(client, login, players, rtd
     assert (by_user[alice].user_score, by_user[alice].ai_score, by_user[alice].won) == (11, 29, False)
     assert (by_user[bruno].ai_name, by_user[bruno].won) == ("Alice", True)
     assert all(r.ai_difficulty == "multiplayer" for r in rows)
-    assert (users[alice].games_played, users[alice].games_won) == (1, 0)
-    assert (users[bruno].games_played, users[bruno].games_won, users[bruno].best_score) == (1, 1, 29)
+    assert (users[alice].mp_games, users[alice].mp_wins) == (1, 0)
+    assert (users[bruno].mp_games, users[bruno].mp_wins, users[bruno].mp_best_score) == (1, 1, 29)
+    # Lot 7 : les statistiques solo ne bougent pas ; cote Elo ±20 (K 40, cotes égales)
+    assert (users[alice].games_played, users[bruno].games_played) == (0, 0)
+    assert (users[alice].mp_rating, users[bruno].mp_rating) == (1180, 1220)
+    assert (by_user[alice].rating_delta, by_user[bruno].rating_delta) == (-20, 20)
+    assert users[bruno].mp_peak_rating == 1220 and users[alice].mp_peak_rating == 1200
 
     # Une requête de plus sur la partie finie ne compte rien deux fois
     login(players["alice"])
     assert (await client.post(f"{API}/rooms/{room_id}/resign")).status_code == 409
     rows, users = await _history(sqlite_db)
-    assert len(rows) == 2 and users[alice].games_played == 1
+    assert len(rows) == 2 and users[alice].mp_games == 1 and users[alice].mp_rating == 1180
 
 
 async def test_forfeits_count_too(client, login, players, rtdb, sqlite_db):
@@ -519,7 +524,7 @@ async def test_forfeits_count_too(client, login, players, rtdb, sqlite_db):
     await client.post(f"{API}/rooms/{room_id}/resign")
     rows, users = await _history(sqlite_db)
     assert {r.user_id: r.won for r in rows} == {players["alice"].id: True, players["bruno"].id: False}
-    assert users[players["alice"].id].games_won == 1
+    assert users[players["alice"].id].mp_wins == 1
 
 
 async def test_cleanup_forfeit_counts(client, login, players, rtdb, sqlite_db):
@@ -529,7 +534,7 @@ async def test_cleanup_forfeit_counts(client, login, players, rtdb, sqlite_db):
     await cleanup_rooms(now=datetime.now(timezone.utc) + ACTIVE_TTL + mp_router.timedelta(minutes=1))
     rows, users = await _history(sqlite_db)
     assert len(rows) == 2
-    assert users[players["bruno"].id].games_won == 1      # Alice était au trait
+    assert users[players["bruno"].id].mp_wins == 1      # Alice était au trait
 
 
 # ── R0 : ce que Firebase fait des valeurs null ───────────────────
@@ -984,3 +989,36 @@ async def test_rematch_of_public_game_stays_private(client, login, players, lobb
     assert new_code not in lobby
     preview = (await client.get(f"{API}/rooms/{new_code}/preview")).json()
     assert preview["settings"]["visibility"] == "private"
+
+
+
+# ── Lot 7 : cote Elo ──────────────────────────────────────────────
+
+def test_elo_deltas():
+    from app.leaderboard import elo
+    assert elo.delta(1200, 1200, 1, 0) == 20            # provisoire : K = 40
+    assert elo.delta(1200, 1200, 1, 10) == 12           # établi : K = 24
+    assert elo.delta(1200, 1200, 0.5, 0) == 0
+    assert elo.delta(1400, 1200, 1, 20) < elo.delta(1200, 1400, 1, 20)   # battre plus fort rapporte plus
+    assert elo.delta(110, 110, 0, 0) == -10              # plancher à 100
+
+
+async def test_draw_counts_as_half(client, login, players, rtdb, sqlite_db):
+    room_id, _ = await _start_game(client, login, players)
+    await _set_scores(sqlite_db, room_id, 20, 20)
+    for i in range(6):
+        login((players["alice"], players["bruno"])[i % 2])
+        await client.post(f"{API}/rooms/{room_id}/pass")
+    rows, users = await _history(sqlite_db)
+    a, b = users[players["alice"].id], users[players["bruno"].id]
+    if a.mp_draws:                                       # égalité après décompte final
+        assert (a.mp_draws, b.mp_draws, a.mp_rating, b.mp_rating) == (1, 1, 1200, 1200)
+    else:                                                # le décompte des lettres a départagé
+        assert a.mp_wins + b.mp_wins == 1
+
+
+async def test_solo_route_refuses_multiplayer_rows(client, login, players, sqlite_db):
+    login(players["alice"])
+    r = await client.post("/api/v2/users/me/games", json={
+        "game_id": "mp:FAKE00:host", "user_score": 500, "ai_score": 0, "won": True, "ai_difficulty": "multiplayer"})
+    assert r.status_code == 422

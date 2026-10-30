@@ -32,8 +32,8 @@ class MultiplayerGame(Base):
 
     id:              Mapped[int]           = mapped_column(Integer, primary_key=True, autoincrement=True)
     room_id:         Mapped[str]           = mapped_column(String(36), unique=True, nullable=False, index=True)
-    host_user_id:    Mapped[int]           = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    guest_user_id:   Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    host_user_id:    Mapped[int]           = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    guest_user_id:   Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
 
     status:          Mapped[str]           = mapped_column(String(16), nullable=False, default=RoomStatus.WAITING)
 

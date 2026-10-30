@@ -34,6 +34,11 @@ const DEFAULTS = {
   animationsEnabled:  true,
   language:           'fr',
   tutorialSeen:       false,
+  // Notifications push (lot 7) : catégories reçues (l'activation se fait par appareil)
+  pushInvites:        true,
+  pushFriends:        true,
+  pushMessages:       true,
+  pushTurn:           true,
 };
 
 const TURN_OPTIONS = [
@@ -130,13 +135,18 @@ export function SettingsProvider({ children }) {
   }, [settings, currentUid]);
 
   // ── Sync serveur debounced ────────────────────────────────────
+  // Les changements rapprochés sont cumulés : un seul envoi, rien de perdu
+  const pendingRef = useRef({});
   const syncToServer = useCallback((patch) => {
     if (!currentUid) return;
+    pendingRef.current = { ...pendingRef.current, ...patch };
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
+      const toSend = pendingRef.current;
+      pendingRef.current = {};
       setSyncing(true);
       try {
-        await savePreferences(patch);
+        await savePreferences(toSend);
         setLastSynced(new Date());
       } catch (err) {
         console.warn('Sync préférences échouée:', err.message);

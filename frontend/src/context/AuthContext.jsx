@@ -16,6 +16,8 @@ import {
   registerUser,
   updateProfile as apiUpdateProfile,
 } from '../api/authService';
+import { deleteMyAccount, getMe } from '../api/accountService';
+import { detachPush, syncPush } from '../utils/push';
 
 const AuthContext = createContext(null);
 
@@ -31,7 +33,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading]           = useState(true);
   // Code d'erreur Firebase ; le message est traduit à l'affichage (voir `error` plus bas)
   const [error, setError]               = useState(null);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -101,8 +103,46 @@ export function AuthProvider({ children }) {
     }
   }, [t]);
 
+  // Notifications push (lot 7) : jeton de cet appareil réinscrit à chaque connexion
+  const pushUid = dbUser?.firebase_uid ?? null;
+  useEffect(() => {
+    if (pushUid) syncPush(language);
+  }, [pushUid, language]);
+
   const logout = useCallback(async () => {
+    await detachPush();                 // cet appareil ne reçoit plus rien pour ce compte
     await signOut(auth);
+    setFirebaseUser(null);
+    setDbUser(null);
+  }, []);
+
+  /** Profil relu sur le serveur (statistiques et cote Elo après une partie). */
+  const refreshUser = useCallback(async () => {
+    try {
+      const profile = await getMe();
+      setDbUser(profile);
+      return profile;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  /**
+   * Suppression définitive du compte (lot 7). Le serveur supprime tout, compte
+   * Firebase compris ; on nettoie ensuite cet appareil.
+   */
+  const deleteAccount = useCallback(async (confirmName) => {
+    await deleteMyAccount(confirmName);
+    await detachPush({ forget: true });
+    try {
+      // Données liées au compte (réglages, partie solo en cours) ; langue et thème restent
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('scrabble-') && key !== 'scrabble-language' && key !== 'scrabble-theme') {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch { /* stockage indisponible */ }
+    try { await signOut(auth); } catch { /* compte déjà supprimé côté Firebase */ }
     setFirebaseUser(null);
     setDbUser(null);
   }, []);
@@ -153,6 +193,8 @@ export function AuthProvider({ children }) {
     signInWithEmail,
     signInWithGoogle,
     logout,
+    deleteAccount,
+    refreshUser,
     resetPassword,
     updateUserProfile,
     getFreshToken,
