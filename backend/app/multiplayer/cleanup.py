@@ -23,6 +23,7 @@ from sqlalchemy import and_, delete, select
 
 from app.db import database as db
 from app.multiplayer.models import MultiplayerGame, RoomStatus
+from app.push import service as push_service
 from app.notifications.service import expire_room_invitations, remove_notifications
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,7 @@ async def cleanup_rooms(now: Optional[datetime] = None) -> dict:
     # Firebase après la validation en base
     for room_id, players, gs_dict in rtdb_to_sync:
         await asyncio.to_thread(mp._sync_rtdb, room_id, players, gs_dict)
+        push_service.game_update(room_id, players, gs_dict)   # lot 7
     for room_id in rtdb_to_delete:
         await asyncio.to_thread(mp._delete_rtdb, room_id)
     await remove_notifications(stale_invites)

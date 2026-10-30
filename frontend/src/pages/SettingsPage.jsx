@@ -3,70 +3,14 @@ import React, { useState } from 'react';
 import { useSettings }  from '../context/SettingsContext';
 import { useTheme }     from '../context/ThemeContext';
 import { useLanguage }  from '../context/LanguageContext';
+import { useAuth }      from '../context/AuthContext';
 import { LANGUAGES }    from '../i18n/translations';
 import { Card, PageHeader, MonoLabel, RetroButton, Spinner } from '../components/ui';
+import { Row, Toggle, SectionTitle } from '../components/settings/SettingsParts';
+import NotificationsCard from '../components/settings/NotificationsCard';
+import AccountCard from '../components/settings/AccountCard';
 
 // ── Composants internes ───────────────────────────────────────────
-
-/** Ligne label + description + contrôle à droite */
-const Row = ({ label, desc, children }) => (
-  <div style={{
-    display:        'flex',
-    justifyContent: 'space-between',
-    alignItems:     'flex-start',
-    gap:            '16px',
-    flexWrap:       'wrap',
-  }}>
-    <div style={{ flex: 1, minWidth: '160px' }}>
-      <div style={{
-        fontFamily:   "'Playfair Display', serif",
-        fontSize:     '0.95rem',
-        fontWeight:   700,
-        color:        'var(--text-primary)',
-        marginBottom: '2px',
-      }}>
-        {label}
-      </div>
-      {desc && (
-        <MonoLabel size="xs" style={{ lineHeight: 1.5 }}>{desc}</MonoLabel>
-      )}
-    </div>
-    {/* Le contrôle peut rétrécir et passer à la ligne (téléphone) au lieu de déborder */}
-    <div className="s-row-control" style={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%' }}>{children}</div>
-  </div>
-);
-
-/** Toggle switch animé */
-const Toggle = ({ value, onChange }) => (
-  <button
-    onClick={() => onChange(!value)}
-    aria-pressed={value}
-    style={{
-      width:        '48px',
-      height:       '26px',
-      borderRadius: '13px',
-      border:       `2px solid ${value ? 'var(--olive)' : 'var(--border-muted)'}`,
-      background:   value ? 'var(--olive)' : 'var(--bg-card-alt)',
-      position:     'relative',
-      cursor:       'pointer',
-      transition:   'background 0.2s, border-color 0.2s',
-      padding:      0,
-      boxShadow:    'none',
-    }}
-  >
-    <div style={{
-      position:     'absolute',
-      top:          '2px',
-      left:         value ? 'calc(100% - 20px)' : '2px',
-      width:        '18px',
-      height:       '18px',
-      borderRadius: '50%',
-      background:   value ? 'var(--text-invert)' : 'var(--text-muted)',
-      transition:   'left 0.2s',
-      boxShadow:    '0 1px 3px rgba(0,0,0,0.3)',
-    }} />
-  </button>
-);
 
 /** Groupe de chips sélectionnables */
 const ChipGroup = ({ options, value, onChange }) => (
@@ -99,22 +43,6 @@ const ChipGroup = ({ options, value, onChange }) => (
       );
     })}
   </div>
-);
-
-// ── SectionHeader interne ─────────────────────────────────────────
-
-const SectionTitle = ({ emoji, label }) => (
-  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <span style={{ fontSize: '1rem' }}>{emoji}</span>
-    <span style={{
-      fontFamily: "'Playfair Display', serif",
-      fontSize:   '1rem',
-      fontWeight: 700,
-      color:      'var(--text-invert)',
-    }}>
-      {label}
-    </span>
-  </span>
 );
 
 // ── Page principale ───────────────────────────────────────────────
@@ -156,6 +84,7 @@ export default function SettingsPage() {
     syncing, lastSynced, currentUid,
   } = useSettings();
 
+  const { user } = useAuth();
   const { preference, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -374,6 +303,12 @@ export default function SettingsPage() {
 
             </Card.Body>
           </Card>
+
+          {/* ── Notifications push (lot 7) ─────────────────── */}
+          {user && <NotificationsCard settings={settings} update={update} />}
+
+          {/* ── Compte et confidentialité (lot 7) ──────────── */}
+          <AccountCard />
 
           {/* ── Réinitialiser ──────────────────────────────── */}
           <div style={{ textAlign: 'right', paddingBottom: '2rem' }}>

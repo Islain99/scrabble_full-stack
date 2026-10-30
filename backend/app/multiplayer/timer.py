@@ -23,6 +23,7 @@ from sqlalchemy import select
 
 from app.db import database as db
 from app.multiplayer.models import MultiplayerGame, RoomStatus
+from app.push import service as push_service
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ async def expire_due_turns(engine, now: Optional[datetime] = None) -> int:
     # Firebase après la validation en base
     for room_id, players, gs_dict in to_sync:
         await asyncio.to_thread(mp._sync_rtdb, room_id, players, gs_dict)
+        push_service.game_update(room_id, players, gs_dict)   # lot 7
     if to_sync:
         logger.info("Minuteur : %d tour(s) expiré(s)", len(to_sync))
     return len(to_sync)

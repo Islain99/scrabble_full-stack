@@ -110,7 +110,9 @@ function StatCard({ label, value, icon }) {
 // ── Page principale ───────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { user, updateUserProfile } = useAuth();
+  const { user, updateUserProfile, refreshUser } = useAuth();
+  // Statistiques à jour (cote Elo après une partie multijoueur, lot 7)
+  useEffect(() => { refreshUser?.(); }, [refreshUser]);
   const { t, language }             = useLanguage();
 
   const [history, setHistory]                 = useState([]);
@@ -484,6 +486,8 @@ export default function ProfilePage() {
 
         {/* ── Onglet Statistiques ───────────────────────────── */}
         {activeTab === 'stats' && (
+          <>
+          <h2 className="pr-stats-title">{t('stat_section_solo')}</h2>
           <div style={{
             display:             'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -497,6 +501,24 @@ export default function ProfilePage() {
             <StatCard label={t('stat_best_word')}
               value={user.best_word ? `${user.best_word} (${user.best_word_score} ${t('common_pts')})` : '—'}                      icon="✏️" />
           </div>
+
+          {/* Lot 7 : statistiques multijoueur séparées, cote Elo */}
+          <h2 className="pr-stats-title">{t('stat_section_multi')}</h2>
+          <div style={{
+            display:             'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap:                 '16px',
+          }}>
+            <StatCard label={t('stat_rating')}        value={user.mp_rating ?? 1200}                                icon="♟️" />
+            <StatCard label={t('stat_peak_rating')}   value={user.mp_peak_rating ?? 1200}                           icon="🏔️" />
+            <StatCard label={t('stat_games_played')} value={user.mp_games ?? 0}                                     icon="👥" />
+            <StatCard label={t('stat_wins')}          value={user.mp_wins ?? 0}                                     icon="🏆" />
+            <StatCard label={t('stat_draws')}         value={user.mp_draws ?? 0}                                    icon="🤝" />
+            <StatCard label={t('stat_win_rate')}      value={`${Math.round(user.mp_win_rate ?? 0)}%`}               icon="📊" />
+            <StatCard label={t('stat_best_score')}    value={user.mp_best_score ?? 0}                               icon="⭐" />
+          </div>
+          <p className="pr-stats-note">{t('stat_rating_note')}</p>
+          </>
         )}
 
         {/* ── Onglet Historique ─────────────────────────────── */}
@@ -564,10 +586,13 @@ export default function ProfilePage() {
                           ? t('profile_victory')
                           : g.user_score === g.ai_score ? t('game_draw_title') : t('profile_defeat')}
                       </MonoLabel>
-                      <MonoLabel size="xs">
-                        {g.best_word
-                          ? `${g.best_word} (${g.best_word_score} pts)`
-                          : '—'}
+                      <MonoLabel size="xs"
+                        color={g.rating_delta > 0 ? 'var(--olive)' : g.rating_delta < 0 ? 'var(--brick)' : undefined}>
+                        {g.ai_difficulty === 'multiplayer' && g.rating_delta != null
+                          ? `${t('stat_rating_short')} ${g.rating_delta > 0 ? '+' : ''}${g.rating_delta}`
+                          : g.best_word
+                            ? `${g.best_word} (${g.best_word_score} pts)`
+                            : '—'}
                       </MonoLabel>
                     </div>
                   );

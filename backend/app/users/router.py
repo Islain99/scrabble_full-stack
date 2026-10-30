@@ -52,6 +52,7 @@ class GameHistoryOut(BaseModel):
     turns_count: int
     best_word: str | None
     best_word_score: int
+    rating_delta: int | None = None
     created_at: datetime
 
     class Config:
@@ -84,6 +85,10 @@ class PreferencesResponse(BaseModel):
     boardSize:          str
     animationsEnabled:  bool
     tutorialSeen:       bool = False
+    pushInvites:        bool = True
+    pushFriends:        bool = True
+    pushMessages:       bool = True
+    pushTurn:           bool = True
 
 
 class PreferencesPatchRequest(BaseModel):
@@ -101,6 +106,10 @@ class PreferencesPatchRequest(BaseModel):
     boardSize:          str | None = None
     animationsEnabled:  bool | None = None
     tutorialSeen:       bool | None = None
+    pushInvites:        bool | None = None
+    pushFriends:        bool | None = None
+    pushMessages:       bool | None = None
+    pushTurn:           bool | None = None
 
     @field_validator("difficulty")
     @classmethod
@@ -188,6 +197,11 @@ async def save_game(
     Appelé automatiquement par le frontend quand status === 'FINISHED'.
     Idempotent : une deuxième requête avec le même game_id retourne 409.
     """
+    # Les parties multijoueur sont enregistrées par le serveur, jamais par le client
+    if payload.ai_difficulty == "multiplayer" or payload.game_id.startswith("mp:"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Les parties multijoueur sont enregistrées par le serveur.")
+
     # Éviter les doublons
     existing = await db.execute(
         select(GameHistory).where(GameHistory.game_id == payload.game_id)
@@ -246,6 +260,13 @@ class PublicProfileOut(BaseModel):
     best_word_score: int
     average_score: float
     win_rate: float
+    mp_rating: int = 1200
+    mp_peak_rating: int = 1200
+    mp_games: int = 0
+    mp_wins: int = 0
+    mp_draws: int = 0
+    mp_best_score: int = 0
+    mp_win_rate: float = 0.0
     created_at: datetime
 
 

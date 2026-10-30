@@ -44,6 +44,7 @@ from app.db.models import User
 from app.friends.models import UserBlock
 from app.friends.router import are_friends, is_blocked_between
 from app.multiplayer.models import MultiplayerGame
+from app.push import service as push_service
 
 logger = logging.getLogger(__name__)
 
@@ -288,27 +289,87 @@ async def _unread(db: AsyncSession, conv_id: int, member: ConversationMember) ->
     ))).scalar_one()
 
 
+async def _unread_by_member(db: AsyncSession, conv_id: int) -> dict[int, int]:
+    """Non-lus de tous les membres d'une conversation, en une requête."""
+    rows = (await db.execute(
+        select(ConversationMember.user_id, func.count(Message.id))
+        .select_from(ConversationMember)
+        .outerjoin(Message, and_(
+            Message.conversation_id == ConversationMember.conversation_id,
+            Message.id > ConversationMember.last_read_id,
+            Message.deleted_at.is_(None),
+            Message.author_id != ConversationMember.user_id,
+        ))
+        .where(ConversationMember.conversation_id == conv_id)
+        .group_by(ConversationMember.user_id)
+    )).all()
+    return {uid: n for uid, n in rows}
+
+
+async def _unread_for_user(db: AsyncSession, user_id: int, conv_ids: list[int]) -> dict[int, int]:
+    """Non-lus d'un joueur dans plusieurs conversations, en une requête."""
+    if not conv_ids:
+        return {}
+    rows = (await db.execute(
+        select(ConversationMember.conversation_id, func.count(Message.id))
+        .select_from(ConversationMember)
+        .outerjoin(Message, and_(
+            Message.conversation_id == ConversationMember.conversation_id,
+            Message.id > ConversationMember.last_read_id,
+            Message.deleted_at.is_(None),
+            Message.author_id != ConversationMember.user_id,
+        ))
+        .where(ConversationMember.user_id == user_id, ConversationMember.conversation_id.in_(conv_ids))
+        .group_by(ConversationMember.conversation_id)
+    )).all()
+    return {cid: n for cid, n in rows}
+
+
+async def _last_messages(db: AsyncSession, conv_ids: list[int]) -> dict[int, tuple[Message, str]]:
+    """Dernier message visible de chaque conversation, en deux requêtes."""
+    if not conv_ids:
+        return {}
+    last_ids = (await db.execute(
+        select(func.max(Message.id)).where(Message.conversation_id.in_(conv_ids), Message.deleted_at.is_(None))
+        .group_by(Message.conversation_id)
+    )).scalars().all()
+    if not last_ids:
+        return {}
+    rows = (await db.execute(
+        select(Message, User.display_name).outerjoin(User, User.id == Message.author_id)
+        .where(Message.id.in_(last_ids))
+    )).all()
+    return {m.conversation_id: (m, name or "?") for m, name in rows}
+
+
 def _preview(author: str, body: str) -> str:
     text = " ".join(body.split())
     return f"{author} : {text[:80]}{'…' if len(text) > 80 else ''}"
 
 
 async def _refresh_inboxes(db: AsyncSession, conv: Conversation) -> None:
-    """Met à jour /inbox/{uid}/{conversation} de chaque membre (aperçu, non-lus)."""
+    """Met à jour /inbox/{uid}/{conversation} de chaque membre (aperçu, non-lus).
+
+    Quatre requêtes et une seule écriture temps réel, quelle que soit la taille du groupe.
+    """
     if conv.kind == ConversationKind.GLOBAL:
         return
     members = await _members(db, conv)
     last = await _last_message(db, conv.id)
-    for member, user in members:
-        entry = {
+    unread = await _unread_by_member(db, conv.id)
+    preview = _preview(last[1], last[0].body) if last else None
+    entries = {
+        user.firebase_uid: {
             "kind": conv.kind,
             "title": _title(conv, members, user.id),
-            "preview": _preview(last[1], last[0].body) if last else None,
+            "preview": preview,
             "last_at": _ms(conv.last_message_at),
-            "unread": await _unread(db, conv.id, member),
+            "unread": unread.get(user.id, 0),
             "muted": bool(member.muted),
         }
-        await asyncio.to_thread(realtime.set_inbox, user.firebase_uid, conv.id, entry)
+        for member, user in members
+    }
+    await asyncio.to_thread(realtime.set_inboxes, conv.id, entries)
 
 
 async def _conversation_out(db: AsyncSession, conv: Conversation, viewer: User) -> ConversationOut:
@@ -327,6 +388,39 @@ async def _conversation_out(db: AsyncSession, conv: Conversation, viewer: User) 
         last_message_at=_as_utc(conv.last_message_at),
         slow_mode_s=conv.slow_mode_s or 0,
     )
+
+
+async def _conversations_out(db: AsyncSession, convs: list[Conversation], viewer: User) -> list[ConversationOut]:
+    """Comme _conversation_out pour une liste, en un nombre fixe de requêtes."""
+    ids = [c.id for c in convs]
+    if not ids:
+        return []
+    members: dict[int, list[tuple[ConversationMember, User]]] = {}
+    for m, u in (await db.execute(
+        select(ConversationMember, User).join(User, User.id == ConversationMember.user_id)
+        .where(ConversationMember.conversation_id.in_(ids))
+        .order_by(ConversationMember.joined_at, ConversationMember.user_id)
+    )).all():
+        members.setdefault(m.conversation_id, []).append((m, u))
+    unread = await _unread_for_user(db, viewer.id, ids)
+    lasts = await _last_messages(db, ids)
+    out = []
+    for conv in convs:
+        mem = members.get(conv.id, [])
+        me = next((m for m, u in mem if u.id == viewer.id), None)
+        last = lasts.get(conv.id)
+        out.append(ConversationOut(
+            id=conv.id, key=realtime.rtdb_key(conv), kind=conv.kind,
+            title=_title(conv, mem, viewer.id), name=conv.name, room_id=conv.room_id,
+            members=[MemberOut(user_id=u.id, display_name=u.display_name, role=m.role) for m, u in mem],
+            my_role=me.role if me else None,
+            unread=unread.get(conv.id, 0) if me else 0,
+            muted=bool(me.muted) if me else False,
+            last_preview=_preview(last[1], last[0].body) if last else None,
+            last_message_at=_as_utc(conv.last_message_at),
+            slow_mode_s=conv.slow_mode_s or 0,
+        ))
+    return out
 
 
 async def _add_member(db: AsyncSession, conv: Conversation, user_id: int, role: str = "member") -> None:
@@ -348,10 +442,7 @@ async def list_conversations(current_user: User = Depends(get_current_user), db:
         .where(ConversationMember.user_id == current_user.id)
         .order_by(func.coalesce(Conversation.last_message_at, Conversation.created_at).desc())
     )).scalars().all()
-    out = [await _conversation_out(db, glob, current_user)]
-    for conv in convs:
-        out.append(await _conversation_out(db, conv, current_user))
-    return out
+    return [await _conversation_out(db, glob, current_user)] + await _conversations_out(db, list(convs), current_user)
 
 
 @router.post("/conversations/private", response_model=ConversationOut, summary="Conversation privée avec un ami")
@@ -588,7 +679,22 @@ async def send_message(conversation_id: int, payload: BodyIn, current_user: User
     )).scalar_one_or_none()
     await asyncio.to_thread(realtime.push_message, realtime.rtdb_key(conv), out.model_dump(), drop_id)
     await _refresh_inboxes(db, conv)
+    await _push_message(db, conv, current_user, msg.body)
     return out
+
+
+async def _push_message(db: AsyncSession, conv: Conversation, author: User, body: str) -> None:
+    """Lot 7 : notification push aux membres (privé, groupe), sauf sourdine et blocage."""
+    if conv.kind not in (ConversationKind.PRIVATE, ConversationKind.GROUP):
+        return
+    members = await _members(db, conv)
+    blockers = set((await db.execute(select(UserBlock.blocker_id).where(
+        UserBlock.blocked_id == author.id,
+        UserBlock.blocker_id.in_([u.id for _, u in members]),
+    ))).scalars().all())
+    recipients = [(u.firebase_uid, _title(conv, members, u.id) or "")
+                  for m, u in members if u.id != author.id and not m.muted and u.id not in blockers]
+    push_service.new_message(conv.id, recipients, author.display_name, body)
 
 
 @router.post("/conversations/{conversation_id}/read", status_code=status.HTTP_204_NO_CONTENT, summary="Marquer comme lu")

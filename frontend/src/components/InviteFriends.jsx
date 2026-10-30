@@ -5,7 +5,7 @@
 //   - InviteFriendsModal : choisir des amis à inviter dans cette salle.
 import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { getFriends } from '../api/friendsService';
+import { getFriendsList } from '../api/friendsService';
 import { inviteFriend, roomInvitations } from '../api/notificationsService';
 import { useFriendsPresence } from '../hooks/useFriendsPresence';
 import { RetroButton, Spinner } from './ui';
@@ -52,7 +52,7 @@ export function InviteFriendsModal({ open, onClose, onInvited }) {
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
-    getFriends().then(d => { if (!cancelled) setFriends(d.friends); }).catch(() => { if (!cancelled) setFriends([]); });
+    getFriendsList().then(list => { if (!cancelled) setFriends(list); }).catch(() => { if (!cancelled) setFriends([]); });
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => { cancelled = true; window.removeEventListener('keydown', onKey); };

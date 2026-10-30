@@ -108,6 +108,14 @@ class UserOut(BaseModel):
     average_score: float
     win_rate: float
     is_admin: bool = False      # messagerie : modération du salon universel
+    # Multijoueur (lot 7) : statistiques séparées et cote Elo
+    mp_rating: int = 1200
+    mp_peak_rating: int = 1200
+    mp_games: int = 0
+    mp_wins: int = 0
+    mp_draws: int = 0
+    mp_best_score: int = 0
+    mp_win_rate: float = 0.0
     created_at: datetime
     last_login_at: datetime
 
@@ -139,6 +147,13 @@ class UserOut(BaseModel):
             average_score=user.average_score,
             win_rate=user.win_rate,
             is_admin=bool(getattr(user, "is_admin", False)),
+            mp_rating=user.mp_rating or 1200,
+            mp_peak_rating=user.mp_peak_rating or 1200,
+            mp_games=user.mp_games or 0,
+            mp_wins=user.mp_wins or 0,
+            mp_draws=user.mp_draws or 0,
+            mp_best_score=user.mp_best_score or 0,
+            mp_win_rate=user.mp_win_rate,
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )

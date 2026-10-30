@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "446661401441",
+    "firebase_url": "https://projet-scrabble-default-rtdb.firebaseio.com",
+    "project_id": "projet-scrabble",
+    "storage_bucket": "projet-scrabble.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:446661401441:android:9f59d2d1d8a2f80de68320",
+        "android_client_info": {
+          "package_name": "com.islain.scrabble"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "446661401441-0gctn9uk4egck03cojtr87uv30tn37f9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfLj6y8FjnLcxAluCIo_Z_qOtBX32XYv0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "446661401441-0gctn9uk4egck03cojtr87uv30tn37f9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

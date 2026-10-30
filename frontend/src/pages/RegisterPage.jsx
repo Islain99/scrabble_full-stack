@@ -181,6 +181,12 @@ export default function RegisterPage() {
           {t('auth_google')}
         </button>
 
+        {/* Confidentialité (lot 7, Loi 25) */}
+        <p className="acc-consent">
+          {t('register_privacy_notice')}{' '}
+          <a className="acc-link" href="#/privacy">{t('acc_privacy_link')}</a>
+        </p>
+
         {/* Lien connexion */}
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
           <MonoLabel color="var(--text-muted)" style={{ marginRight: '8px' }}>

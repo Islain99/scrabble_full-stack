@@ -21,6 +21,11 @@ DEFAULT_PREFERENCES: dict = {
     "boardSize":          "normal",
     "animationsEnabled":  True,
     "tutorialSeen":       False,
+    # Notifications push (lot 7) : catégories reçues sur les appareils inscrits
+    "pushInvites":        True,
+    "pushFriends":        True,
+    "pushMessages":       True,
+    "pushTurn":           True,
 }
 
 
@@ -64,6 +69,15 @@ class User(Base):
     # Messagerie (lot 6) : rôle d'administrateur (modération) et sourdine temporaire
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     chat_muted_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Classement multijoueur (lot 7) — séparé des statistiques solo ci-dessus
+    mp_rating:      Mapped[int] = mapped_column(Integer, default=1200, server_default="1200")
+    mp_peak_rating: Mapped[int] = mapped_column(Integer, default=1200, server_default="1200")
+    mp_games:       Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    mp_wins:        Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    mp_draws:       Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    mp_total_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    mp_best_score:  Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     game_histories: Mapped[list["GameHistory"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -109,6 +123,24 @@ class User(Base):
             return 0.0
         return round(self.games_won / self.games_played * 100, 1)
 
+    def update_mp_stats_after_game(self, score: int, result: float, rating_delta: int) -> None:
+        """Partie multijoueur terminée (result : 1 victoire, 0.5 égalité, 0 défaite)."""
+        self.mp_games = (self.mp_games or 0) + 1
+        if result == 1:
+            self.mp_wins = (self.mp_wins or 0) + 1
+        elif result == 0.5:
+            self.mp_draws = (self.mp_draws or 0) + 1
+        self.mp_total_score = (self.mp_total_score or 0) + score
+        self.mp_best_score = max(self.mp_best_score or 0, score)
+        self.mp_rating = (self.mp_rating or 1200) + rating_delta
+        self.mp_peak_rating = max(self.mp_peak_rating or 1200, self.mp_rating)
+
+    @property
+    def mp_win_rate(self) -> float:
+        if not self.mp_games:
+            return 0.0
+        return round((self.mp_wins or 0) / self.mp_games * 100, 1)
+
 
 class GameHistory(Base):
     __tablename__ = "game_histories"
@@ -126,6 +158,8 @@ class GameHistory(Base):
     turns_count: Mapped[int] = mapped_column(Integer, default=0)
     best_word: Mapped[str | None] = mapped_column(String(32), nullable=True)
     best_word_score: Mapped[int] = mapped_column(Integer, default=0)
+    # Multijoueur (lot 7) : variation de cote Elo de cette partie
+    rating_delta: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     user: Mapped["User"] = relationship(back_populates="game_histories")

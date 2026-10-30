@@ -55,6 +55,8 @@ export default defineConfig({
         // Ne jamais intercepter les pages d'auth Firebase (/__/auth/...)
         navigateFallbackDenylist: [/^\/__\//],
         cleanupOutdatedCaches: true,
+        // Notifications push (lot 7) : affichage et clic (public/push-sw.js)
+        importScripts: ['push-sw.js'],
         // Le bundle principal (Firebase inclus) dépasse la limite par défaut de 2 Mo
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [

@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { getRtdb } from '../../firebase';
 import * as chat from '../../api/chatService';
-import { getFriends } from '../../api/friendsService';
+import { getMyBlocks } from '../../api/friendsService';
 import { RetroButton, Spinner } from '../ui';
 
 const MAX_BODY = 500;
@@ -109,7 +109,7 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
         }, () => { unsubscribe = null; });
       })
       .catch(() => {});
-    getFriends().then(d => { if (!cancelled) setBlocked(new Set(d.blocked.map(b => b.user_id))); }).catch(() => {});
+    getMyBlocks().then(ids => { if (!cancelled) setBlocked(new Set(ids)); }).catch(() => {});
     return () => { cancelled = true; unsubscribe?.(); };
     // t : seulement pour le message d'erreur
     // eslint-disable-next-line react-hooks/exhaustive-deps
