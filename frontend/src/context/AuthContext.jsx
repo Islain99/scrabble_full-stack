@@ -180,6 +180,10 @@ export function AuthProvider({ children }) {
       avatarUrl,
     });
     setDbUser(updated);
+    // Le pseudo suit aussi dans Firebase Authentication (affiché par Google, e-mails)
+    if (displayName && auth.currentUser && auth.currentUser.displayName !== updated.display_name) {
+      firebaseUpdateProfile(auth.currentUser, { displayName: updated.display_name }).catch(() => {});
+    }
     return updated;
   }, []);
 

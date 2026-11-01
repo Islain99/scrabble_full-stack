@@ -31,6 +31,7 @@ from app.notifications.router import router as notifications_router
 from app.chat.router import router as chat_router
 from app.push.router import router as push_router
 from app.account.router import router as account_router
+from app.users.privacy import router as privacy_router
 
 # NB : les migrations Alembic sont lancées par la commande de démarrage
 # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
@@ -172,6 +173,7 @@ app.include_router(notifications_router, prefix="/api/v2")
 app.include_router(chat_router,          prefix="/api/v2")
 app.include_router(push_router,          prefix="/api/v2")
 app.include_router(account_router,       prefix="/api/v2")
+app.include_router(privacy_router,       prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])

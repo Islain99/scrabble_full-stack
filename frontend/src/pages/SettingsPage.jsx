@@ -9,6 +9,7 @@ import { Card, PageHeader, MonoLabel, RetroButton, Spinner } from '../components
 import { Row, Toggle, SectionTitle } from '../components/settings/SettingsParts';
 import NotificationsCard from '../components/settings/NotificationsCard';
 import AccountCard from '../components/settings/AccountCard';
+import PrivacyCard from '../components/settings/PrivacyCard';
 
 // ── Composants internes ───────────────────────────────────────────
 
@@ -306,6 +307,9 @@ export default function SettingsPage() {
 
           {/* ── Notifications push (lot 7) ─────────────────── */}
           {user && <NotificationsCard settings={settings} update={update} />}
+
+          {/* ── Confidentialité : qui voit quoi (lot 8) ────── */}
+          {user && <PrivacyCard />}
 
           {/* ── Compte et confidentialité (lot 7) ──────────── */}
           <AccountCard />

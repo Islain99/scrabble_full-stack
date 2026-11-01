@@ -206,6 +206,11 @@ async def after_commit(plan: dict, refresh_group) -> None:
 
 # ── Export ────────────────────────────────────────────────────────
 
+def _privacy(user: User) -> dict:
+    from app.users.privacy import settings_of
+    return settings_of(user).model_dump()
+
+
 PROFILE_FIELDS = (
     "id", "email", "display_name", "first_name", "last_name", "age", "country", "bio",
     "avatar_url", "auth_provider", "is_verified", "friend_code", "created_at", "last_login_at",
@@ -268,6 +273,7 @@ async def export_user(db: AsyncSession, user: User) -> dict:
         "profile": {k: _iso(getattr(user, k, None)) for k in PROFILE_FIELDS},
         "statistics": {k: getattr(user, k, None) for k in STAT_FIELDS},
         "preferences": user.get_preferences(),
+        "privacy": _privacy(user),
         "game_history": [{
             "game_id": h.game_id, "mode": "multiplayer" if h.ai_difficulty == "multiplayer" else "solo",
             "opponent": h.ai_name, "difficulty": None if h.ai_difficulty == "multiplayer" else h.ai_difficulty,

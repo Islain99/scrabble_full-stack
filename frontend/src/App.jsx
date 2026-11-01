@@ -71,11 +71,13 @@ function PageLoader() {
 function PresenceKeeper() {
   const { user } = useAuth();
   const uid = user?.firebase_uid ?? null;
+  // Lot 8 : présence masquée → rien n'est publié (et le serveur ferme la lecture)
+  const hidden = user?.privacy?.presence === 'nobody';
   useEffect(() => {
-    if (!uid) return undefined;
+    if (!uid || hidden) return undefined;
     startPresence(uid);
     return () => stopPresence();
-  }, [uid]);
+  }, [uid, hidden]);
   return null;
 }
 

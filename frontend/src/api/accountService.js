@@ -24,3 +24,8 @@ export const removePushToken = async (token) => {
 };
 /** Notification d'essai → { devices } (nombre d'appareils inscrits). */
 export const sendTestPush = async () => (await api.post('/push/test')).data;
+
+// ── Confidentialité (lot 8) ───────────────────────────────────────
+/** { profile, stats, presence, requests, search, leaderboard } */
+export const getPrivacy = async () => (await api.get('/users/me/privacy')).data;
+export const updatePrivacy = async (patch) => (await api.put('/users/me/privacy', patch)).data;

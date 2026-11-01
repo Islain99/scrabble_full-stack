@@ -162,7 +162,7 @@ export default function ProfilePage() {
     setUploadingAvatar(true);
     try {
       const storage  = getStorage();
-      const fileRef  = ref(storage, `avatars/${user.uid}/${Date.now()}_${file.name}`);
+      const fileRef  = ref(storage, `avatars/${user.firebase_uid}/${Date.now()}_${file.name}`);
       await uploadBytes(fileRef, file);
       const url = await getDownloadURL(fileRef);
       setForm(f => ({ ...f, avatarUrl: url }));
@@ -182,15 +182,18 @@ export default function ProfilePage() {
         displayName: form.displayName,
         firstName:   form.firstName,
         lastName:    form.lastName,
-        age:         Number(form.age),
+        age:         form.age === '' ? null : Number(form.age),
         country:     form.country,
         bio:         form.bio,
         avatarUrl:   form.avatarUrl,
       });
       setSaveMsg(t('profile_save_success'));
       setEditing(false);
-    } catch {
-      setSaveMsg(t('profile_save_error'));
+    } catch (err) {
+      // Message du serveur (validation) quand il y en a un
+      const detail = err?.response?.data?.detail;
+      const text = Array.isArray(detail) ? detail.map(d => d.msg?.replace(/^Value error, /, '')).join(' · ') : detail;
+      setSaveMsg(text || t('profile_save_error'));
     } finally {
       setSaving(false);
     }
@@ -458,7 +461,7 @@ export default function ProfilePage() {
                       value={form.bio}
                       onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
                       placeholder={t('field_bio_placeholder')}
-                      maxLength={300}
+                      maxLength={280}
                     />
                   </FormField>
                 </div>

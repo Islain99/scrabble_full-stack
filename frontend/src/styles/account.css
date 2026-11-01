@@ -99,3 +99,9 @@
   .lb-modes { display: flex; }
   .lb-mode { flex: 1; padding: 8px 10px; font-size: 0.9rem; }
 }
+
+/* ── Paramètres → Confidentialité (lot 8) ──────────────────────── */
+.pv-choice { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pv-choice .s-chip:disabled { opacity: 0.6; cursor: wait; }
+.pv-sep { border-top: 1px solid var(--border-muted); }
+@media (max-width: 640px) { .pv-choice { justify-content: flex-start; } }

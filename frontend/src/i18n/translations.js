@@ -455,7 +455,7 @@ export const translations = {
 
     // ── ProfilePage — général ─────────────────────────────────────
     profile_title:            'Mon profil',
-    profile_incomplete_banner:"Complétez votre profil pour apparaître dans le classement.",
+    profile_incomplete_banner:"Complétez votre profil : prénom, nom, âge et pays (jamais montrés aux autres joueurs).",
     profile_complete_btn:     'Compléter',
     profile_complete_badge:   '✓ Profil complet',
     profile_incomplete_badge: '⚠ Profil incomplet',
@@ -666,6 +666,32 @@ export const translations = {
     register_privacy_notice:   'En créant un compte, vous acceptez notre politique de confidentialité.',
     msg_privacy_note:          'Les messages ne sont pas chiffrés de bout en bout ; un administrateur lit les messages signalés.',
     msg_privacy_more:          'En savoir plus',
+
+    // ── Lot 8 : confidentialité ───────────────────────────────────
+    section_privacy:           'Confidentialité',
+    privacy_intro:             'Choisissez qui voit quoi. Chaque choix est enregistré tout de suite et s\'applique partout dans le jeu.',
+    privacy_profile:           'Profil',
+    privacy_profile_desc:      'Photo, présentation, pays et code ami.',
+    privacy_stats:             'Statistiques',
+    privacy_stats_desc:        'Parties, scores, cote Elo et meilleur mot sur votre profil et dans la recherche.',
+    privacy_presence:          'Présence en ligne',
+    privacy_presence_desc:     '« En ligne », « en partie », « vu il y a… ». Jamais visible des inconnus.',
+    privacy_requests:          'Demandes d\'ami',
+    privacy_requests_desc:     'Qui peut vous demander en ami. Avec « code ami », il faut connaître votre code.',
+    privacy_search:            'Trouvable par pseudo',
+    privacy_search_desc:       'Désactivé : seuls ceux qui ont votre code ami vous trouvent.',
+    privacy_leaderboard:       'Apparaître dans les classements',
+    privacy_leaderboard_desc:  'Votre pseudo et vos statistiques figurent dans les classements solo et multijoueur.',
+    privacy_opt_everyone:      'Tout le monde',
+    privacy_opt_friends:       'Mes amis',
+    privacy_opt_nobody:        'Personne',
+    privacy_opt_code:          'Code ami',
+    privacy_saved:             'Réglage enregistré.',
+    privacy_save_failed:       'Enregistrement impossible. Réessayez.',
+    privacy_load_failed:       'Impossible de charger vos réglages de confidentialité.',
+    privacy_always:            'Votre pseudo reste toujours visible (parties, messages). Votre e-mail, vos nom, prénom et âge ne sont jamais montrés aux autres joueurs.',
+    fr_code_only:              'Code ami requis',
+    fr_code_only_hint:         'Ce joueur n\'accepte les demandes qu\'avec son code ami.',
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -1099,7 +1125,7 @@ export const translations = {
 
     // ── ProfilePage — general ─────────────────────────────────────
     profile_title:            'My Profile',
-    profile_incomplete_banner:'Complete your profile to appear on the leaderboard.',
+    profile_incomplete_banner:'Complete your profile: first name, last name, age and country (never shown to other players).',
     profile_complete_btn:     'Complete',
     profile_complete_badge:   '✓ Profile complete',
     profile_incomplete_badge: '⚠ Profile incomplete',
@@ -1310,6 +1336,32 @@ export const translations = {
     register_privacy_notice:   'By creating an account, you agree to our privacy policy.',
     msg_privacy_note:          'Messages are not end-to-end encrypted; an administrator reads reported messages.',
     msg_privacy_more:          'Learn more',
+
+    // ── Lot 8 : confidentialité ───────────────────────────────────
+    section_privacy:           'Privacy',
+    privacy_intro:             'Choose who sees what. Each choice is saved right away and applies everywhere in the game.',
+    privacy_profile:           'Profile',
+    privacy_profile_desc:      'Photo, bio, country and friend code.',
+    privacy_stats:             'Statistics',
+    privacy_stats_desc:        'Games, scores, Elo rating and best word on your profile and in search.',
+    privacy_presence:          'Online presence',
+    privacy_presence_desc:     '"Online", "in a game", "seen … ago". Never visible to strangers.',
+    privacy_requests:          'Friend requests',
+    privacy_requests_desc:     'Who can send you a friend request. With "friend code", they need your code.',
+    privacy_search:            'Findable by username',
+    privacy_search_desc:       'Off: only people with your friend code can find you.',
+    privacy_leaderboard:       'Appear in leaderboards',
+    privacy_leaderboard_desc:  'Your username and statistics are listed in the solo and multiplayer leaderboards.',
+    privacy_opt_everyone:      'Everyone',
+    privacy_opt_friends:       'My friends',
+    privacy_opt_nobody:        'Nobody',
+    privacy_opt_code:          'Friend code',
+    privacy_saved:             'Setting saved.',
+    privacy_save_failed:       'Couldn\'t save. Please try again.',
+    privacy_load_failed:       'Couldn\'t load your privacy settings.',
+    privacy_always:            'Your username is always visible (games, messages). Your email, name and age are never shown to other players.',
+    fr_code_only:              'Friend code needed',
+    fr_code_only_hint:         'This player only accepts requests with their friend code.',
   },
 };
 
