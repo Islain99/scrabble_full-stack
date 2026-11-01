@@ -54,12 +54,19 @@ export const getProfile = async () => {
  * Accepte : displayName, bio, avatarUrl (tous optionnels)
  * Retourne le profil mis à jour.
  */
-export const updateProfile = async ({ displayName, bio, avatarUrl }) => {
-  const { data } = await api.patch('/users/me', {
+export const updateProfile = async ({ displayName, firstName, lastName, age, country, bio, avatarUrl }) => {
+  // Seuls les champs fournis sont envoyés ; une chaîne vide efface le champ
+  const body = {
     display_name: displayName,
+    first_name:   firstName,
+    last_name:    lastName,
+    age,
+    country,
     bio,
-    avatar_url: avatarUrl,
-  });
+    avatar_url:   avatarUrl,
+  };
+  Object.keys(body).forEach(k => body[k] === undefined && delete body[k]);
+  const { data } = await api.patch('/users/me', body);
   return data;
 };
 

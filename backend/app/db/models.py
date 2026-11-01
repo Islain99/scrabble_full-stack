@@ -79,6 +79,16 @@ class User(Base):
     mp_total_score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     mp_best_score:  Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
+    # Confidentialité (lot 8) : qui voit quoi. everyone | friends | nobody
+    privacy_profile:  Mapped[str] = mapped_column(String(16), default="everyone", server_default="everyone")
+    privacy_stats:    Mapped[str] = mapped_column(String(16), default="everyone", server_default="everyone")
+    # Présence en ligne : friends | nobody (jamais publique)
+    privacy_presence: Mapped[str] = mapped_column(String(16), default="friends", server_default="friends")
+    # Demandes d'ami : everyone | code (seulement avec mon code ami)
+    privacy_requests: Mapped[str] = mapped_column(String(16), default="everyone", server_default="everyone")
+    privacy_search:      Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    privacy_leaderboard: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
     game_histories: Mapped[list["GameHistory"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )

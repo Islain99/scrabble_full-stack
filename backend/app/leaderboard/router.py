@@ -170,7 +170,7 @@ async def get_leaderboard(
 
     base_query = (
         select(User)
-        .where(User.is_active == True, played)  # noqa: E712
+        .where(User.is_active == True, played, User.privacy_leaderboard == True)  # noqa: E712 — lot 8
         .order_by(desc(sort_col), desc(tie), User.id)
         .limit(limit)
     )
@@ -189,11 +189,16 @@ async def get_leaderboard(
     result = await db.execute(base_query)
     users = result.scalars().all()
 
-    count_query = select(func.count(User.id)).where(User.is_active == True, played)  # noqa: E712
+    count_query = select(func.count(User.id)).where(User.is_active == True, played,  # noqa: E712
+                                                    User.privacy_leaderboard == True)  # noqa: E712
     total = (await db.execute(count_query)).scalar_one()
 
     make = _multi_entry if mode == "multi" else _solo_entry
     entries = [make(rank, u) for rank, u in enumerate(users, start=1)]
+    # Lot 8 : photo masquée si le joueur réserve son profil (réponse commune à tous, mise en cache)
+    for entry, u in zip(entries, users):
+        if (u.privacy_profile or "everyone") != "everyone":
+            entry.avatar_url = None
 
     current_user_rank = next(
         (e.rank for e in entries if current_user and e.user_id == current_user.id),

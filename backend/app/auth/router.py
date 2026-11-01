@@ -116,6 +116,8 @@ class UserOut(BaseModel):
     mp_draws: int = 0
     mp_best_score: int = 0
     mp_win_rate: float = 0.0
+    # Confidentialité (lot 8) : mes réglages « qui voit quoi »
+    privacy: dict = {}
     created_at: datetime
     last_login_at: datetime
 
@@ -154,9 +156,15 @@ class UserOut(BaseModel):
             mp_draws=user.mp_draws or 0,
             mp_best_score=user.mp_best_score or 0,
             mp_win_rate=user.mp_win_rate,
+            privacy=_privacy_of(user),
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )
+
+
+def _privacy_of(user) -> dict:
+    from app.users.privacy import settings_of        # import tardif : pas de cycle
+    return settings_of(user).model_dump()
 
 
 class LoginResponse(BaseModel):

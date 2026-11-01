@@ -7,7 +7,8 @@ from datetime import datetime
 
 from app.db.database import get_db
 from app.db.models import User, GameHistory
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
+from app.users.privacy import can_see, friend_ids_of
 from app.auth.router import UserOut
 
 router = APIRouter(prefix="/users", tags=["Utilisateurs"])
@@ -15,8 +16,25 @@ router = APIRouter(prefix="/users", tags=["Utilisateurs"])
 
 # ── Schemas ────────────────────────────────────────────────────────
 
+def _clean_text(v: str | None, limit: int, label: str) -> str | None:
+    if v is None:
+        return None
+    v = " ".join("".join(ch for ch in v if ch.isprintable()).split())
+    if len(v) > limit:
+        raise ValueError(f"{label} : {limit} caractères au plus.")
+    return v or None
+
+
 class UpdateProfileRequest(BaseModel):
+    """
+    Mise à jour partielle du profil. Un champ absent ne change pas ; un champ
+    envoyé vide (ou null) est effacé — sauf le pseudo, obligatoire.
+    """
     display_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    age: int | None = None
+    country: str | None = None
     bio: str | None = None
     avatar_url: str | None = None
 
@@ -25,19 +43,54 @@ class UpdateProfileRequest(BaseModel):
     def validate_name(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        v = v.strip()
+        v = " ".join(v.split())
         if len(v) < 2:
             raise ValueError("Le pseudo doit contenir au moins 2 caractères.")
         if len(v) > 32:
             raise ValueError("Le pseudo ne peut pas dépasser 32 caractères.")
         return v
 
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, v: str | None) -> str | None:
+        return _clean_text(v, 64, "Nom")
+
+    @field_validator("country")
+    @classmethod
+    def validate_country(cls, v: str | None) -> str | None:
+        return _clean_text(v, 100, "Pays")
+
+    @field_validator("age")
+    @classmethod
+    def validate_age(cls, v: int | None) -> int | None:
+        if v is None or v == 0:
+            return None
+        if v < 5 or v > 120:
+            raise ValueError("L'âge doit être compris entre 5 et 120 ans.")
+        return v
+
     @field_validator("bio")
     @classmethod
     def validate_bio(cls, v: str | None) -> str | None:
-        if v and len(v) > 280:
+        if v and len(v.strip()) > 280:
             raise ValueError("La bio ne peut pas dépasser 280 caractères.")
-        return v
+        return (v or "").strip() or None
+
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar(cls, v: str | None) -> str | None:
+        v = (v or "").strip()
+        if v and (len(v) > 512 or not v.startswith("https://")):
+            raise ValueError("Adresse de photo invalide.")
+        return v or None
+
+
+# Profil complet : les champs demandés par la bannière « Complétez votre profil »
+PROFILE_REQUIRED = ("display_name", "first_name", "last_name", "age", "country")
+
+
+def is_profile_complete(user: User) -> bool:
+    return all(getattr(user, f, None) not in (None, "") for f in PROFILE_REQUIRED)
 
 
 class GameHistoryOut(BaseModel):
@@ -155,13 +208,16 @@ async def update_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Met à jour le pseudo, la bio ou l'avatar."""
-    if payload.display_name is not None:
-        current_user.display_name = payload.display_name
-    if payload.bio is not None:
-        current_user.bio = payload.bio
-    if payload.avatar_url is not None:
-        current_user.avatar_url = payload.avatar_url
+    """
+    Met à jour le profil : pseudo, prénom, nom, âge, pays, présentation, photo.
+    Le profil est « complet » dès que pseudo, prénom, nom, âge et pays sont remplis.
+    """
+    changes = payload.model_dump(exclude_unset=True)
+    if "display_name" in changes and changes["display_name"] is None:
+        changes.pop("display_name")                 # le pseudo ne s'efface pas
+    for field, value in changes.items():
+        setattr(current_user, field, value)
+    current_user.profile_complete = is_profile_complete(current_user)
 
     await db.flush()
     await db.refresh(current_user)
@@ -242,45 +298,64 @@ async def save_game(
 
 class PublicProfileOut(BaseModel):
     """
-    Profil public : ce que tout le monde peut lire (classement, amis).
-    Avant : UserOut complet, e-mail, identifiant Firebase, âge et nom compris,
-    lisible sans authentification par simple numéro de joueur.
+    Profil public : ce que les autres voient, selon les réglages de
+    confidentialité du joueur (lot 8). Jamais d'e-mail, de nom, de prénom ni d'âge.
+    Une partie masquée vaut null ; `hidden` dit lesquelles.
     """
     id: int
     display_name: str
-    avatar_url: str | None
-    bio: str | None
-    country: str | None
+    avatar_url: str | None = None
+    bio: str | None = None
+    country: str | None = None
     friend_code: str | None = None
-    games_played: int
-    games_won: int
-    total_score: int
-    best_score: int
-    best_word: str | None
-    best_word_score: int
-    average_score: float
-    win_rate: float
-    mp_rating: int = 1200
-    mp_peak_rating: int = 1200
-    mp_games: int = 0
-    mp_wins: int = 0
-    mp_draws: int = 0
-    mp_best_score: int = 0
-    mp_win_rate: float = 0.0
+    games_played: int | None = None
+    games_won: int | None = None
+    total_score: int | None = None
+    best_score: int | None = None
+    best_word: str | None = None
+    best_word_score: int | None = None
+    average_score: float | None = None
+    win_rate: float | None = None
+    mp_rating: int | None = None
+    mp_peak_rating: int | None = None
+    mp_games: int | None = None
+    mp_wins: int | None = None
+    mp_draws: int | None = None
+    mp_best_score: int | None = None
+    mp_win_rate: float | None = None
     created_at: datetime
+    hidden: list[str] = []
+
+
+PROFILE_PART = ("avatar_url", "bio", "country", "friend_code")
+STATS_PART = ("games_played", "games_won", "total_score", "best_score", "best_word", "best_word_score",
+              "average_score", "win_rate", "mp_rating", "mp_peak_rating", "mp_games", "mp_wins", "mp_draws",
+              "mp_best_score", "mp_win_rate")
 
 
 @router.get("/{user_id}/profile", response_model=PublicProfileOut)
-async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db)):
-    """Profil public d'un joueur (accessible sans auth — pour le classement)."""
+async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db),
+                             viewer: User | None = Depends(get_current_user_optional)):
+    """Profil public d'un joueur (lisible sans connexion), filtré par ses réglages de confidentialité."""
     result = await db.execute(
         select(User).where(User.id == user_id, User.is_active == True)
     )
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utilisateur introuvable.")
-    full = UserOut.from_user(user).model_dump()
-    return PublicProfileOut.model_validate({**full, "friend_code": user.friend_code})
+    is_self = viewer is not None and viewer.id == user.id
+    is_friend = viewer is not None and not is_self and bool(await friend_ids_of(db, viewer.id, [user.id]))
+    data = {**UserOut.from_user(user).model_dump(), "friend_code": user.friend_code}
+    hidden = []
+    if not can_see(user.privacy_profile, is_self=is_self, is_friend=is_friend):
+        hidden.append("profile")
+        for k in PROFILE_PART:
+            data[k] = None
+    if not can_see(user.privacy_stats, is_self=is_self, is_friend=is_friend):
+        hidden.append("stats")
+        for k in STATS_PART:
+            data[k] = None
+    return PublicProfileOut.model_validate({**data, "hidden": hidden})
 
 
 # ── Préférences de jeu ─────────────────────────────────────────────

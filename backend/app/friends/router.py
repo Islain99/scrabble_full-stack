@@ -40,6 +40,7 @@ from app.db.database import get_db
 from app.db.models import User
 from app.friends.codes import normalize_code, random_code
 from app.notifications.service import notify
+from app.users.privacy import can_see, shows_presence
 from app.friends.models import (
     FriendGroup, FriendGroupMember, Friendship, FriendshipStatus, UserBlock,
 )
@@ -76,8 +77,9 @@ class PublicUser(BaseModel):
     friend_code:  Optional[str] = None
     avatar_url:   Optional[str] = None
     country:      Optional[str] = None
-    games_played: int = 0
-    games_won:    int = 0
+    games_played: Optional[int] = None    # None : statistiques masquées par le joueur
+    games_won:    Optional[int] = None
+    accepts_requests: bool = True         # False : demandes par code ami seulement
 
 
 class FriendOut(PublicUser):
@@ -218,12 +220,28 @@ def _friend_link_write(uid_a: str, uid_b: str, linked: bool) -> None:
 
 
 async def _mirror_link(db: AsyncSession, a: int, b: int, linked: bool) -> None:
-    rows = (await db.execute(select(User.id, User.firebase_uid).where(User.id.in_([a, b])))).all()
-    uids = {i: uid for i, uid in rows}
+    rows = (await db.execute(select(User.id, User.firebase_uid, User.privacy_presence)
+                             .where(User.id.in_([a, b])))).all()
+    uids = {i: uid for i, uid, _ in rows}
+    hidden = {i for i, _, presence in rows if presence == "nobody"}
     if a in uids and b in uids:
-        await asyncio.to_thread(_friend_link_write, uids[a], uids[b], linked)
+        if linked and hidden:
+            # Présence masquée (lot 8) : le lien n'est écrit que chez celui qui la montre
+            await asyncio.to_thread(_friend_link_write_one_way, uids, a, b, hidden)
+        else:
+            await asyncio.to_thread(_friend_link_write, uids[a], uids[b], linked)
         forget_mirror(uids[a])
         forget_mirror(uids[b])
+
+
+def _friend_link_write_one_way(uids: dict, a: int, b: int, hidden: set) -> None:
+    try:
+        from firebase_admin import db as rtdb
+        for owner, other in ((a, b), (b, a)):
+            if owner not in hidden:
+                rtdb.reference(f"/friends/{uids[owner]}/{uids[other]}").set(True)
+    except Exception as exc:
+        logger.warning("Amis : lien RTDB ignoré (%s ↔ %s) : %s", a, b, exc)
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -243,11 +261,18 @@ async def ensure_friend_code(db: AsyncSession, user: User) -> str:
     raise HTTPException(status_code=503, detail="Impossible de générer un code ami, réessayez.")
 
 
-def _public(user: User) -> PublicUser:
+def _public(user: User, *, is_friend: bool = False) -> PublicUser:
+    """Ce que les autres voient, selon les réglages de confidentialité du joueur (lot 8)."""
+    profile = can_see(user.privacy_profile, is_self=False, is_friend=is_friend)
+    stats = can_see(user.privacy_stats, is_self=False, is_friend=is_friend)
     return PublicUser(
-        user_id=user.id, display_name=user.display_name, friend_code=user.friend_code,
-        avatar_url=user.avatar_url, country=user.country,
-        games_played=user.games_played or 0, games_won=user.games_won or 0,
+        user_id=user.id, display_name=user.display_name,
+        friend_code=user.friend_code if profile else None,
+        avatar_url=user.avatar_url if profile else None,
+        country=user.country if profile else None,
+        games_played=(user.games_played or 0) if stats else None,
+        games_won=(user.games_won or 0) if stats else None,
+        accepts_requests=(user.privacy_requests or "everyone") != "code",
     )
 
 
@@ -351,7 +376,7 @@ async def overview(current_user: User = Depends(get_current_user), db: AsyncSess
             continue
         if r.status == FriendshipStatus.ACCEPTED:
             friends.append(FriendOut(
-                **_public(other).model_dump(), firebase_uid=other.firebase_uid,
+                **_public(other, is_friend=True).model_dump(), firebase_uid=other.firebase_uid,
                 group_ids=sorted(groups_of.get(other.id, [])), since=r.responded_at or r.created_at,
             ))
         elif r.requester_id == me:
@@ -363,8 +388,10 @@ async def overview(current_user: User = Depends(get_current_user), db: AsyncSess
     incoming.sort(key=lambda q: q.created_at, reverse=True)
     outgoing.sort(key=lambda q: q.created_at, reverse=True)
 
-    # Réparation de la copie Firebase de MA liste (mes amis peuvent lire ma présence)
-    await _repair_mirror(current_user.firebase_uid, {f.firebase_uid for f in friends})
+    # Réparation de la copie Firebase de MA liste (mes amis peuvent lire ma présence) ;
+    # présence masquée (lot 8) : personne ne la lit
+    await _repair_mirror(current_user.firebase_uid,
+                         {f.firebase_uid for f in friends} if shows_presence(current_user) else set())
 
     return FriendsOverview(
         my_code=my_code,
@@ -426,6 +453,7 @@ async def send_request(
         raise HTTPException(status_code=404, detail="Aucun joueur avec ce code.")
     if target.id == me:
         raise HTTPException(status_code=400, detail="C'est votre propre code.")
+    by_code = bool(body.friend_code)
 
     i_blocked = (await db.execute(select(UserBlock).where(
         UserBlock.blocker_id == me, UserBlock.blocked_id == target.id))).first()
@@ -445,6 +473,7 @@ async def send_request(
         if row.status == FriendshipStatus.PENDING:
             # Il m'avait déjà demandé : la demande réciproque vaut acceptation
             return await _accept(db, row, current_user, target)
+        _check_request_privacy(target, by_code)
         # Je l'avais refusé et je change d'avis : nouvelle demande dans l'autre sens
         await _check_limits(db, me, target.id)
         row.requester_id, row.addressee_id = me, target.id
@@ -453,6 +482,7 @@ async def send_request(
         await _notify_request(row, current_user, target)
         return FriendRequestResult(status="pending", request_id=row.id, user=_public(target))
 
+    _check_request_privacy(target, by_code)
     await _check_limits(db, me, target.id)
     low, high = _pair(me, target.id)
     row = Friendship(requester_id=me, addressee_id=target.id, user_low=low, user_high=high,
@@ -462,6 +492,12 @@ async def send_request(
     logger.info("Demande d'ami %d → %d", me, target.id)
     await _notify_request(row, current_user, target)
     return FriendRequestResult(status="pending", request_id=row.id, user=_public(target))
+
+
+def _check_request_privacy(target: User, by_code: bool) -> None:
+    """Lot 8 : un joueur peut n'accepter de demandes qu'avec son code ami."""
+    if not by_code and (target.privacy_requests or "everyone") == "code":
+        raise HTTPException(status_code=403, detail="Ce joueur n'accepte les demandes d'ami qu'avec son code ami.")
 
 
 async def _notify_request(row: Friendship, requester: User, target: User) -> None:
@@ -493,14 +529,14 @@ async def _accept(db: AsyncSession, row: Friendship, me: User, other: User) -> F
     row.status = FriendshipStatus.ACCEPTED
     row.responded_at = _utcnow()
     await db.flush()
-    await asyncio.to_thread(_friend_link_write, me.firebase_uid, other.firebase_uid, True)
+    await _mirror_link(db, me.id, other.id, True)        # lot 8 : respecte la présence masquée
     # Lot 5 : la demande quitte ma cloche ; le demandeur est averti
     await notify(me.firebase_uid, f"fr-{row.id}", None)
     await notify(other.firebase_uid, f"fra-{row.id}", {
         "type": "friend_accepted", "from_user_id": me.id, "from_name": me.display_name,
     })
     logger.info("Amis : %d ↔ %d", me.id, other.id)
-    return FriendRequestResult(status="accepted", request_id=row.id, user=_public(other))
+    return FriendRequestResult(status="accepted", request_id=row.id, user=_public(other, is_friend=True))
 
 
 async def _incoming_request(db: AsyncSession, request_id: int, me: int) -> Friendship:
@@ -622,6 +658,7 @@ async def search_users(
     if code:
         query = query.where(User.friend_code == code)
     else:
+        query = query.where(User.privacy_search == True)  # noqa: E712 — lot 8 : invisible à la recherche par pseudo
         pattern = "%" + q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         query = query.where(User.display_name.ilike(pattern, escape="\\")).order_by(
             func.length(User.display_name), User.display_name)
@@ -654,7 +691,8 @@ async def search_users(
             continue
         if not u.friend_code:
             await ensure_friend_code(db, u)
-        results.append(SearchResult(**_public(u).model_dump(), relation=relations.get(u.id, "none")))
+        relation = relations.get(u.id, "none")
+        results.append(SearchResult(**_public(u, is_friend=relation == "friend").model_dump(), relation=relation))
         if len(results) >= SEARCH_LIMIT:
             break
     return results

@@ -79,6 +79,8 @@ function AddFriend({ myCode, onChanged, addToast }) {
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [searched, setSearched] = useState('');          // dernière recherche (code ami ?)
+  const searchedCode = /^[a-z]{1,8}[-\s]?\d{4,6}$/i.test(searched);
 
   const copy = () => {
     navigator.clipboard?.writeText(myCode).then(() => {
@@ -94,6 +96,7 @@ function AddFriend({ myCode, onChanged, addToast }) {
     setBusy(true);
     try {
       setResults(await fs.searchUsers(query));
+      setSearched(query);
     } catch (err) {
       addToast(errorOf(err, t('fr_error')), 'error');
     } finally {
@@ -103,7 +106,10 @@ function AddFriend({ myCode, onChanged, addToast }) {
 
   const request = async (user) => {
     try {
-      const res = await fs.sendFriendRequest({ userId: user.user_id });
+      // Lot 8 : un joueur peut n'accepter les demandes qu'avec son code ami
+      const res = user.accepts_requests === false
+        ? await fs.sendFriendRequest({ friendCode: user.friend_code || searched })
+        : await fs.sendFriendRequest({ userId: user.user_id });
       addToast(res.status === 'accepted'
         ? t('fr_now_friends', { name: user.display_name })
         : t('fr_request_sent', { name: user.display_name }), 'success');
@@ -155,12 +161,15 @@ function AddFriend({ myCode, onChanged, addToast }) {
                 <span className="fr-main">
                   <span className="fr-name">{u.display_name}</span>
                   <span className="fr-meta">
-                    {u.friend_code}{u.country ? ` · ${u.country}` : ''} · {t('fr_games', { count: u.games_played })}
+                    {[u.friend_code, u.country, u.games_played != null ? t('fr_games', { count: u.games_played }) : null]
+                      .filter(Boolean).join(' · ')}
                   </span>
                 </span>
-                {u.relation === 'none'
-                  ? <RetroButton variant="primary" onClick={() => request(u)}>{t('fr_add')}</RetroButton>
-                  : <span className="pr-tag">{relationLabel[u.relation]}</span>}
+                {u.relation !== 'none'
+                  ? <span className="pr-tag">{relationLabel[u.relation]}</span>
+                  : u.accepts_requests === false && !searchedCode
+                    ? <span className="pr-tag" title={t('fr_code_only_hint')}>{t('fr_code_only')}</span>
+                    : <RetroButton variant="primary" onClick={() => request(u)}>{t('fr_add')}</RetroButton>}
               </li>
             ))}
           </ul>

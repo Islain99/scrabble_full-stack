@@ -6,13 +6,13 @@
 //
 // Adresse de contact du responsable : variable VITE_PRIVACY_CONTACT (Vercel).
 
-export const PRIVACY_UPDATED = '2026-10-29';
+export const PRIVACY_UPDATED = '2026-10-31';
 export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || '';
 
 export const privacy = {
   fr: {
     title: 'Politique de confidentialité',
-    updated: 'Dernière mise à jour : 29 octobre 2026',
+    updated: 'Dernière mise à jour : 31 octobre 2026',
     intro: "Cette page explique quels renseignements personnels l'application Scrabble recueille, pourquoi, "
       + "où ils sont conservés, qui peut les lire et comment vous pouvez les consulter, les télécharger ou les "
       + "supprimer. Elle suit la Loi sur la protection des renseignements personnels dans le secteur privé du "
@@ -55,8 +55,10 @@ export const privacy = {
       {
         title: 'Qui peut voir quoi',
         items: [
-          'Tout le monde : votre pseudo, votre photo, votre présentation, votre pays, votre code ami, vos statistiques et votre rang dans les classements.',
-          'Vos amis : votre présence en ligne.',
+          'Votre pseudo : toujours visible (parties, messages, classements si vous y figurez).',
+          'Profil (photo, présentation, pays, code ami) et statistiques : tout le monde par défaut ; vous pouvez les réserver à vos amis ou les masquer (Paramètres → Confidentialité).',
+          'Présence en ligne : vos amis par défaut, ou personne. Elle n\'est jamais visible des inconnus.',
+          'Vous choisissez aussi si l\'on peut vous trouver par votre pseudo, vous demander en ami sans votre code ami, et si vous apparaissez dans les classements.',
           'Les membres d\'une conversation : ses messages. L\'administrateur : les messages signalés.',
           'Votre adresse e-mail, vos nom, prénom et âge ne sont jamais montrés aux autres joueurs.',
         ],
@@ -85,6 +87,7 @@ export const privacy = {
         title: 'Vos droits',
         items: [
           'Consulter et télécharger vos données : Paramètres → Compte et confidentialité → Télécharger mes données (fichier JSON).',
+          'Choisir qui voit votre profil, vos statistiques et votre présence : Paramètres → Confidentialité.',
           'Les corriger : depuis votre profil.',
           "Retirer votre consentement aux notifications : Paramètres → Notifications, ou dans les réglages de l'appareil.",
           'Supprimer votre compte : Paramètres → Compte et confidentialité → Supprimer mon compte. La suppression est définitive et immédiate (voir ci-dessous).',
@@ -117,7 +120,7 @@ export const privacy = {
 
   en: {
     title: 'Privacy policy',
-    updated: 'Last updated: October 29, 2026',
+    updated: 'Last updated: October 31, 2026',
     intro: 'This page explains what personal information the Scrabble app collects, why, where it is stored, '
       + 'who can read it, and how you can view, download or delete it. It follows Québec\'s Act respecting the '
       + 'protection of personal information in the private sector (Law 25).',
@@ -159,8 +162,10 @@ export const privacy = {
       {
         title: 'Who can see what',
         items: [
-          'Everyone: your username, photo, bio, country, friend code, statistics and leaderboard rank.',
-          'Your friends: your online presence.',
+          'Your username: always visible (games, messages, leaderboards if you appear in them).',
+          'Profile (photo, bio, country, friend code) and statistics: everyone by default; you can limit them to your friends or hide them (Settings → Privacy).',
+          'Online presence: your friends by default, or nobody. It is never visible to strangers.',
+          'You also choose whether people can find you by username, send you friend requests without your friend code, and whether you appear in leaderboards.',
           'Members of a conversation: its messages. The administrator: reported messages.',
           'Your email address, name and age are never shown to other players.',
         ],
@@ -189,6 +194,7 @@ export const privacy = {
         title: 'Your rights',
         items: [
           'View and download your data: Settings → Account & privacy → Download my data (JSON file).',
+          'Choose who sees your profile, statistics and presence: Settings → Privacy.',
           'Correct it: from your profile.',
           'Withdraw consent to notifications: Settings → Notifications, or in your device settings.',
           'Delete your account: Settings → Account & privacy → Delete my account. Deletion is permanent and immediate (see below).',
