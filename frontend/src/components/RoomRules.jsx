@@ -11,6 +11,7 @@ import { RetroButton, Spinner } from './ui';
 import {
   TURN_CHOICES, PASS_CHOICES, TARGET_CHOICES, DEFAULT_SETTINGS, NAME_MAX, formatTurn, roomDisplayName,
 } from '../utils/roomRules';
+import { GAME_LANGUAGES, languageName } from '../utils/gameLanguage';
 
 function useEscape(active, onEscape) {
   useEffect(() => {
@@ -49,6 +50,7 @@ export function RulesSummary({ settings }) {
   const { t } = useLanguage();
   if (!settings) return null;
   const rows = [
+    [t('rr_language'), languageName(settings.language)],
     [t('rr_turn'),    formatTurn(settings.turn_seconds, t)],
     [t('rr_swap'),    settings.allow_swap ? t('rr_allowed') : t('rr_forbidden')],
     [t('rr_preview'), settings.show_preview ? t('rr_shown') : t('rr_hidden')],
@@ -98,6 +100,12 @@ export function RoomSetupModal({ open, onCancel, onCreate, busy = false, hostNam
               onChange={e => set('name')(e.target.value)}
             />
           </label>
+          <Chips
+            label={t('rr_language')}
+            value={form.language}
+            onChange={set('language')}
+            options={GAME_LANGUAGES}
+          />
           <Chips
             label={t('rr_visibility')}
             value={form.visibility}

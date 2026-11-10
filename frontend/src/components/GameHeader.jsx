@@ -3,6 +3,7 @@ import React from 'react';
 import TurnTimer from './TurnTimer';
 import { useSettings } from '../context/SettingsContext';
 import { useLanguage } from '../context/LanguageContext';
+import { languageTag } from '../utils/gameLanguage';
 
 /**
  * GameHeader — barre sticky en haut de l'écran de jeu.
@@ -133,7 +134,7 @@ export default function GameHeader({ gameState, timer = null, actions = null }) 
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
             }}>
-              {t('mg_bag')}
+              {t('mg_bag')} · {languageTag(gameState.language)}
             </span>
             <span style={{
               fontFamily: "'Playfair Display', serif",

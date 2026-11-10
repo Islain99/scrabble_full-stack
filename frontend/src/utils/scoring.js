@@ -8,7 +8,7 @@
 //   - +50 points si les 7 tuiles sont posées (scrabble).
 // Le score officiel reste celui renvoyé par le serveur.
 
-import { POINTS_LETTRES, BONUS_MAP } from '../data/constants';
+import { BONUS_MAP, letterPoints } from '../data/constants';
 
 const SIZE = 15;
 const SCRABBLE_BONUS = 50;
@@ -16,19 +16,21 @@ const SCRABBLE_BONUS = 50;
 const inBoard = (r, c) => r >= 0 && r < SIZE && c >= 0 && c < SIZE;
 
 /** Valeur d'une tuile posée ce tour-ci (un joker vaut 0). */
-function placedTileScore(p) {
+function placedTileScore(p, points) {
   const s = p.originalTile?.score;
   if (typeof s === 'number') return s;
-  return POINTS_LETTRES[p.letter] || 0;
+  return points[p.letter] || 0;
 }
 
 /**
  * @param {Array<{r:number, c:number, letter:string, originalTile?:{score:number}}>} placements
  * @param {Array<Array<{letter:string, score:number}|null>>|undefined} grid  plateau AVANT le coup
+ * @param {'fr'|'en'} [language]  langue de la partie (valeurs des lettres)
  * @returns {number}
  */
-export function calculatePreviewScore(placements, grid) {
+export function calculatePreviewScore(placements, grid, language = 'fr') {
   if (!placements?.length) return 0;
+  const points = letterPoints(language);
 
   const rows = new Set(placements.map(p => p.r));
   const cols = new Set(placements.map(p => p.c));
@@ -39,9 +41,9 @@ export function calculatePreviewScore(placements, grid) {
   // Valeur de la case (r,c) : tuile posée ce tour-ci, tuile existante, ou null si vide
   const cellScore = (r, c) => {
     const placed = placedAt.get(`${r}-${c}`);
-    if (placed) return placedTileScore(placed);
+    if (placed) return placedTileScore(placed, points);
     const existing = grid?.[r]?.[c];
-    return existing ? (existing.score ?? POINTS_LETTRES[existing.letter] ?? 0) : null;
+    return existing ? (existing.score ?? points[existing.letter] ?? 0) : null;
   };
 
   // Cases d'un mot passant par (r,c) dans la direction (dr,dc)

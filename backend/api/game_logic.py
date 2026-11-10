@@ -2,7 +2,10 @@ import random
 import uuid
 import time
 from typing import List, Tuple, Optional, Set, Dict
-from api.models import GameState, Move, Player, Tile, POINTS_LETTRES, Board, GameStatus
+from api.models import (
+    GameState, Move, Player, Tile, POINTS_LETTRES, Board, GameStatus,
+    DEFAULT_GAME_LANGUAGE, GAME_LANGUAGES, letter_points,
+)
 from copy import deepcopy
 
 # ---------------------------------------------------------------------------
@@ -36,6 +39,18 @@ SAC_LETTRES: List[str] = (
     ['U'] * 6 + ['V'] * 2 + ['W'] * 1 + ['X'] * 1 + ['Y'] * 1 +
     ['Z'] * 1 + ['*'] * 2
 )
+
+# Sac anglais : 98 lettres + 2 jokers (édition nord-américaine)
+SAC_LETTRES_EN: List[str] = (
+    ['A'] * 9 + ['B'] * 2 + ['C'] * 2 + ['D'] * 4 + ['E'] * 12 +
+    ['F'] * 2 + ['G'] * 3 + ['H'] * 2 + ['I'] * 9 + ['J'] * 1 +
+    ['K'] * 1 + ['L'] * 4 + ['M'] * 2 + ['N'] * 6 + ['O'] * 8 +
+    ['P'] * 2 + ['Q'] * 1 + ['R'] * 6 + ['S'] * 4 + ['T'] * 6 +
+    ['U'] * 4 + ['V'] * 2 + ['W'] * 2 + ['X'] * 1 + ['Y'] * 2 +
+    ['Z'] * 1 + ['*'] * 2
+)
+
+SACS_PAR_LANGUE: Dict[str, List[str]] = {"fr": SAC_LETTRES, "en": SAC_LETTRES_EN}
 
 # ---------------------------------------------------------------------------
 # Niveaux IA — 5 niveaux
@@ -229,8 +244,18 @@ LEAVE_WEIGHT_BY_DIFFICULTY: dict = {
 
 class GameEngine:
    
-    def __init__(self, dictionary_path: str = "dictionnaire.txt"):
+    def __init__(
+        self,
+        dictionary_path: str = "dictionnaire.txt",
+        extra_dictionaries: Optional[Dict[str, str]] = None,
+    ):
+        # Dictionnaire français (langue par défaut) ; valid_words reste son alias
         self.valid_words: Set[str] = self._load_dictionary(dictionary_path)
+        # Un dictionnaire par langue de jeu ; extra_dictionaries = {"en": chemin, …}
+        self.dictionaries: Dict[str, Set[str]] = {DEFAULT_GAME_LANGUAGE: self.valid_words}
+        for lang, path in (extra_dictionaries or {}).items():
+            if lang in GAME_LANGUAGES and lang != DEFAULT_GAME_LANGUAGE:
+                self.dictionaries[lang] = self._load_dictionary(path)
         self.active_games: Dict[str, GameState] = {}
         self.game_difficulty: Dict[str, str] = {}
         # Dernier coup de l'IA par partie, sous forme structurée (lu une fois
@@ -275,8 +300,15 @@ class GameEngine:
             print(f"Erreur: dictionnaire introuvable à {path}.")
             return set()
 
-    def is_word_valid(self, word: str) -> bool:
-        return word.upper() in self.valid_words
+    def supports_language(self, language: str) -> bool:
+        """Vrai si la langue est connue et que son dictionnaire est chargé."""
+        return language in GAME_LANGUAGES and bool(self.dictionaries.get(language))
+
+    def words_for(self, language: str = DEFAULT_GAME_LANGUAGE) -> Set[str]:
+        return self.dictionaries.get(language) or set()
+
+    def is_word_valid(self, word: str, language: str = DEFAULT_GAME_LANGUAGE) -> bool:
+        return word.upper() in self.words_for(language)
 
     def _draw_tiles(self, current_game: GameState, count: int) -> List[Tile]:
         drawn: List[str] = random.sample(
@@ -285,15 +317,24 @@ class GameEngine:
         )
         for letter in drawn:
             current_game.remaining_tiles.remove(letter)
-        return [Tile(letter=l, score=POINTS_LETTRES.get(l, 0)) for l in drawn]
+        points = letter_points(current_game.language)
+        return [Tile(letter=l, score=points.get(l, 0)) for l in drawn]
 
     # ------------------------------------------------------------------
     # Initialisation d'une partie
     # ------------------------------------------------------------------
 
-    def start_new_game(self, player_names: List[str], difficulty: str = AIDifficulty.MEDIUM) -> GameState:
-        random.shuffle(SAC_LETTRES)
-        initial_sac = list(SAC_LETTRES)
+    def start_new_game(
+        self,
+        player_names: List[str],
+        difficulty: str = AIDifficulty.MEDIUM,
+        language: str = DEFAULT_GAME_LANGUAGE,
+    ) -> GameState:
+        if language not in GAME_LANGUAGES:
+            language = DEFAULT_GAME_LANGUAGE
+        points = letter_points(language)
+        initial_sac = list(SACS_PAR_LANGUE[language])
+        random.shuffle(initial_sac)
         game_id = str(uuid.uuid4())
 
         players = []
@@ -301,7 +342,7 @@ class GameEngine:
             is_ai_player = "(IA)" in name.upper()
             player = Player(id=i, name=name, rack=[], is_ai=is_ai_player)
             drawn_letters = random.sample(initial_sac, 7)
-            player.rack = [Tile(letter=l, score=POINTS_LETTRES.get(l, 0)) for l in drawn_letters]
+            player.rack = [Tile(letter=l, score=points.get(l, 0)) for l in drawn_letters]
             for tile_letter in drawn_letters:
                 initial_sac.remove(tile_letter)
             players.append(player)
@@ -311,7 +352,8 @@ class GameEngine:
             board=Board(),
             players=players,
             current_player_index=0,
-            remaining_tiles=initial_sac
+            remaining_tiles=initial_sac,
+            language=language,
         )
 
         self.active_games[game_id] = new_game
@@ -575,7 +617,7 @@ class GameEngine:
             return (False, "Le premier mot doit passer par la case centrale (7, 7).")
 
         for word in formed_words:
-            if not self.is_word_valid(word):
+            if not self.is_word_valid(word, current_game.language):
                 return (False, f"Mot invalide : {word}.")
 
         score = self._calculate_score(tiles_to_place, temp_board)
@@ -807,6 +849,7 @@ class GameEngine:
         board: "Board",
         anchors: List[Tuple[int, int]],
         horizontal: bool,
+        language: str = DEFAULT_GAME_LANGUAGE,
     ) -> Dict[Tuple[int, int], Set[str]]:
         """
         Pour chaque case-ancre, calcule l'ensemble des lettres qui peuvent
@@ -876,7 +919,7 @@ class GameEngine:
                             break
                         cc += 1
  
-                if len(word) == 1 or self.is_word_valid(word):
+                if len(word) == 1 or self.is_word_valid(word, language):
                     valid_letters.add(letter)
  
             # Le joker peut toujours se substituer à n'importe quelle lettre valide
@@ -897,6 +940,7 @@ class GameEngine:
         rack: List[Tile],
         use_bonuses: bool,
         bonus_filter: Optional[List[str]] = None,
+        language: str = DEFAULT_GAME_LANGUAGE,
     ) -> Optional[Tuple[List[Tuple[int, int, str]], int]]:
         """
         Tente de placer `word` en partant de (anchor_r, anchor_c).
@@ -967,7 +1011,7 @@ class GameEngine:
             return None
 
         for w in formed_words:
-            if not self.is_word_valid(w):
+            if not self.is_word_valid(w, language):
                 return None
 
         score = self._calculate_score(tiles_to_place, temp_board, use_bonuses=use_bonuses, bonus_filter=bonus_filter)
@@ -1006,8 +1050,9 @@ class GameEngine:
         )
  
         # ── 1. Cache rack ────────────────────────────────────────
+        language = current_game.language
         rack_letter_list = [t.letter for t in current_player.rack]
-        cache_key = (tuple(sorted(rack_letter_list)), min_len, max_len)
+        cache_key = (tuple(sorted(rack_letter_list)), min_len, max_len, language)
  
         if cache_key in self._rack_word_cache:
             candidate_words = self._rack_word_cache[cache_key]
@@ -1027,7 +1072,7 @@ class GameEngine:
                 return True
  
             filtered = [
-                w for w in self.valid_words
+                w for w in self.words_for(language)
                 if min_len <= len(w) <= max_len and rack_can_spell(w)
             ]
             # On limite la taille du cache (évite une fuite mémoire en fin de partie)
@@ -1045,8 +1090,8 @@ class GameEngine:
  
         # ── 2. Cross-checks par direction ───────────────────────
         # Calculés une seule fois par appel (26 lettres × nb_ancres × 2 directions)
-        cross_h = self._get_cross_checks(current_game.board, anchors, horizontal=True)
-        cross_v = self._get_cross_checks(current_game.board, anchors, horizontal=False)
+        cross_h = self._get_cross_checks(current_game.board, anchors, horizontal=True, language=language)
+        cross_v = self._get_cross_checks(current_game.board, anchors, horizontal=False, language=language)
  
         # ── 3. Génération des coups candidats ───────────────────
         leave_weight = LEAVE_WEIGHT_BY_DIFFICULTY.get(difficulty, 0.0)
@@ -1099,7 +1144,7 @@ class GameEngine:
                         result = self._try_place_word(
                             word, start_r, start_c, horizontal,
                             current_game.board, current_player.rack,
-                            use_bonuses, bonus_filter,
+                            use_bonuses, bonus_filter, language=language,
                         )
  
                         if result:
@@ -1120,7 +1165,7 @@ class GameEngine:
                             joker_result = self._best_joker_word(
                                 word, start_r, start_c, horizontal,
                                 current_game.board, current_player.rack,
-                                use_bonuses, bonus_filter,
+                                use_bonuses, bonus_filter, language=language,
                             )
                             if joker_result:
                                 placements, score, _ = joker_result
@@ -1320,6 +1365,7 @@ class GameEngine:
         rack: List["Tile"],
         use_bonuses: bool,
         bonus_filter: Optional[List[str]],
+        language: str = DEFAULT_GAME_LANGUAGE,
     ) -> Optional[Tuple[List[Tuple[int, int, str]], int, str]]:
         """
         Lorsqu'un mot nécessite un joker ('*' dans le rack), teste toutes
@@ -1373,14 +1419,14 @@ class GameEngine:
             )
  
             # Le mot doit exister dans le dictionnaire avec cette lettre
-            if not self.is_word_valid(word_with_joker):
+            if not self.is_word_valid(word_with_joker, language):
                 continue
  
             result = self._try_place_word(
                 word_with_joker,
                 anchor_r, anchor_c, horizontal,
                 board, rack,
-                use_bonuses, bonus_filter,
+                use_bonuses, bonus_filter, language=language,
             )
             if result is None:
                 continue

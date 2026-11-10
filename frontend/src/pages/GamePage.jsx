@@ -26,6 +26,7 @@ import DesktopGameLayout, { Legend } from '../components/DesktopGameLayout';
 import MoveHistory, { HistoryButton } from '../components/MoveHistory';
 import { lastPlayedCells } from '../utils/gameState';
 import { setPresenceActivity } from '../utils/presence';
+import { GAME_LANGUAGES, languageTag, languageName } from '../utils/gameLanguage';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ function AbandonModal({ onConfirm, onCancel, t }) {
 
 export default function GamePage() {
   const { isAuthenticated, user } = useAuth();
-  const { settings, DIFFICULTY_META } = useSettings();
+  const { settings, update: updateSetting, DIFFICULTY_META } = useSettings();
   const { t, tp }              = useLanguage();
   const { toasts, dismissToast, addToast } = useToast();
   // Avant : seul addToast était passé → partie au nom de « Joueur » et
@@ -250,6 +251,27 @@ export default function GamePage() {
             </div>
           </div>
 
+          {/* Langue de la partie : dictionnaire, sac et valeurs des lettres */}
+          <div className="gl-field" role="radiogroup" aria-label={t('gl_label')}>
+            <div className="gl-label">{t('gl_label')}</div>
+            <div className="rr-chips">
+              {GAME_LANGUAGES.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  lang={opt.value}
+                  aria-checked={(settings.gameLanguage ?? 'fr') === opt.value}
+                  className="rr-chip"
+                  onClick={() => updateSetting('gameLanguage', opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="gl-hint">{t('gl_hint')}</div>
+          </div>
+
           {/* Partie non terminée : on propose de la reprendre */}
           {game.resumeOffer ? (() => {
             const gs    = game.resumeOffer.gameState;
@@ -265,7 +287,7 @@ export default function GamePage() {
                   <b>{ai?.score ?? 0}</b><span>{ai?.name}</span>
                 </div>
                 <div className="resume-meta">
-                  {tp('resume_bag', gs.remaining_tiles?.length ?? 0)}
+                  {languageName(gs.language)} · {tp('resume_bag', gs.remaining_tiles?.length ?? 0)}
                   {settings.turnDuration > 0 && left > 0 && ` · ${t('resume_time_left', { time: formatTime(Math.min(left, settings.turnDuration)) })}`}
                 </div>
                 <RetroButton variant="primary" fullWidth onClick={game.resumeGame}>
@@ -275,7 +297,7 @@ export default function GamePage() {
                   variant="default"
                   fullWidth
                   disabled={game.isLoading}
-                  onClick={() => game.startGame(settings.difficulty)}
+                  onClick={() => game.startGame(settings.difficulty, settings.gameLanguage)}
                   style={{ marginTop: '12px' }}
                 >
                   {game.isLoading ? t('start_loading') : t('resume_new')}
@@ -288,7 +310,7 @@ export default function GamePage() {
               variant="primary"
               fullWidth
               disabled={game.isLoading}
-              onClick={() => game.startGame(settings.difficulty)}
+              onClick={() => game.startGame(settings.difficulty, settings.gameLanguage)}
             >
               {game.isLoading ? t('start_loading') : `▶ ${t('start_btn')}`}
             </RetroButton>
@@ -339,7 +361,7 @@ export default function GamePage() {
 
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '2rem', }}>
             <RetroButton
-              onClick={() => game.startGame(settings.difficulty)}
+              onClick={() => game.startGame(settings.difficulty, settings.gameLanguage)}
               variant="primary"
             >
               {t('game_replay')}
@@ -395,7 +417,7 @@ export default function GamePage() {
               players={players}
               activeIndex={activeIndex}
               bagCount={settings.showRemainingTiles ? (game.gameState.remaining_tiles?.length ?? 0) : null}
-              bagLabel={t('mg_bag')}
+              bagLabel={`${t('mg_bag')} · ${languageTag(game.gameState.language)}`}
               extra={<>{pauseButton}<TutorialButton t={t} inline /></>}
               below={settings.turnDuration > 0 ? (
                 <TurnTimer

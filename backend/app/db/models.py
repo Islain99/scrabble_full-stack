@@ -12,6 +12,7 @@ def utcnow() -> datetime:
 # Valeurs par défaut des préférences — miroir de SettingsContext.jsx
 DEFAULT_PREFERENCES: dict = {
     "difficulty":         "medium",
+    "gameLanguage":       "fr",   # langue des parties solo (dictionnaire, sac, valeurs)
     "turnDuration":       0,
     "showScorePreview":   True,
     "showRemainingTiles": True,

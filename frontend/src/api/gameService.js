@@ -6,11 +6,12 @@ const BASE = import.meta.env.VITE_API_BASE_URL
 
 const API_URL = `${BASE}/game`;
 
-export const startGame = async (playerNames, difficulty = 'medium') => {
+export const startGame = async (playerNames, difficulty = 'medium', language = 'fr') => {
     try {
         const response = await axios.post(
-            `${API_URL}/start?difficulty=${difficulty}`,
-            playerNames
+            `${API_URL}/start`,
+            playerNames,
+            { params: { difficulty, language } }
         );
         return response.data;
     } catch (error) {

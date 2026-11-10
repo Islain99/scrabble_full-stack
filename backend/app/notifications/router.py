@@ -90,6 +90,7 @@ def _invite_payload(inv: GameInvitation, inviter: User, rules: RoomSettings) -> 
         "turn_seconds": rules.turn_seconds,
         "allow_swap": rules.allow_swap,
         "target_score": rules.target_score,
+        "language": rules.language,
     }
 
 

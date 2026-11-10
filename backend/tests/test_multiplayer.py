@@ -743,14 +743,14 @@ async def test_host_rules_are_shown_before_joining(client, login, players, rtdb)
 async def test_invalid_rules_are_refused(client, login, players, rtdb):
     login(players["alice"])
     for bad in ({"turn_seconds": 45}, {"max_passes": 5}, {"target_score": 100},
-                {"visibility": "secret"}, {"name": "x" * 41}):
+                {"visibility": "secret"}, {"name": "x" * 41}, {"language": "de"}):
         r = await client.post(f"{API}/rooms", json={"settings": bad})
         assert r.status_code == 422, (bad, r.text)
     r = await client.post(f"{API}/rooms")            # sans corps : règles par défaut
     assert r.status_code == 201
     assert r.json()["settings"] == {
         "name": None, "visibility": "private", "turn_seconds": 0, "allow_swap": True,
-        "show_preview": True, "max_passes": 6, "target_score": None,
+        "show_preview": True, "max_passes": 6, "target_score": None, "language": "fr",
     }
 
 
@@ -1022,3 +1022,40 @@ async def test_solo_route_refuses_multiplayer_rows(client, login, players, sqlit
     r = await client.post("/api/v2/users/me/games", json={
         "game_id": "mp:FAKE00:host", "user_score": 500, "ai_score": 0, "won": True, "ai_difficulty": "multiplayer"})
     assert r.status_code == 422
+
+
+# ── Langue de jeu choisie par l'hôte ─────────────────────────────
+
+async def test_english_room_plays_in_english(client, login, players, rtdb, monkeypatch):
+    lobby = []
+    monkeypatch.setattr(mp_router, "_lobby_write", lambda room_id, entry: lobby.append(entry))
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms", json={"settings": {"visibility": "public", "language": "en"}})
+    assert r.status_code == 201, r.text
+    code = r.json()["room_id"]
+    assert r.json()["settings"]["language"] == "en"
+    assert lobby[0]["language"] == "en"              # affichée dans les salons publics
+
+    login(players["bruno"])
+    assert (await client.get(f"{API}/rooms/{code}/preview")).json()["settings"]["language"] == "en"
+    r = await client.post(f"{API}/rooms/{code}/join")
+    assert r.status_code == 200, r.text
+    state = r.json()["game_state"]
+    assert state["language"] == "en"
+    from api.models import POINTS_LETTRES_EN
+    rack = state["players"][1]["rack"]
+    assert all(t["score"] == POINTS_LETTRES_EN[t["letter"]] for t in rack)
+
+
+async def test_rematch_keeps_the_language(client, login, players, rtdb):
+    login(players["alice"])
+    r = await client.post(f"{API}/rooms", json={"settings": {"language": "en"}})
+    code = r.json()["room_id"]
+    login(players["bruno"])
+    await client.post(f"{API}/rooms/{code}/join")
+    await client.post(f"{API}/rooms/{code}/resign")
+    r = await client.post(f"{API}/rooms/{code}/rematch")
+    assert r.status_code == 200, r.text
+    new_code = r.json()["room_id"]
+    login(players["alice"])
+    assert (await client.get(f"{API}/rooms/{new_code}/preview")).json()["settings"]["language"] == "en"

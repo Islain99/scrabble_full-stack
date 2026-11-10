@@ -1,32 +1,29 @@
-# Instructions pour le dictionnaire français
+# Dictionnaires du jeu
 
-Le fichier `backend/api/dictionnaire.txt` est actuellement vide.
-Pour que le jeu valide les mots, vous devez le remplir.
+Le jeu se joue en français ou en anglais. Chaque partie a sa langue
+(`GameState.language`) : elle fixe le dictionnaire, le sac et la valeur
+des lettres. Les fichiers contiennent un mot par ligne ; la casse n'a pas
+d'importance (le moteur fait `.upper()`).
 
-## Option recommandée — ODS (Officiel Du Scrabble)
+| Langue   | Fichier                        | Liste                         | Sac                         |
+|----------|--------------------------------|-------------------------------|-----------------------------|
+| Français | `backend/api/dictionnaire.txt` | ODS (≈ 411 000 mots)          | 100 lettres + 2 jokers      |
+| Anglais  | `backend/api/dictionnaire_en.txt` | ENABLE (≈ 173 000 mots), domaine public | 98 lettres + 2 jokers (édition nord-américaine) |
 
-Téléchargez la liste de mots ODS8 (officielle) depuis :
-https://www.j-perreau.fr/scrabble/ods8.txt
+## Anglais — liste ENABLE
 
-Puis placez le fichier à :
-```
-backend/api/dictionnaire.txt
-```
+ENABLE (*Enhanced North American Benchmark Lexicon*) est dans le domaine
+public. Elle ne contient pas certains mots récents des listes officielles
+(TWL, Collins), qui sont sous droits et ne peuvent pas être redistribuées.
 
-Le fichier doit contenir un mot par ligne, en majuscules ou minuscules
-(le moteur fait `.upper()` automatiquement).
-
-## Option alternative — liste Gutenberg
-
-```bash
-curl -o backend/api/dictionnaire.txt \
-  https://raw.githubusercontent.com/words/french-word-list/master/index.txt
-```
+Source utilisée : https://raw.githubusercontent.com/dolph/dictionary/master/enable1.txt
 
 ## Vérification
 
-Le backend affiche au démarrage :
+Au démarrage, le backend journalise pour chaque langue :
 ```
-FILE EXISTS: True
+Dictionnaire fr : …/dictionnaire.txt (trouvé, 411430 mots)
+Dictionnaire en : …/dictionnaire_en.txt (trouvé, 172823 mots)
 ```
-Si c'est `False`, le chemin est incorrect.
+Si un fichier manque, les parties dans cette langue sont refusées
+(HTTP 503) ; l'autre langue continue de fonctionner.
