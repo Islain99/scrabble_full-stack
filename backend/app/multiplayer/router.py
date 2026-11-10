@@ -653,12 +653,15 @@ async def _join_waiting_room(room_id: str, current_user: User, db: AsyncSession,
     host_result = await db.execute(select(User).where(User.id == room.host_user_id))
     host = host_result.scalar_one()
 
+    rules = _room_settings(room)              # G1 : règles de fin appliquées par le moteur
+    if not engine.supports_language(rules.language):
+        raise HTTPException(status_code=503, detail="Le dictionnaire de cette salle est indisponible pour le moment.")
     game_state = engine.start_new_game(
         player_names=[host.display_name, current_user.display_name],
         difficulty="medium",
+        language=rules.language,
     )
     engine.forget_game(game_state.game_id)  # S1 : la référence est en base
-    rules = _room_settings(room)              # G1 : règles de fin appliquées par le moteur
     game_state.max_passes   = rules.max_passes
     game_state.target_score = rules.target_score
     gs_dict = _game_state_to_dict(game_state)
@@ -705,8 +708,11 @@ async def create_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _get_engine(request)  # vérifie que le moteur est prêt
-    return await _create_waiting_room(db, current_user, body.settings if body else None)
+    engine = _get_engine(request)  # vérifie que le moteur est prêt
+    settings = body.settings if body else None
+    if settings is not None and not engine.supports_language(settings.language):
+        raise HTTPException(status_code=503, detail="Le dictionnaire de cette langue est indisponible pour le moment.")
+    return await _create_waiting_room(db, current_user, settings)
 
 
 @router.get(

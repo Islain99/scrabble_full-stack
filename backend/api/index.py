@@ -16,7 +16,7 @@ from fastapi import HTTPException, Query
 
 from app.main import app  # ← instance unique, lifespan et middlewares inclus
 from app.solo.store import solo_store
-from api.models import GameState
+from api.models import GameState, GAME_LANGUAGES, DEFAULT_GAME_LANGUAGE
 from api.game_logic import AIDifficulty, AI_CONFIG
 
 
@@ -78,15 +78,20 @@ def list_difficulties():
 async def start_game(
     player_names: List[str],
     difficulty: str = Query(default=AIDifficulty.MEDIUM),
+    language: str = Query(default=DEFAULT_GAME_LANGUAGE),
 ):
     if len(player_names) < 2:
         raise HTTPException(status_code=400, detail="Il faut au moins deux joueurs.")
     if difficulty not in AI_CONFIG:
         valid = ", ".join(AI_CONFIG.keys())
         raise HTTPException(status_code=400, detail=f"Niveau invalide. Valeurs acceptées : {valid}")
+    if language not in GAME_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Langue invalide. Valeurs acceptées : {', '.join(GAME_LANGUAGES)}")
     engine = _engine()
-    # Méthode réelle : start_new_game(player_names, difficulty)
-    game = engine.start_new_game(player_names, difficulty=difficulty)
+    if not engine.supports_language(language):
+        raise HTTPException(status_code=503, detail=f"Dictionnaire indisponible pour la langue « {language} ».")
+    # Méthode réelle : start_new_game(player_names, difficulty, language)
+    game = engine.start_new_game(player_names, difficulty=difficulty, language=language)
     return await _save_game(engine, game)
 
 
@@ -204,6 +209,8 @@ async def ai_play_turn(game_id: str):
 # ── /game/validate ────────────────────────────────────────────────
 
 @app.get("/game/validate", tags=["Jeu"])
-async def validate_word(word: str):
-    # Méthode réelle : is_word_valid(word) → bool
-    return {"word": word.upper(), "valid": _engine().is_word_valid(word)}
+async def validate_word(word: str, language: str = Query(default=DEFAULT_GAME_LANGUAGE)):
+    if language not in GAME_LANGUAGES:
+        raise HTTPException(status_code=400, detail=f"Langue invalide. Valeurs acceptées : {', '.join(GAME_LANGUAGES)}")
+    # Méthode réelle : is_word_valid(word, language) → bool
+    return {"word": word.upper(), "language": language, "valid": _engine().is_word_valid(word, language)}

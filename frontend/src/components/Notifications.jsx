@@ -8,10 +8,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { formatTurn } from '../utils/roomRules';
+import { languageName } from '../utils/gameLanguage';
 import { RetroButton } from './ui';
 
 function inviteRules(n, t) {
-  const parts = [n.turn_seconds ? `⏱ ${formatTurn(n.turn_seconds, t)}` : t('pr_no_timer')];
+  const parts = [languageName(n.language), n.turn_seconds ? `⏱ ${formatTurn(n.turn_seconds, t)}` : t('pr_no_timer')];
   if (n.allow_swap === false) parts.push(t('pr_no_swap'));
   if (n.target_score) parts.push(`${n.target_score} pts`);
   return parts.join(' · ');

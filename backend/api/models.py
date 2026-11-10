@@ -11,6 +11,27 @@ POINTS_LETTRES: Dict[str, int] = {
     'Y': 10, 'Z': 10, '*': 0 # * est le joker
 }
 
+# Valeurs des lettres du Scrabble anglais (édition nord-américaine)
+POINTS_LETTRES_EN: Dict[str, int] = {
+    'A': 1, 'B': 3, 'C': 3, 'D': 2, 'E': 1, 'F': 4, 'G': 2, 'H': 4,
+    'I': 1, 'J': 8, 'K': 5, 'L': 1, 'M': 3, 'N': 1, 'O': 1, 'P': 3,
+    'Q': 10, 'R': 1, 'S': 1, 'T': 1, 'U': 1, 'V': 4, 'W': 4, 'X': 8,
+    'Y': 4, 'Z': 10, '*': 0
+}
+
+# Langues de jeu : chacune a son dictionnaire, son sac et ses valeurs
+GAME_LANGUAGES = ("fr", "en")
+DEFAULT_GAME_LANGUAGE = "fr"
+POINTS_PAR_LANGUE: Dict[str, Dict[str, int]] = {
+    "fr": POINTS_LETTRES,
+    "en": POINTS_LETTRES_EN,
+}
+
+
+def letter_points(language: str) -> Dict[str, int]:
+    """Valeurs des lettres pour une langue de jeu (français par défaut)."""
+    return POINTS_PAR_LANGUE.get(language, POINTS_LETTRES)
+
 class GameStatus(str, Enum):
     """Statuts possibles pour l'état de la partie."""
     SETUP = "SETUP"
@@ -80,4 +101,6 @@ class GameState(BaseModel):
     max_passes: int = 6                   # fin après N passes successives
     target_score: Optional[int] = None    # fin dès qu'un joueur atteint ce score
     # Multijoueur, minuteur : fin du tour en cours (ISO 8601, UTC), fixée par le serveur
-    turn_deadline: Optional[str] = None
+    turn_deadline: Optional[str] = None    # Langue de jeu : dictionnaire, sac et valeurs des lettres. Les parties
+    # enregistrées avant l'ajout de l'anglais n'ont pas ce champ : elles restent en français.
+    language: str = "fr"

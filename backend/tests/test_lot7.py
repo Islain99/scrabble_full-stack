@@ -375,3 +375,14 @@ async def test_delete_account(client, login, users, live, sqlite_db):
                  f"chat/global/messages/{gmsg['id']}", f"chat/{priv['key']}", f"inbox/uid-bruno/{priv['id']}"):
         assert path in root and root[path] is None, path
     assert live["auth_deleted"] == ["uid-alice"]
+
+
+# ── Langue de jeu des parties solo (préférence) ───────────────────
+
+async def test_game_language_preference(client, login, users):
+    login(users["alice"])
+    r = await client.put(f"{API}/users/me/preferences", json={"gameLanguage": "en"})
+    assert r.status_code == 200, r.text
+    assert r.json()["gameLanguage"] == "en"
+    r = await client.put(f"{API}/users/me/preferences", json={"gameLanguage": "de"})
+    assert r.status_code == 422

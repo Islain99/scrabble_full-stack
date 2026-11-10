@@ -80,6 +80,9 @@ class RoomSettings(BaseModel):
     show_preview: bool = True                                # aperçu du score avant validation (client)
     max_passes:   Literal[4, 6] = 6                          # fin après N passes successives
     target_score: Optional[Literal[150, 250, 400]] = None    # fin dès qu'un joueur l'atteint
+    # Langue de jeu : dictionnaire, sac et valeurs des lettres.
+    # Les salles créées avant l'ajout de l'anglais n'ont pas ce champ : français.
+    language:     Literal["fr", "en"] = "fr"
 
     @field_validator("name")
     @classmethod

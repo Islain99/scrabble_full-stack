@@ -8,6 +8,17 @@ export const POINTS_LETTRES = {
     'Y': 10, 'Z': 10, '*': 0 
 };
 
+// Valeurs du Scrabble anglais (édition nord-américaine) — miroir de POINTS_LETTRES_EN (backend)
+export const POINTS_LETTRES_EN = {
+    'A': 1, 'B': 3, 'C': 3, 'D': 2, 'E': 1, 'F': 4, 'G': 2, 'H': 4,
+    'I': 1, 'J': 8, 'K': 5, 'L': 1, 'M': 3, 'N': 1, 'O': 1, 'P': 3,
+    'Q': 10, 'R': 1, 'S': 1, 'T': 1, 'U': 1, 'V': 4, 'W': 4, 'X': 8,
+    'Y': 4, 'Z': 10, '*': 0
+};
+
+/** Valeurs des lettres d'une langue de jeu ('fr' par défaut). */
+export const letterPoints = (language) => (language === 'en' ? POINTS_LETTRES_EN : POINTS_LETTRES);
+
 export const BONUS_MAP = {
     '0-0':'TM',  '0-7':'TM',  '0-14':'TM',
     '7-0':'TM',  '7-14':'TM',

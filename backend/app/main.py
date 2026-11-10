@@ -43,17 +43,23 @@ settings = get_settings()
 
 _API_DIR = Path(__file__).resolve().parent.parent / "api"
 DICTIONARY_PATH = _API_DIR / "dictionnaire.txt"
+# Anglais : liste ENABLE (domaine public), un mot par ligne
+DICTIONARY_EN_PATH = _API_DIR / "dictionnaire_en.txt"
 
 
 def _load_game_engine():
     """Charge le GameEngine dans un thread pour ne pas bloquer la boucle async."""
     from api.game_logic import GameEngine
-    ge = GameEngine(dictionary_path=str(DICTIONARY_PATH))
-    logger.info(
-        "Dictionnaire chargé : %s (%s)",
-        DICTIONARY_PATH,
-        "trouvé" if DICTIONARY_PATH.exists() else "INTROUVABLE",
+    ge = GameEngine(
+        dictionary_path=str(DICTIONARY_PATH),
+        extra_dictionaries={"en": str(DICTIONARY_EN_PATH)},
     )
+    for lang, path in (("fr", DICTIONARY_PATH), ("en", DICTIONARY_EN_PATH)):
+        logger.info(
+            "Dictionnaire %s : %s (%s, %d mots)",
+            lang, path, "trouvé" if path.exists() else "INTROUVABLE",
+            len(ge.words_for(lang)),
+        )
     return ge
 
 

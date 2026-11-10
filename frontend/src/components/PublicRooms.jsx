@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { usePublicRooms } from '../hooks/usePublicRooms';
 import { TURN_CHOICES, formatTurn, roomDisplayName } from '../utils/roomRules';
+import { GAME_LANGUAGES, languageTag, languageName } from '../utils/gameLanguage';
 import { Spinner } from './ui';
 
 /** « à l'instant », « il y a 4 min », « il y a 1 h » */
@@ -23,6 +24,7 @@ export default function PublicRooms({ onSelect, enabled = true }) {
   const { rooms, live } = usePublicRooms(enabled);
   const [query, setQuery] = useState('');
   const [timer, setTimer] = useState('all');   // 'all' | 'none' | secondes
+  const [lang, setLang]   = useState('all');   // 'all' | 'fr' | 'en'
   const [now, setNow] = useState(0);
 
   // Horloge pour les « il y a … » (pas d'heure lue pendant le rendu)
@@ -37,13 +39,16 @@ export default function PublicRooms({ onSelect, enabled = true }) {
     const q = query.trim().toLowerCase();
     return (rooms ?? []).filter(r => {
       const seconds = r.settings?.turn_seconds ?? 0;
+      if (lang !== 'all' && (r.settings?.language ?? 'fr') !== lang) return false;
       if (timer === 'none' && seconds !== 0) return false;
       if (typeof timer === 'number' && seconds !== timer) return false;
       if (!q) return true;
       const name = roomDisplayName(r.settings, r.host_name, t).toLowerCase();
       return name.includes(q) || (r.host_name ?? '').toLowerCase().includes(q);
     });
-  }, [rooms, query, timer, t]);
+  }, [rooms, query, timer, lang, t]);
+
+  const langOptions = [{ value: 'all', label: t('pr_all_languages') }, ...GAME_LANGUAGES];
 
   const timerOptions = [
     { value: 'all', label: t('pr_all') },
@@ -72,6 +77,20 @@ export default function PublicRooms({ onSelect, enabled = true }) {
           placeholder={t('pr_search')}
           aria-label={t('pr_search')}
         />
+        <div className="rr-chips" role="radiogroup" aria-label={t('rr_language')}>
+          {langOptions.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={lang === opt.value}
+              className="rr-chip"
+              onClick={() => setLang(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <div className="rr-chips" role="radiogroup" aria-label={t('rr_turn')}>
           {timerOptions.map(opt => (
             <button
@@ -105,6 +124,7 @@ export default function PublicRooms({ onSelect, enabled = true }) {
                   </span>
                 </span>
                 <span className="pr-tags">
+                  <span className="pr-tag" title={languageName(r.settings?.language)}>{languageTag(r.settings?.language)}</span>
                   <span className="pr-tag">
                     {r.settings?.turn_seconds ? `⏱ ${formatTurn(r.settings.turn_seconds, t)}` : t('pr_no_timer')}
                   </span>

@@ -24,6 +24,7 @@ export const useSettings = () => {
 
 const DEFAULTS = {
   difficulty:         'medium',
+  gameLanguage:       'fr',        // langue des parties solo (dictionnaire, sac, valeurs)
   turnDuration:       0,
   showScorePreview:   true,
   showRemainingTiles: true,

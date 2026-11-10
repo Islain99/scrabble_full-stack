@@ -38,6 +38,7 @@ import MoveHistory, { HistoryButton } from '../components/MoveHistory';
 import PublicRooms from '../components/PublicRooms';
 import TurnTimer from '../components/TurnTimer';
 import { RoomSetupModal, RoomPreviewModal, RulesSummary } from '../components/RoomRules';
+import { languageTag } from '../utils/gameLanguage';
 import { roomDisplayName } from '../utils/roomRules';
 import { useIsMobile } from '../hooks/useViewport';
 import {
@@ -461,7 +462,7 @@ function PlayingScreen({ mp, roomId = null, onRematch, rematchBusy = false, addT
               players={gameState.players}
               activeIndex={gameState.current_player_index}
               bagCount={(gameState.remaining_tiles ?? []).length}
-              bagLabel={t('mg_bag')}
+              bagLabel={`${t('mg_bag')} · ${languageTag(gameState.language)}`}
               extra={
                 <MoreMenu
                   placement="down"
@@ -605,7 +606,7 @@ function PlayingScreen({ mp, roomId = null, onRematch, rematchBusy = false, addT
           <HistoryButton onClick={() => setShowHistory(true)} />
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-invert)', borderRadius: '2px', padding: '4px 12px', border: '1.5px solid var(--border-gold)' }}>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: 'var(--text-invert-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {t('mg_bag')}
+              {t('mg_bag')} · {languageTag(gameState.language)}
             </span>
             <span style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>
               {(gameState.remaining_tiles ?? []).length}

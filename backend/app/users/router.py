@@ -129,6 +129,7 @@ class SaveGameRequest(BaseModel):
 class PreferencesResponse(BaseModel):
     """Préférences de jeu d'un utilisateur."""
     difficulty:         str
+    gameLanguage:       str = "fr"
     turnDuration:       int
     showScorePreview:   bool
     showRemainingTiles: bool
@@ -150,6 +151,7 @@ class PreferencesPatchRequest(BaseModel):
     Seuls les champs fournis sont mis à jour (PATCH sémantique).
     """
     difficulty:         str | None = None
+    gameLanguage:       str | None = None
     turnDuration:       int | None = None
     showScorePreview:   bool | None = None
     showRemainingTiles: bool | None = None
@@ -163,6 +165,13 @@ class PreferencesPatchRequest(BaseModel):
     pushFriends:        bool | None = None
     pushMessages:       bool | None = None
     pushTurn:           bool | None = None
+
+    @field_validator("gameLanguage")
+    @classmethod
+    def validate_game_language(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("fr", "en"):
+            raise ValueError("Langue de jeu invalide. Valeurs autorisées : fr, en")
+        return v
 
     @field_validator("difficulty")
     @classmethod

@@ -129,7 +129,7 @@ export function useMultiplayerGame({
   const availableRackTiles = myRack.filter(t => !placedOriginals.includes(t));
 
   const previewScore = useMemo(
-    () => calculatePreviewScore(placements, gameState?.board?.grid),
+    () => calculatePreviewScore(placements, gameState?.board?.grid, gameState?.language),
     [placements, gameState]
   );
 

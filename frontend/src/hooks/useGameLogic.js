@@ -103,7 +103,7 @@ export function useGameLogic({
   );
 
   const previewScore = useMemo(
-    () => calculatePreviewScore(placements, gameState?.board?.grid),
+    () => calculatePreviewScore(placements, gameState?.board?.grid, gameState?.language),
     [placements, gameState]
   );
   const isSwapMode   = selectedTilesToSwap.length > 0;
@@ -180,7 +180,7 @@ export function useGameLogic({
   const initSwapMode  = useCallback(() => setSelectedTilesToSwap(['__placeholder__']), []);
   const clearSwapMode = useCallback(() => setSelectedTilesToSwap([]), []);
 
-  const startGame = useCallback(async (difficulty = 'medium') => {
+  const startGame = useCallback(async (difficulty = 'medium', language = 'fr') => {
     setIsLoading(true);
     // Une partie en cours proposée à la reprise est abandonnée sans être comptée
     if (resumeOffer) {
@@ -190,7 +190,7 @@ export function useGameLogic({
     }
     try {
       const playerName = isAuthenticated && user?.display_name ? user.display_name : t('player_default');
-      const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)'], difficulty);
+      const initialGame = await gameService.startGame([playerName, 'HAL 9000 (IA)'], difficulty, language);
       setGameDifficulty(difficulty);
       setGameState(initialGame);
       setGameId(initialGame.game_id);

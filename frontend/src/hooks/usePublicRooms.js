@@ -27,6 +27,7 @@ function fromLobbyNode(node) {
       created_at: Number(e.created_at) || 0,
       settings: {
         name: e.name ?? null,
+        language: e.language ?? 'fr',
         turn_seconds: e.turn_seconds ?? 0,
         allow_swap: e.allow_swap ?? true,
         show_preview: e.show_preview ?? true,
