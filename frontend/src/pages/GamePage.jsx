@@ -113,7 +113,7 @@ function AbandonModal({ onConfirm, onCancel, t }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--bg-page)', border: '3px solid #8B2020', borderRadius: '3px', padding: '2rem 2.4rem', maxWidth: '420px', width: '100%', boxShadow: '8px 8px 0 #8B2020', textAlign: 'center',}}
+        style={{ background: 'var(--bg-page)', border: '3px solid var(--brick)', borderRadius: '3px', padding: '2rem 2.4rem', maxWidth: '420px', width: '100%', boxShadow: '8px 8px 0 var(--brick)', textAlign: 'center',}}
       >
         <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>🏳️</div>
         <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 900, color: 'var(--brick)', margin: '0 0 8px', letterSpacing: '-0.02em',}}>

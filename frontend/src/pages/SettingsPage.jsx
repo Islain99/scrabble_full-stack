@@ -10,6 +10,7 @@ import { Row, Toggle, SectionTitle } from '../components/settings/SettingsParts'
 import NotificationsCard from '../components/settings/NotificationsCard';
 import AccountCard from '../components/settings/AccountCard';
 import PrivacyCard from '../components/settings/PrivacyCard';
+import PalettePicker from '../components/settings/PalettePicker';
 
 // ── Composants internes ───────────────────────────────────────────
 
@@ -61,7 +62,7 @@ function SyncBadge({ syncing, lastSynced, label }) {
       background: syncing
         ? 'var(--bg-card-alt)'
         : lastSynced
-          ? 'rgba(94,107,58,0.12)'
+          ? 'color-mix(in srgb, var(--olive) 12%, transparent)'
           : 'var(--bg-card-alt)',
       border: `1px solid ${
         syncing   ? 'var(--border-muted)' :
@@ -156,6 +157,11 @@ export default function SettingsPage() {
               <Row label={t('row_theme')} desc={t('row_theme_desc')}>
                 <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
               </Row>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <Row label={t('row_palette')} desc={t('row_palette_desc')} />
+                <PalettePicker />
+              </div>
 
               <div style={{ borderTop: '1px solid var(--border-muted)' }} />
 
@@ -351,4 +357,4 @@ export default function SettingsPage() {
       </div>
     </div>
   );
-}
+}
