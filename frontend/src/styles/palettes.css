@@ -628,3 +628,773 @@
   --shadow-card:         #000000;
   --bg-grid-line:        rgba(242,179,61,0.03);
 }
+
+/* ── Lavande — lilas, prune et or pâle · clair */
+[data-palette="lavande"][data-theme="light"] {
+  /* Surfaces */
+  --bg-page:             #F4F1F8;
+  --bg-page-alt:         #E7E1F0;
+  --bg-card:             #FBF9FD;
+  --bg-card-alt:         #EFEAF6;
+  --bg-input:            #EFEAF6;
+  --bg-invert:           #261A3A;
+  --bg-invert-alt:       #3E2F57;
+  /* Textes */
+  --text-primary:        #261A3A;
+  --text-secondary:      #3E2F57;
+  --text-muted:          #6A5F7E;
+  --text-invert:         #FBF9FD;
+  --text-invert-muted:   #E8C468;
+  /* Bordures */
+  --border-primary:      #261A3A;
+  --border-muted:        #D6CDE4;
+  --border-gold:         #B89BD9;
+  --border-gold-dk:      #7A5AA6;
+  /* Accents */
+  --tobacco:             #7B4FB5;
+  --tobacco-dk:          #5E3A8E;
+  --olive:               #3F7A52;
+  --olive-dk:            #356848;
+  --brick:               #B83A4B;
+  --blue:                #3A5BA8;
+  --blue-lt:             #6A8AD8;
+  --gold:                #C9A040;
+  --gold-dk:             #8A6A20;
+  --muted:               #6A5F7E;
+  /* Tuiles */
+  --tile-bg:             #F6EFDF;
+  --tile-border:         #CBB98F;
+  --tile-shadow:         #8E7E5A;
+  --tile-text:           #261A3A;
+  --tile-score:          #5E5040;
+  --tile-temp-bg:        #DDEFD8;
+  --tile-temp-border:    #4E8A62;
+  --tile-temp-shadow:    #356848;
+  --tile-temp-text:      #1E4A2C;
+  --tile-sel-bg:         #E4D4F5;
+  --tile-sel-border:     #7B4FB5;
+  --tile-sel-shadow:     #4A2A78;
+  --tile-joker-bg:       #ECE8F2;
+  --tile-joker-border:   #B0A6C2;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#5A4280 0%,#46326A 60%,#382856 100%);
+  --rack-border:         #261A3A;
+  --rack-shadow:         #150E22;
+  --rack-label-bg:       #E8C468;
+  --rack-label-text:     #261A3A;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#3A2A5C 0%,#4A3872 45%,#3E2D62 100%);
+  --board-border:        #7A5AA6;
+  --board-shadow:        #150E22;
+  --board-grid-bg:       #2C2048;
+  --board-cell-empty:    rgba(74,56,114,0.6);
+  --board-cell-hover:    rgba(232,196,104,0.4);
+  --board-rivet:         #E8C468;
+  /* Cases bonus */
+  --bonus-tm:            #C8506A;
+  --bonus-tm-text:       #FFF0F3;
+  --bonus-dm:            #E0A0C8;
+  --bonus-dm-text:       #3A0A2A;
+  --bonus-tl:            #3A5BA8;
+  --bonus-tl-text:       #E2EAFF;
+  --bonus-dl:            #8FB0E8;
+  --bonus-dl-text:       #0E2048;
+  --bonus-start:         #E0A0C8;
+  --bonus-start-text:    #3A0A2A;
+  /* Ombres & grille */
+  --shadow-card:         #7B4FB5;
+  --bg-grid-line:        rgba(123,79,181,0.06);
+}
+
+/* ── Lavande — lilas, prune et or pâle · sombre */
+[data-palette="lavande"][data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:             #14101C;
+  --bg-page-alt:         #1C1626;
+  --bg-card:             #1C1626;
+  --bg-card-alt:         #251E32;
+  --bg-input:            #251E32;
+  --bg-invert:           #E6DCF5;
+  --bg-invert-alt:       #B89BD9;
+  /* Textes */
+  --text-primary:        #EAE3F4;
+  --text-secondary:      #C4B8D6;
+  --text-muted:          #8A7F9D;
+  --text-invert:         #14101C;
+  --text-invert-muted:   #5E3A8E;
+  /* Bordures */
+  --border-primary:      #B89BD9;
+  --border-muted:        #342A44;
+  --border-gold:         #8A6AB0;
+  --border-gold-dk:      #5A4280;
+  /* Accents */
+  --tobacco:             #A07ADC;
+  --tobacco-dk:          #8460C0;
+  --olive:               #6AB07E;
+  --olive-dk:            #4E8A62;
+  --brick:               #E0607A;
+  --blue:                #5A7AC8;
+  --blue-lt:             #8AA6E8;
+  --gold:                #E8C468;
+  --gold-dk:             #8A6A20;
+  --muted:               #8A7F9D;
+  /* Tuiles */
+  --tile-bg:             #353048;
+  --tile-border:         #6E6290;
+  --tile-shadow:         #07050C;
+  --tile-text:           #EDE6F8;
+  --tile-score:          #ADA2C6;
+  --tile-temp-bg:        #1A3424;
+  --tile-temp-border:    #4E8A62;
+  --tile-temp-shadow:    #0C1C12;
+  --tile-temp-text:      #9ADCAE;
+  --tile-sel-bg:         #3E2A60;
+  --tile-sel-border:     #A07ADC;
+  --tile-sel-shadow:     #1C1030;
+  --tile-joker-bg:       #241E30;
+  --tile-joker-border:   #5A5070;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#2E2244 0%,#221834 60%,#181026 100%);
+  --rack-border:         #3E2F57;
+  --rack-shadow:         #040208;
+  --rack-label-bg:       #5E3A8E;
+  --rack-label-text:     #EAE3F4;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#140E22 0%,#1E1630 45%,#160F26 100%);
+  --board-border:        #3E2F57;
+  --board-shadow:        #020104;
+  --board-grid-bg:       #0C0814;
+  --board-cell-empty:    rgba(40,30,62,0.9);
+  --board-cell-hover:    rgba(232,196,104,0.3);
+  --board-rivet:         #5E3A8E;
+  /* Cases bonus */
+  --bonus-tm:            #8A2A44;
+  --bonus-tm-text:       #FFC6D2;
+  --bonus-dm:            #6A3A62;
+  --bonus-dm-text:       #F6CCEA;
+  --bonus-tl:            #22306E;
+  --bonus-tl-text:       #B6C6F5;
+  --bonus-dl:            #34508A;
+  --bonus-dl-text:       #C6D6FA;
+  --bonus-start:         #6A3A62;
+  --bonus-start-text:    #F6CCEA;
+  /* Ombres & grille */
+  --shadow-card:         #000000;
+  --bg-grid-line:        rgba(184,155,217,0.04);
+}
+
+/* ── Forêt — vert sapin, bois et cuivre · clair */
+[data-palette="foret"][data-theme="light"] {
+  /* Surfaces */
+  --bg-page:             #EFF2EA;
+  --bg-page-alt:         #E0E7D8;
+  --bg-card:             #F8FAF5;
+  --bg-card-alt:         #E8EDE1;
+  --bg-input:            #E8EDE1;
+  --bg-invert:           #1A2A1E;
+  --bg-invert-alt:       #2E4434;
+  /* Textes */
+  --text-primary:        #1A2A1E;
+  --text-secondary:      #2E4434;
+  --text-muted:          #5A6A5C;
+  --text-invert:         #F8FAF5;
+  --text-invert-muted:   #D99A4E;
+  /* Bordures */
+  --border-primary:      #1A2A1E;
+  --border-muted:        #C8D2BE;
+  --border-gold:         #B8863A;
+  --border-gold-dk:      #7E5A1E;
+  /* Accents */
+  --tobacco:             #AE6028;
+  --tobacco-dk:          #8E4C1C;
+  --olive:               #2E6E46;
+  --olive-dk:            #1F5032;
+  --brick:               #A83A2A;
+  --blue:                #2E5E8A;
+  --blue-lt:             #5A8AB8;
+  --gold:                #B8863A;
+  --gold-dk:             #7E5A1E;
+  --muted:               #5A6A5C;
+  /* Tuiles */
+  --tile-bg:             #F2E6CC;
+  --tile-border:         #C4A876;
+  --tile-shadow:         #866C40;
+  --tile-text:           #1E1A10;
+  --tile-score:          #5E4A2A;
+  --tile-temp-bg:        #D6ECCC;
+  --tile-temp-border:    #3E8A4E;
+  --tile-temp-shadow:    #286036;
+  --tile-temp-text:      #1A4422;
+  --tile-sel-bg:         #F5D2B0;
+  --tile-sel-border:     #B3652A;
+  --tile-sel-shadow:     #7A3E12;
+  --tile-joker-bg:       #E6EAE0;
+  --tile-joker-border:   #A8B4A0;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#8A5E34 0%,#6E4824 60%,#5A3A1C 100%);
+  --rack-border:         #3E2812;
+  --rack-shadow:         #1E1408;
+  --rack-label-bg:       #2E6E46;
+  --rack-label-text:     #F8FAF5;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#143A32 0%,#1D4C42 45%,#173F37 100%);
+  --board-border:        #7E5A1E;
+  --board-shadow:        #0A1E18;
+  --board-grid-bg:       #0F2E28;
+  --board-cell-empty:    rgba(29,76,66,0.6);
+  --board-cell-hover:    rgba(217,154,78,0.4);
+  --board-rivet:         #B8863A;
+  /* Cases bonus */
+  --bonus-tm:            #B8452E;
+  --bonus-tm-text:       #FFE6DC;
+  --bonus-dm:            #D99A6E;
+  --bonus-dm-text:       #3A1A08;
+  --bonus-tl:            #2E5E8A;
+  --bonus-tl-text:       #E0EEFF;
+  --bonus-dl:            #7EB0C8;
+  --bonus-dl-text:       #0C2A38;
+  --bonus-start:         #D99A6E;
+  --bonus-start-text:    #3A1A08;
+  /* Ombres & grille */
+  --shadow-card:         #B3652A;
+  --bg-grid-line:        rgba(46,110,70,0.06);
+}
+
+/* ── Forêt — vert sapin, bois et cuivre · sombre */
+[data-palette="foret"][data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:             #0E1512;
+  --bg-page-alt:         #141E1A;
+  --bg-card:             #141E1A;
+  --bg-card-alt:         #1C2823;
+  --bg-input:            #1C2823;
+  --bg-invert:           #E0EBDD;
+  --bg-invert-alt:       #9CC8A8;
+  /* Textes */
+  --text-primary:        #DDE8DA;
+  --text-secondary:      #B2C2AE;
+  --text-muted:          #7E8E7C;
+  --text-invert:         #0E1512;
+  --text-invert-muted:   #1F5032;
+  /* Bordures */
+  --border-primary:      #9CC8A8;
+  --border-muted:        #26342E;
+  --border-gold:         #8A6A30;
+  --border-gold-dk:      #5A4418;
+  /* Accents */
+  --tobacco:             #D9864A;
+  --tobacco-dk:          #B06A34;
+  --olive:               #4EA86A;
+  --olive-dk:            #2E6E46;
+  --brick:               #E0604A;
+  --blue:                #4A7EB8;
+  --blue-lt:             #7AAAD8;
+  --gold:                #D9A65E;
+  --gold-dk:             #7E5A1E;
+  --muted:               #7E8E7C;
+  /* Tuiles */
+  --tile-bg:             #36301F;
+  --tile-border:         #7A6A44;
+  --tile-shadow:         #050402;
+  --tile-text:           #EFE4C6;
+  --tile-score:          #B0A076;
+  --tile-temp-bg:        #173420;
+  --tile-temp-border:    #3E8A4E;
+  --tile-temp-shadow:    #0A1A0E;
+  --tile-temp-text:      #9ADCA4;
+  --tile-sel-bg:         #4E2E14;
+  --tile-sel-border:     #D9864A;
+  --tile-sel-shadow:     #241206;
+  --tile-joker-bg:       #1E2622;
+  --tile-joker-border:   #4E5A54;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#3A2814 0%,#2A1C0C 60%,#1E1408 100%);
+  --rack-border:         #3E2812;
+  --rack-shadow:         #030201;
+  --rack-label-bg:       #1F5032;
+  --rack-label-text:     #DDE8DA;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#071C17 0%,#0C2820 45%,#08201A 100%);
+  --board-border:        #1F3A30;
+  --board-shadow:        #010403;
+  --board-grid-bg:       #04120E;
+  --board-cell-empty:    rgba(14,44,36,0.9);
+  --board-cell-hover:    rgba(217,166,94,0.3);
+  --board-rivet:         #5A4418;
+  /* Cases bonus */
+  --bonus-tm:            #8A2E20;
+  --bonus-tm-text:       #FFCDBE;
+  --bonus-dm:            #7A4A2A;
+  --bonus-dm-text:       #FFDCC4;
+  --bonus-tl:            #1A3A62;
+  --bonus-tl-text:       #B0CCF2;
+  --bonus-dl:            #2A5A6E;
+  --bonus-dl-text:       #B8DCEA;
+  --bonus-start:         #7A4A2A;
+  --bonus-start-text:    #FFDCC4;
+  /* Ombres & grille */
+  --shadow-card:         #000000;
+  --bg-grid-line:        rgba(156,200,168,0.035);
+}
+
+/* ── Terre cuite — argile, ocre et bleu méditerranéen · clair */
+[data-palette="terracotta"][data-theme="light"] {
+  /* Surfaces */
+  --bg-page:             #F8F0E8;
+  --bg-page-alt:         #EFE0D2;
+  --bg-card:             #FCF7F2;
+  --bg-card-alt:         #F3E7DB;
+  --bg-input:            #F3E7DB;
+  --bg-invert:           #2E1A12;
+  --bg-invert-alt:       #4A2E22;
+  /* Textes */
+  --text-primary:        #2E1A12;
+  --text-secondary:      #4A2E22;
+  --text-muted:          #7A5F51;
+  --text-invert:         #FCF7F2;
+  --text-invert-muted:   #E8B04A;
+  /* Bordures */
+  --border-primary:      #2E1A12;
+  --border-muted:        #E0CCBC;
+  --border-gold:         #C8923A;
+  --border-gold-dk:      #8A5E1A;
+  /* Accents */
+  --tobacco:             #B8532A;
+  --tobacco-dk:          #9A4220;
+  --olive:               #5E6E32;
+  --olive-dk:            #4E5C28;
+  --brick:               #A8322A;
+  --blue:                #1E5A8A;
+  --blue-lt:             #4A8AC0;
+  --gold:                #D19A36;
+  --gold-dk:             #8A5E1A;
+  --muted:               #7A5F51;
+  /* Tuiles */
+  --tile-bg:             #F6E6C6;
+  --tile-border:         #CCA870;
+  --tile-shadow:         #8E6C38;
+  --tile-text:           #2A1A0C;
+  --tile-score:          #6A4A26;
+  --tile-temp-bg:        #E2EBC6;
+  --tile-temp-border:    #6A8A30;
+  --tile-temp-shadow:    #4A6A1A;
+  --tile-temp-text:      #2E4410;
+  --tile-sel-bg:         #F8CDB4;
+  --tile-sel-border:     #C0582E;
+  --tile-sel-shadow:     #7E3416;
+  --tile-joker-bg:       #EFE6DC;
+  --tile-joker-border:   #BCA898;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#A0583A 0%,#844428 60%,#6E361E 100%);
+  --rack-border:         #4A2214;
+  --rack-shadow:         #22100A;
+  --rack-label-bg:       #1E5A8A;
+  --rack-label-text:     #FCF7F2;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#9A4A2C 0%,#B05A36 45%,#A04E30 100%);
+  --board-border:        #5A2A16;
+  --board-shadow:        #3A180C;
+  --board-grid-bg:       #7E3A22;
+  --board-cell-empty:    rgba(176,90,54,0.55);
+  --board-cell-hover:    rgba(232,176,74,0.45);
+  --board-rivet:         #E8B04A;
+  /* Cases bonus */
+  --bonus-tm:            #6E1E14;
+  --bonus-tm-text:       #FFDCD0;
+  --bonus-dm:            #E8A27A;
+  --bonus-dm-text:       #3A1206;
+  --bonus-tl:            #1E5A8A;
+  --bonus-tl-text:       #E2F0FF;
+  --bonus-dl:            #7EBCE0;
+  --bonus-dl-text:       #0A2A40;
+  --bonus-start:         #E8A27A;
+  --bonus-start-text:    #3A1206;
+  /* Ombres & grille */
+  --shadow-card:         #C0582E;
+  --bg-grid-line:        rgba(192,88,46,0.06);
+}
+
+/* ── Terre cuite — argile, ocre et bleu méditerranéen · sombre */
+[data-palette="terracotta"][data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:             #1A110D;
+  --bg-page-alt:         #241812;
+  --bg-card:             #241812;
+  --bg-card-alt:         #2E2018;
+  --bg-input:            #2E2018;
+  --bg-invert:           #F5DCC8;
+  --bg-invert-alt:       #E8A27A;
+  /* Textes */
+  --text-primary:        #F2E2D6;
+  --text-secondary:      #CFB8A8;
+  --text-muted:          #987C6E;
+  --text-invert:         #1A110D;
+  --text-invert-muted:   #9A4220;
+  /* Bordures */
+  --border-primary:      #E8A27A;
+  --border-muted:        #3E2A20;
+  --border-gold:         #A07030;
+  --border-gold-dk:      #6A4818;
+  /* Accents */
+  --tobacco:             #E87A4E;
+  --tobacco-dk:          #C05E34;
+  --olive:               #8EA05A;
+  --olive-dk:            #6A7A3A;
+  --brick:               #E25A4A;
+  --blue:                #3A7AB8;
+  --blue-lt:             #6AA8DE;
+  --gold:                #E8B04A;
+  --gold-dk:             #8A5E1A;
+  --muted:               #987C6E;
+  /* Tuiles */
+  --tile-bg:             #3E3020;
+  --tile-border:         #8A6E44;
+  --tile-shadow:         #080503;
+  --tile-text:           #F2E2C4;
+  --tile-score:          #B89E74;
+  --tile-temp-bg:        #263018;
+  --tile-temp-border:    #6A8A30;
+  --tile-temp-shadow:    #121A08;
+  --tile-temp-text:      #C2DE8A;
+  --tile-sel-bg:         #5A2814;
+  --tile-sel-border:     #E87A4E;
+  --tile-sel-shadow:     #2A0E04;
+  --tile-joker-bg:       #2A201A;
+  --tile-joker-border:   #5E4C40;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#46261A 0%,#341C12 60%,#26140C 100%);
+  --rack-border:         #4A2E22;
+  --rack-shadow:         #050201;
+  --rack-label-bg:       #1A4A72;
+  --rack-label-text:     #F2E2D6;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#341710 0%,#44201A 45%,#3A1A12 100%);
+  --board-border:        #5A2A16;
+  --board-shadow:        #030100;
+  --board-grid-bg:       #200C06;
+  --board-cell-empty:    rgba(70,30,20,0.85);
+  --board-cell-hover:    rgba(232,176,74,0.3);
+  --board-rivet:         #6A4818;
+  /* Cases bonus */
+  --bonus-tm:            #8A221A;
+  --bonus-tm-text:       #FFC6BC;
+  --bonus-dm:            #8A4A2E;
+  --bonus-dm-text:       #FFD8C4;
+  --bonus-tl:            #16406A;
+  --bonus-tl-text:       #ACCCF0;
+  --bonus-dl:            #285A80;
+  --bonus-dl-text:       #B6D8F2;
+  --bonus-start:         #8A4A2E;
+  --bonus-start-text:    #FFD8C4;
+  /* Ombres & grille */
+  --shadow-card:         #000000;
+  --bg-grid-line:        rgba(232,162,122,0.035);
+}
+
+/* ── Tournesol — jaune soleil et bleu nuit · clair */
+[data-palette="tournesol"][data-theme="light"] {
+  /* Surfaces */
+  --bg-page:             #FBF7E8;
+  --bg-page-alt:         #F3EBCB;
+  --bg-card:             #FFFCF2;
+  --bg-card-alt:         #F6F0D8;
+  --bg-input:            #F6F0D8;
+  --bg-invert:           #142446;
+  --bg-invert-alt:       #233A66;
+  /* Textes */
+  --text-primary:        #142446;
+  --text-secondary:      #233A66;
+  --text-muted:          #5E6474;
+  --text-invert:         #FFFCF2;
+  --text-invert-muted:   #F5C518;
+  /* Bordures */
+  --border-primary:      #142446;
+  --border-muted:        #E2D9B4;
+  --border-gold:         #E0B000;
+  --border-gold-dk:      #9A7800;
+  /* Accents */
+  --tobacco:             #2A4FA0;
+  --tobacco-dk:          #1E3A7A;
+  --olive:               #2E7A4E;
+  --olive-dk:            #1E5A36;
+  --brick:               #C0302A;
+  --blue:                #1E4A9A;
+  --blue-lt:             #4A7ACE;
+  --gold:                #E0B000;
+  --gold-dk:             #9A7800;
+  --muted:               #5E6474;
+  /* Tuiles */
+  --tile-bg:             #FFE89A;
+  --tile-border:         #D8B030;
+  --tile-shadow:         #9A7800;
+  --tile-text:           #142446;
+  --tile-score:          #4A3E10;
+  --tile-temp-bg:        #D8EFCC;
+  --tile-temp-border:    #3E9A5A;
+  --tile-temp-shadow:    #22703A;
+  --tile-temp-text:      #164A26;
+  --tile-sel-bg:         #C8D8FA;
+  --tile-sel-border:     #2A4FA0;
+  --tile-sel-shadow:     #142E6E;
+  --tile-joker-bg:       #F2EEDC;
+  --tile-joker-border:   #BEB696;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#2E4A86 0%,#223A6E 60%,#1A2E5A 100%);
+  --rack-border:         #0E1A36;
+  --rack-shadow:         #080F20;
+  --rack-label-bg:       #F5C518;
+  --rack-label-text:     #142446;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#1A2E5A 0%,#233C72 45%,#1C3262 100%);
+  --board-border:        #0E1A36;
+  --board-shadow:        #070E1E;
+  --board-grid-bg:       #12224A;
+  --board-cell-empty:    rgba(35,60,114,0.6);
+  --board-cell-hover:    rgba(245,197,24,0.4);
+  --board-rivet:         #F5C518;
+  /* Cases bonus */
+  --bonus-tm:            #D8442E;
+  --bonus-tm-text:       #FFF0EC;
+  --bonus-dm:            #F2A23A;
+  --bonus-dm-text:       #3A1E00;
+  --bonus-tl:            #7FB0FF;
+  --bonus-tl-text:       #0A1E48;
+  --bonus-dl:            #BCD6FF;
+  --bonus-dl-text:       #0E2650;
+  --bonus-start:         #F5C518;
+  --bonus-start-text:    #142446;
+  /* Ombres & grille */
+  --shadow-card:         #2A4FA0;
+  --bg-grid-line:        rgba(42,79,160,0.05);
+}
+
+/* ── Tournesol — jaune soleil et bleu nuit · sombre */
+[data-palette="tournesol"][data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:             #0C1326;
+  --bg-page-alt:         #121C34;
+  --bg-card:             #121C34;
+  --bg-card-alt:         #1A2644;
+  --bg-input:            #1A2644;
+  --bg-invert:           #FFE58A;
+  --bg-invert-alt:       #F5C518;
+  /* Textes */
+  --text-primary:        #EEF0F6;
+  --text-secondary:      #BCC4D8;
+  --text-muted:          #8089A3;
+  --text-invert:         #0C1326;
+  --text-invert-muted:   #7A5E00;
+  /* Bordures */
+  --border-primary:      #F5C518;
+  --border-muted:        #24304E;
+  --border-gold:         #A08010;
+  --border-gold-dk:      #6A5400;
+  /* Accents */
+  --tobacco:             #6A92E8;
+  --tobacco-dk:          #4A72C8;
+  --olive:               #4EB07A;
+  --olive-dk:            #2E7A4E;
+  --brick:               #E85A4A;
+  --blue:                #4A7AD8;
+  --blue-lt:             #7AA4F0;
+  --gold:                #F5C518;
+  --gold-dk:             #9A7800;
+  --muted:               #8089A3;
+  /* Tuiles */
+  --tile-bg:             #3E3618;
+  --tile-border:         #8A7628;
+  --tile-shadow:         #060400;
+  --tile-text:           #FFE9A8;
+  --tile-score:          #C2AA5A;
+  --tile-temp-bg:        #163424;
+  --tile-temp-border:    #3E9A5A;
+  --tile-temp-shadow:    #0A1C12;
+  --tile-temp-text:      #9AE0B4;
+  --tile-sel-bg:         #1E3266;
+  --tile-sel-border:     #6A92E8;
+  --tile-sel-shadow:     #0C1636;
+  --tile-joker-bg:       #1C2438;
+  --tile-joker-border:   #4C5670;
+  /* Chevalet */
+  --rack-bg:             linear-gradient(180deg,#1C2A4E 0%,#14203E 60%,#0E1830 100%);
+  --rack-border:         #24304E;
+  --rack-shadow:         #02040A;
+  --rack-label-bg:       #7A5E00;
+  --rack-label-text:     #FFE58A;
+  /* Plateau */
+  --board-bg:            linear-gradient(135deg,#070C1C 0%,#0E1630 45%,#0A1124 100%);
+  --board-border:        #24304E;
+  --board-shadow:        #010208;
+  --board-grid-bg:       #050914;
+  --board-cell-empty:    rgba(22,34,66,0.9);
+  --board-cell-hover:    rgba(245,197,24,0.3);
+  --board-rivet:         #7A5E00;
+  /* Cases bonus */
+  --bonus-tm:            #8A2418;
+  --bonus-tm-text:       #FFC8BC;
+  --bonus-dm:            #8A5A14;
+  --bonus-dm-text:       #FFE0B0;
+  --bonus-tl:            #2A4C9A;
+  --bonus-tl-text:       #CCDCFF;
+  --bonus-dl:            #3A5E8E;
+  --bonus-dl-text:       #D0E0F8;
+  --bonus-start:         #8A6A00;
+  --bonus-start-text:    #FFF0B8;
+  /* Ombres & grille */
+  --shadow-card:         #000000;
+  --bg-grid-line:        rgba(245,197,24,0.03);
+}
+
+/* ── Contraste élevé — noir et blanc, lisibilité maximale · clair */
+[data-palette="contraste"][data-theme="light"] {
+  /* Surfaces */
+  --bg-page:             #FFFFFF;
+  --bg-page-alt:         #F0F0F0;
+  --bg-card:             #FFFFFF;
+  --bg-card-alt:         #F2F2F2;
+  --bg-input:            #FFFFFF;
+  --bg-invert:           #000000;
+  --bg-invert-alt:       #1A1A1A;
+  /* Textes */
+  --text-primary:        #000000;
+  --text-secondary:      #1A1A1A;
+  --text-muted:          #3D3D3D;
+  --text-invert:         #FFFFFF;
+  --text-invert-muted:   #FFD400;
+  /* Bordures */
+  --border-primary:      #000000;
+  --border-muted:        #595959;
+  --border-gold:         #000000;
+  --border-gold-dk:      #000000;
+  /* Accents */
+  --tobacco:             #B34700;
+  --tobacco-dk:          #7A3000;
+  --olive:               #006B2E;
+  --olive-dk:            #004A1F;
+  --brick:               #B00020;
+  --blue:                #0047AB;
+  --blue-lt:             #0060D0;
+  --gold:                #7A5A00;
+  --gold-dk:             #4A3600;
+  --muted:               #3D3D3D;
+  /* Tuiles */
+  --tile-bg:             #FFFFFF;
+  --tile-border:         #000000;
+  --tile-shadow:         #000000;
+  --tile-text:           #000000;
+  --tile-score:          #000000;
+  --tile-temp-bg:        #D9F2DF;
+  --tile-temp-border:    #006B2E;
+  --tile-temp-shadow:    #004A1F;
+  --tile-temp-text:      #00331A;
+  --tile-sel-bg:         #FFE680;
+  --tile-sel-border:     #000000;
+  --tile-sel-shadow:     #000000;
+  --tile-joker-bg:       #E6E6E6;
+  --tile-joker-border:   #000000;
+  /* Chevalet */
+  --rack-bg:             #1A1A1A;
+  --rack-border:         #000000;
+  --rack-shadow:         #000000;
+  --rack-label-bg:       #FFD400;
+  --rack-label-text:     #000000;
+  /* Plateau */
+  --board-bg:            #000000;
+  --board-border:        #000000;
+  --board-shadow:        #595959;
+  --board-grid-bg:       #000000;
+  --board-cell-empty:    #2B2B2B;
+  --board-cell-hover:    rgba(255,212,0,0.55);
+  --board-rivet:         #FFD400;
+  /* Cases bonus */
+  --bonus-tm:            #D00000;
+  --bonus-tm-text:       #FFFFFF;
+  --bonus-dm:            #FF8FA3;
+  --bonus-dm-text:       #000000;
+  --bonus-tl:            #0050E6;
+  --bonus-tl-text:       #FFFFFF;
+  --bonus-dl:            #7FC4FF;
+  --bonus-dl-text:       #000000;
+  --bonus-start:         #FFD400;
+  --bonus-start-text:    #000000;
+  /* Ombres & grille */
+  --shadow-card:         #000000;
+  --bg-grid-line:        rgba(0,0,0,0);
+}
+
+/* ── Contraste élevé — noir et blanc, lisibilité maximale · sombre */
+[data-palette="contraste"][data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:             #000000;
+  --bg-page-alt:         #121212;
+  --bg-card:             #0A0A0A;
+  --bg-card-alt:         #1A1A1A;
+  --bg-input:            #000000;
+  --bg-invert:           #FFFFFF;
+  --bg-invert-alt:       #FFD400;
+  /* Textes */
+  --text-primary:        #FFFFFF;
+  --text-secondary:      #E6E6E6;
+  --text-muted:          #BDBDBD;
+  --text-invert:         #000000;
+  --text-invert-muted:   #000000;
+  /* Bordures */
+  --border-primary:      #FFFFFF;
+  --border-muted:        #8C8C8C;
+  --border-gold:         #FFD400;
+  --border-gold-dk:      #FFD400;
+  /* Accents */
+  --tobacco:             #FF9A3D;
+  --tobacco-dk:          #FF7A00;
+  --olive:               #3DDC84;
+  --olive-dk:            #1FB866;
+  --brick:               #FF5C6C;
+  --blue:                #5CA8FF;
+  --blue-lt:             #8CC4FF;
+  --gold:                #FFD400;
+  --gold-dk:             #C8A600;
+  --muted:               #BDBDBD;
+  /* Tuiles */
+  --tile-bg:             #FFFFFF;
+  --tile-border:         #FFD400;
+  --tile-shadow:         #8C8C8C;
+  --tile-text:           #000000;
+  --tile-score:          #000000;
+  --tile-temp-bg:        #003D1A;
+  --tile-temp-border:    #3DDC84;
+  --tile-temp-shadow:    #1FB866;
+  --tile-temp-text:      #FFFFFF;
+  --tile-sel-bg:         #FFD400;
+  --tile-sel-border:     #FFFFFF;
+  --tile-sel-shadow:     #8C8C8C;
+  --tile-joker-bg:       #D9D9D9;
+  --tile-joker-border:   #FFD400;
+  /* Chevalet */
+  --rack-bg:             #1A1A1A;
+  --rack-border:         #FFFFFF;
+  --rack-shadow:         #000000;
+  --rack-label-bg:       #FFD400;
+  --rack-label-text:     #000000;
+  /* Plateau */
+  --board-bg:            #000000;
+  --board-border:        #FFFFFF;
+  --board-shadow:        #333333;
+  --board-grid-bg:       #5A5A5A;
+  --board-cell-empty:    #000000;
+  --board-cell-hover:    rgba(255,212,0,0.45);
+  --board-rivet:         #FFD400;
+  /* Cases bonus */
+  --bonus-tm:            #FF3B3B;
+  --bonus-tm-text:       #000000;
+  --bonus-dm:            #FF9EC0;
+  --bonus-dm-text:       #000000;
+  --bonus-tl:            #4F8FFF;
+  --bonus-tl-text:       #000000;
+  --bonus-dl:            #9AD0FF;
+  --bonus-dl-text:       #000000;
+  --bonus-start:         #FFD400;
+  --bonus-start-text:    #000000;
+  /* Ombres & grille */
+  --shadow-card:         #595959;
+  --bg-grid-line:        rgba(255,255,255,0);
+}

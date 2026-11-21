@@ -3,7 +3,16 @@
 //   • le MODE    (light / dark / system)  → attribut data-theme sur <html>
 //   • la PALETTE (vintage, classique, …)  → attribut data-palette sur <html>
 // Chaque palette existe en clair et en sombre (voir styles/palettes.css).
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+//
+// Persistance :
+//   • localStorage (immédiat, aussi pour les invités ; lu par le script
+//     anti-flash d'index.html)
+//   • préférences du compte (clés themeMode / colorPalette, via SettingsContext)
+//     → le choix suit l'utilisateur d'un appareil à l'autre.
+//   À la connexion : si le compte a déjà un choix, il s'applique ; sinon le
+//   choix local de l'appareil est envoyé au compte.
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useSettings } from './SettingsContext';
 
 const ThemeContext = createContext(null);
 
@@ -20,8 +29,14 @@ const PALETTE_STORAGE_KEY = 'scrabble-palette';
 
 const THEMES = ['light', 'dark', 'system'];
 
-/** Ordre d'affichage des palettes. La première est la palette par défaut. */
-const PALETTES = ['vintage', 'classique', 'ocean', 'bordeaux', 'ardoise'];
+/**
+ * Ordre d'affichage des palettes. La première est la palette par défaut.
+ * Doit rester aligné sur COLOR_PALETTES (backend/app/users/router.py).
+ */
+const PALETTES = [
+  'vintage', 'classique', 'ocean', 'bordeaux', 'ardoise',
+  'lavande', 'foret', 'terracotta', 'tournesol', 'contraste',
+];
 const DEFAULT_PALETTE = PALETTES[0];
 
 function readStored(key) {
@@ -56,6 +71,8 @@ function applyTheme(preference, palette) {
 }
 
 export function ThemeProvider({ children }) {
+  const { settings, update, currentUid, serverLoadedFor } = useSettings();
+
   const [preference, setPreference] = useState(() => {
     const stored = readStored(STORAGE_KEY);
     return THEMES.includes(stored) ? stored : 'system';
@@ -80,17 +97,54 @@ export function ThemeProvider({ children }) {
     return () => mq.removeEventListener('change', handler);
   }, [preference, palette]);
 
+  // ── Choix de l'utilisateur : local + compte ───────────────────────
+  // (update ne contacte le serveur que si quelqu'un est connecté)
+
   const setTheme = useCallback((newTheme) => {
     if (!THEMES.includes(newTheme)) return;
     writeStored(STORAGE_KEY, newTheme);
     setPreference(newTheme);
-  }, []);
+    update('themeMode', newTheme);
+  }, [update]);
 
   const setPalette = useCallback((newPalette) => {
     if (!PALETTES.includes(newPalette)) return;
     writeStored(PALETTE_STORAGE_KEY, newPalette);
     setPaletteState(newPalette);
-  }, []);
+    update('colorPalette', newPalette);
+  }, [update]);
+
+  // ── À la connexion : réconcilier avec les préférences du compte ────
+  // Une seule fois par chargement serveur (serverLoadedFor change), pour ne
+  // jamais écraser un choix fait ensuite sur cet appareil. La ref donne les
+  // valeurs du moment sans relancer l'effet à chaque changement.
+  const latest = useRef(null);
+  useEffect(() => {
+    latest.current = { settings, preference, palette };
+  });
+
+  useEffect(() => {
+    if (!serverLoadedFor || serverLoadedFor !== currentUid || !latest.current) return;
+    const { settings: s, preference: localMode, palette: localPalette } = latest.current;
+
+    if (THEMES.includes(s.themeMode)) {
+      if (s.themeMode !== localMode) {
+        writeStored(STORAGE_KEY, s.themeMode);
+        setPreference(s.themeMode);
+      }
+    } else {
+      update('themeMode', localMode);          // compte sans choix : on y envoie celui de l'appareil
+    }
+
+    if (PALETTES.includes(s.colorPalette)) {
+      if (s.colorPalette !== localPalette) {
+        writeStored(PALETTE_STORAGE_KEY, s.colorPalette);
+        setPaletteState(s.colorPalette);
+      }
+    } else {
+      update('colorPalette', localPalette);
+    }
+  }, [serverLoadedFor, currentUid, update]);
 
   const cycleTheme = useCallback(() => {
     const next = THEMES[(THEMES.indexOf(preference) + 1) % THEMES.length];

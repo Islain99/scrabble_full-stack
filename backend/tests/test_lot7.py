@@ -386,3 +386,34 @@ async def test_game_language_preference(client, login, users):
     assert r.json()["gameLanguage"] == "en"
     r = await client.put(f"{API}/users/me/preferences", json={"gameLanguage": "de"})
     assert r.status_code == 422
+
+
+# ── Apparence : mode clair/sombre + palette de couleurs (préférences) ──
+
+async def test_theme_preferences_default_to_none(client, login, users):
+    """Jamais choisies → null : le client garde son choix local et l'envoie."""
+    login(users["alice"])
+    r = await client.get(f"{API}/users/me/preferences")
+    assert r.status_code == 200, r.text
+    assert r.json()["themeMode"] is None and r.json()["colorPalette"] is None
+
+
+async def test_theme_preferences_roundtrip(client, login, users):
+    login(users["alice"])
+    r = await client.put(f"{API}/users/me/preferences", json={"themeMode": "dark", "colorPalette": "lavande"})
+    assert r.status_code == 200, r.text
+    assert r.json()["themeMode"] == "dark" and r.json()["colorPalette"] == "lavande"
+
+    # Un patch sur une autre clé ne touche pas l'apparence
+    r = await client.put(f"{API}/users/me/preferences", json={"showBonusLabels": False})
+    assert r.json()["colorPalette"] == "lavande"
+
+    r = await client.get(f"{API}/users/me/preferences")
+    assert r.json()["themeMode"] == "dark" and r.json()["colorPalette"] == "lavande"
+
+
+@pytest.mark.parametrize("payload", [{"themeMode": "sepia"}, {"colorPalette": "arc-en-ciel"}])
+async def test_theme_preferences_reject_unknown_values(client, login, users, payload):
+    login(users["alice"])
+    r = await client.put(f"{API}/users/me/preferences", json=payload)
+    assert r.status_code == 422

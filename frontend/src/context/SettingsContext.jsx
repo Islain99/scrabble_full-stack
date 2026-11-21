@@ -93,6 +93,9 @@ export function SettingsProvider({ children }) {
   const [settings, setSettings]     = useState(() => loadFromStorage(null));
   const [syncing, setSyncing]        = useState(false);
   const [lastSynced, setLastSynced]  = useState(null);
+  // uid dont les préférences serveur viennent d'être chargées (ThemeContext
+  // s'en sert pour appliquer le thème du compte une fois par connexion)
+  const [serverLoadedFor, setServerLoadedFor] = useState(null);
   const debounceRef = useRef(null);
 
   // ── Observer Firebase auth — indépendant d'AuthContext ───────────
@@ -113,6 +116,7 @@ export function SettingsProvider({ children }) {
           setSettings(merged);
           persistToStorage(uid, merged);
           setLastSynced(new Date());
+          setServerLoadedFor(uid);
         } catch (err) {
           console.warn('Préférences serveur indisponibles, cache local utilisé:', err.message);
         }
@@ -123,6 +127,7 @@ export function SettingsProvider({ children }) {
         // Logout
         setCurrentUid(null);
         setLastSynced(null);
+        setServerLoadedFor(null);
         setSettings(loadFromStorage(null));
       }
     });
@@ -181,6 +186,7 @@ export function SettingsProvider({ children }) {
       syncing,
       lastSynced,
       currentUid,
+      serverLoadedFor,
       TURN_OPTIONS,
       DIFFICULTY_META,
     }}>

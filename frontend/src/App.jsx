@@ -148,17 +148,18 @@ function AppWithTutorial({ children }) {
 export default function App() {
   return (
     <LanguageProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <SettingsProvider>
+      <AuthProvider>
+        <SettingsProvider>
+          {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
+          <ThemeProvider>
             <AppWithTutorial>
               <NotificationsProvider>
                 <Router />
               </NotificationsProvider>
             </AppWithTutorial>
-          </SettingsProvider>
-        </AuthProvider>
-      </ThemeProvider>
+          </ThemeProvider>
+        </SettingsProvider>
+      </AuthProvider>
     </LanguageProvider>
   );
 }

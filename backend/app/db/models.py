@@ -27,6 +27,9 @@ DEFAULT_PREFERENCES: dict = {
     "pushFriends":        True,
     "pushMessages":       True,
     "pushTurn":           True,
+    # Apparence : None = jamais choisi (le client garde son choix local et l'envoie)
+    "themeMode":          None,   # light | dark | system
+    "colorPalette":       None,   # vintage, classique, ocean… (voir users/router.py)
 }
 
 
