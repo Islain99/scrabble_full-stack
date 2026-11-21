@@ -275,7 +275,7 @@ export default function LeaderboardPage() {
                     alignItems:  'center',
                     gap:         '8px',
                     padding:     '12px 14px',
-                    borderBottom:'1px solid rgba(200,168,48,0.15)',
+                    borderBottom:'1px solid color-mix(in srgb, var(--gold) 15%, transparent)',
                     background:  isMe ? 'var(--bg-invert)' : 'transparent',
                     transition:  'background 0.1s',
                   }}

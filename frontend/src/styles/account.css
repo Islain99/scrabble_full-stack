@@ -41,8 +41,8 @@
   font-family: 'DM Mono', monospace; font-size: 0.72rem; line-height: 1.5;
   border: 1px solid var(--border-muted); background: var(--bg-card-alt); color: var(--text-primary);
 }
-.st-note[data-tone="ok"]    { border-color: var(--olive); background: rgba(94, 107, 58, 0.12); }
-.st-note[data-tone="error"] { border-color: var(--brick); background: rgba(139, 32, 32, 0.08); }
+.st-note[data-tone="ok"]    { border-color: var(--olive); background: color-mix(in srgb, var(--olive) 12%, transparent); }
+.st-note[data-tone="error"] { border-color: var(--brick); background: color-mix(in srgb, var(--brick) 8%, transparent); }
 
 .acc-link {
   font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.04em;

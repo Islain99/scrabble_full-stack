@@ -67,7 +67,7 @@ export default function LoginPage() {
             display:      'flex',
             alignItems:   'center',
             justifyContent:'space-between',
-            background:   'rgba(139,32,32,0.08)',
+            background:   'color-mix(in srgb, var(--brick) 8%, transparent)',
             border:       '1.5px solid var(--brick)',
             borderRadius: '2px',
             padding:      '10px 14px',

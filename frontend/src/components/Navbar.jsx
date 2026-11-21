@@ -7,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { stopPresence } from '../utils/presence';
 import { NotificationBell } from './Notifications';
 import { useNotifications } from '../context/NotificationsContext';
+import PalettePicker from './settings/PalettePicker';
 
 // Icônes thème (inchangées)
 const ThemeIcons = { light: '☀️', dark: '🌙', system: '⚙️' };
@@ -192,7 +193,7 @@ export default function Navbar() {
                 borderRadius: '2px',
                 boxShadow:    `4px 4px 0 var(--shadow-card)`,
                 zIndex:       99,
-                minWidth:     '160px',
+                minWidth:     '220px',
                 overflow:     'hidden',
               }}>
                 {/* Header dropdown */}
@@ -246,6 +247,17 @@ export default function Navbar() {
                     )}
                   </button>
                 ))}
+
+                {/* Palette de couleurs */}
+                <div style={{ borderTop: '1px solid var(--border-muted)', padding: '10px 14px 12px' }}>
+                  <div style={{
+                    fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px',
+                  }}>
+                    {t('nav_palette')}
+                  </div>
+                  <PalettePicker variant="compact" />
+                </div>
               </div>
             </>
           )}
@@ -434,6 +446,11 @@ function MobileNavbar({
                   {themeLabels[theme]}
                 </button>
               ))}
+            </div>
+
+            <div className="mnav-row">
+              <span className="mnav-row-label">{t('nav_palette')}</span>
+              <PalettePicker variant="compact" />
             </div>
 
             <div className="mnav-row">

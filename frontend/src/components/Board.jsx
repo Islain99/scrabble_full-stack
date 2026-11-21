@@ -130,7 +130,7 @@ const Board = ({ gameState, placements, onDropTile, onMoveTile, onReturnTile, on
               key={cellKey}
               ref={cellRef}
               {...tutorialAttr}
-              style={{ display:'flex', justifyContent:'center', alignItems:'center', backgroundColor:cellBg, borderRadius:'1px', transition:'background 0.08s', position:'relative', outline: isHovered&&!isPerm&&!isTemp?'2px solid rgba(200,168,48,0.8)':'none', outlineOffset:'-1px', opacity:isDraggingFrom?0.35:1, overflow:'hidden' }}
+              style={{ display:'flex', justifyContent:'center', alignItems:'center', backgroundColor:cellBg, borderRadius:'1px', transition:'background 0.08s', position:'relative', outline: isHovered&&!isPerm&&!isTemp?'2px solid color-mix(in srgb, var(--gold) 80%, transparent)':'none', outlineOffset:'-1px', opacity:isDraggingFrom?0.35:1, overflow:'hidden' }}
               className={isPressable ? 'board-cell-pressable' : undefined}
               onDragOver={(e) => handleDragOver(e, r, c)}
               onDragLeave={handleDragLeave}

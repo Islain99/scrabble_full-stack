@@ -5,7 +5,7 @@ export function Input({ label, error, id, style = {}, ...props }) {
 
   const handleFocus = (e) => {
     e.currentTarget.style.borderColor = 'var(--gold)';
-    e.currentTarget.style.boxShadow   = '0 0 0 3px rgba(200,168,48,0.15)';
+    e.currentTarget.style.boxShadow   = '0 0 0 3px color-mix(in srgb, var(--gold) 15%, transparent)';
   };
 
   const handleBlur = (e) => {

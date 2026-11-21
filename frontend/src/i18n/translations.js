@@ -36,6 +36,7 @@ export const translations = {
     nav_register:    'Inscription',
     nav_logout:      'Déconnexion',
     nav_appearance:  'Apparence',
+    nav_palette:     'Couleurs',
     nav_menu:        'Menu',
     nav_language:    'Langue',
 
@@ -347,6 +348,18 @@ export const translations = {
     theme_dark:   'Sombre',
     theme_system: 'Système',
 
+    // ── Palettes de couleurs (chacune existe en clair et en sombre) ──
+    palette_vintage:        'Vintage',
+    palette_vintage_desc:   'Crème, tabac et feutre vert',
+    palette_classique:      'Classique',
+    palette_classique_desc: 'Plateau beige traditionnel',
+    palette_ocean:          'Océan',
+    palette_ocean_desc:     'Marine, sable et corail',
+    palette_bordeaux:       'Bordeaux',
+    palette_bordeaux_desc:  'Rose poudré, vin et or',
+    palette_ardoise:        'Ardoise',
+    palette_ardoise_desc:   'Gris moderne, accent ambre',
+
     // ── SettingsPage ──────────────────────────────────────────────
     settings_title:    'Paramètres',
     settings_subtitle: 'Les préférences sont sauvegardées automatiquement',
@@ -356,8 +369,10 @@ export const translations = {
     section_display:    'Affichage',
     section_behavior:   'Comportement',
 
-    row_theme:                   'Thème',
+    row_theme:                   'Mode',
     row_theme_desc:              'Choisissez entre clair, sombre, ou la préférence de votre système.',
+    row_palette:                 'Thème de couleurs',
+    row_palette_desc:            "Chaque thème s'adapte au mode clair et au mode sombre.",
     row_language:                "Langue de l'interface",
     row_language_desc:           'Français ou anglais.',
     row_difficulty:              "Difficulté de l'IA",
@@ -710,6 +725,7 @@ export const translations = {
     nav_register:    'Sign up',
     nav_logout:      'Log out',
     nav_appearance:  'Appearance',
+    nav_palette:     'Colors',
     nav_menu:        'Menu',
     nav_language:    'Language',
 
@@ -1021,6 +1037,18 @@ export const translations = {
     theme_dark:   'Dark',
     theme_system: 'System',
 
+    // ── Color palettes (each one comes in light and dark) ──
+    palette_vintage:        'Vintage',
+    palette_vintage_desc:   'Cream, tobacco and green felt',
+    palette_classique:      'Classic',
+    palette_classique_desc: 'Traditional beige board',
+    palette_ocean:          'Ocean',
+    palette_ocean_desc:     'Navy, sand and coral',
+    palette_bordeaux:       'Burgundy',
+    palette_bordeaux_desc:  'Dusty rose, wine and gold',
+    palette_ardoise:        'Slate',
+    palette_ardoise_desc:   'Modern grey, amber accent',
+
     // ── SettingsPage ──────────────────────────────────────────────
     settings_title:    'Settings',
     settings_subtitle: 'Preferences are saved automatically',
@@ -1030,8 +1058,10 @@ export const translations = {
     section_display:    'Display',
     section_behavior:   'Behaviour',
 
-    row_theme:                   'Theme',
+    row_theme:                   'Mode',
     row_theme_desc:              'Choose between light, dark, or your system preference.',
+    row_palette:                 'Color theme',
+    row_palette_desc:            'Each theme adapts to both light and dark mode.',
     row_language:                'Interface Language',
     row_language_desc:           'French or English.',
     row_difficulty:              'AI Difficulty',

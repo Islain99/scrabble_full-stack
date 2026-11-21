@@ -569,8 +569,8 @@ export default function ProfilePage() {
                         padding:             '12px 16px',
                         borderBottom:        '1px solid var(--border-muted)',
                         background:          g.won
-                          ? 'rgba(94,107,58,0.06)'
-                          : 'rgba(139,32,32,0.04)',
+                          ? 'color-mix(in srgb, var(--olive) 6%, transparent)'
+                          : 'color-mix(in srgb, var(--brick) 4%, transparent)',
                       }}
                     >
                       <MonoLabel size="xs">{dateStr}</MonoLabel>

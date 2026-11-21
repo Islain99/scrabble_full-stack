@@ -531,7 +531,7 @@ html.mg-lock .toast-stack {
   flex-direction: column;
   gap: 8px;
   padding: 12px 12px 10px;
-  border-bottom: 1px solid rgba(200, 168, 48, 0.18);
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
 }
 .lb-mrow[data-me] { background: var(--bg-invert); }
 .lb-mrow-top { display: flex; align-items: center; gap: 10px; min-width: 0; }

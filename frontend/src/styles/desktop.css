@@ -181,7 +181,7 @@
   text-align: center;
 }
 .dg-resign {
-  border-top: 1px solid rgba(139, 32, 32, 0.2);
+  border-top: 1px solid color-mix(in srgb, var(--brick) 20%, transparent);
   padding-top: 12px;
 }
 
