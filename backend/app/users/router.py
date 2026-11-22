@@ -207,7 +207,9 @@ class PreferencesPatchRequest(BaseModel):
     def validate_difficulty(cls, v: str | None) -> str | None:
         if v is None:
             return v
-        allowed = {"beginner", "easy", "medium", "hard"}
+        # Les 5 niveaux de AIDifficulty (api/game_logic.py). Liste recopiée ici :
+        # importer game_logic au chargement du routeur serait trop lourd.
+        allowed = {"beginner", "easy", "medium", "hard_minus", "hard"}
         if v not in allowed:
             raise ValueError(f"Difficulté invalide. Valeurs autorisées : {allowed}")
         return v
