@@ -11,6 +11,19 @@
     <link rel="manifest" href="/manifest.webmanifest" />
 
     <meta name="theme-color" content="#F5EDD6" />
+    <!-- Applique mode + palette AVANT le premier rendu (évite un flash de la
+         palette par défaut). Mêmes clés localStorage que context/ThemeContext.jsx. -->
+    <script>
+      (function () {
+        try {
+          var d = document.documentElement;
+          var t = localStorage.getItem('scrabble-theme') || 'system';
+          if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          d.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+          d.setAttribute('data-palette', localStorage.getItem('scrabble-palette') || 'vintage');
+        } catch (e) { /* localStorage indisponible : thème par défaut */ }
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Scrabble" />

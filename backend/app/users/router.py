@@ -143,6 +143,19 @@ class PreferencesResponse(BaseModel):
     pushFriends:        bool = True
     pushMessages:       bool = True
     pushTurn:           bool = True
+    # Apparence — None = jamais choisi sur un appareil connecté :
+    # le client garde alors son choix local et l'envoie au serveur.
+    themeMode:          str | None = None
+    colorPalette:       str | None = None
+
+
+# Doit rester aligné sur PALETTES (frontend/src/context/ThemeContext.jsx)
+# et sur les blocs de frontend/src/styles/palettes.css.
+THEME_MODES = {"light", "dark", "system"}
+COLOR_PALETTES = {
+    "vintage", "classique", "ocean", "bordeaux", "ardoise",
+    "lavande", "foret", "terracotta", "tournesol", "contraste",
+}
 
 
 class PreferencesPatchRequest(BaseModel):
@@ -165,6 +178,22 @@ class PreferencesPatchRequest(BaseModel):
     pushFriends:        bool | None = None
     pushMessages:       bool | None = None
     pushTurn:           bool | None = None
+    themeMode:          str | None = None
+    colorPalette:       str | None = None
+
+    @field_validator("themeMode")
+    @classmethod
+    def validate_theme_mode(cls, v: str | None) -> str | None:
+        if v is not None and v not in THEME_MODES:
+            raise ValueError(f"Mode invalide. Valeurs autorisées : {sorted(THEME_MODES)}")
+        return v
+
+    @field_validator("colorPalette")
+    @classmethod
+    def validate_color_palette(cls, v: str | None) -> str | None:
+        if v is not None and v not in COLOR_PALETTES:
+            raise ValueError(f"Palette invalide. Valeurs autorisées : {sorted(COLOR_PALETTES)}")
+        return v
 
     @field_validator("gameLanguage")
     @classmethod
