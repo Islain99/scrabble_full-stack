@@ -417,3 +417,25 @@ async def test_theme_preferences_reject_unknown_values(client, login, users, pay
     login(users["alice"])
     r = await client.put(f"{API}/users/me/preferences", json=payload)
     assert r.status_code == 422
+
+
+# ── Difficulté : les 5 niveaux de l'IA sont acceptés ──────────────
+
+@pytest.mark.parametrize("level", ["beginner", "easy", "medium", "hard_minus", "hard"])
+async def test_difficulty_preference_accepts_all_ai_levels(client, login, users, level):
+    login(users["alice"])
+    r = await client.put(f"{API}/users/me/preferences", json={"difficulty": level})
+    assert r.status_code == 200, r.text
+    assert r.json()["difficulty"] == level
+
+
+async def test_difficulty_preference_matches_engine_levels():
+    """Le validateur doit suivre les niveaux réels du moteur."""
+    from api.game_logic import AI_CONFIG
+    assert set(AI_CONFIG) == {"beginner", "easy", "medium", "hard_minus", "hard"}
+
+
+async def test_difficulty_preference_rejects_unknown(client, login, users):
+    login(users["alice"])
+    r = await client.put(f"{API}/users/me/preferences", json={"difficulty": "impossible"})
+    assert r.status_code == 422
