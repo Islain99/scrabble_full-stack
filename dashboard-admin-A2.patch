@@ -1,0 +1,3623 @@
+From 47cc4a650eb6dbcff6ba194602d36c70aed93a75 Mon Sep 17 00:00:00 2001
+From: Islain <islain@users.noreply.github.com>
+Date: Thu, 26 Nov 2026 08:56:29 +0000
+Subject: [PATCH] =?UTF-8?q?Dashboard=20admin=20=E2=80=94=20lot=20A2=20:=20?=
+ =?UTF-8?q?param=C3=A8tres=20des=20joueurs=20et=20politique=20de=20confide?=
+ =?UTF-8?q?ntialit=C3=A9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- backend : app/appconfig (catalogue, politique libre/verrouillé/masqué, défauts,
+  options, cache), table app_config (migration 0014), GET /config et
+  /config/privacy-policy publics, /admin/settings et /admin/privacy-policy,
+  application côté serveur (préférences, confidentialité, nouveaux comptes, push)
+- frontend : AppConfigContext ; langue, réglages, thème et palette respectent la
+  politique ; page Paramètres (masqué / « fixé par l'administrateur ») ; écrans
+  Paramètres des joueurs et Confidentialité du dashboard ; page #/privacy
+  affiche la version publiée ; texte d'origine : mention de l'accès admin
+- tests : tests/test_admin_settings.py (18 tests)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011BZPmKD9x5kvBGV4MeDi5u
+---
+ backend/alembic/versions/0014_app_config.py   |  28 ++
+ backend/app/admin/router.py                   | 117 +++++++
+ backend/app/appconfig/__init__.py             |   1 +
+ backend/app/appconfig/catalog.py              | 184 ++++++++++
+ backend/app/appconfig/models.py               |  31 ++
+ backend/app/appconfig/privacy_doc.py          |  59 ++++
+ backend/app/appconfig/router.py               |  57 +++
+ backend/app/appconfig/service.py              | 119 +++++++
+ backend/app/auth/router.py                    |  10 +
+ backend/app/db/models.py                      |  30 +-
+ backend/app/main.py                           |   8 +
+ backend/app/push/service.py                   |   7 +-
+ backend/app/users/privacy.py                  |  10 +-
+ backend/app/users/router.py                   |  22 +-
+ backend/tests/conftest.py                     |   9 +
+ backend/tests/test_admin_settings.py          | 273 +++++++++++++++
+ frontend/eslint.config.js                     |   1 +
+ frontend/src/App.jsx                          |  34 +-
+ frontend/src/api/adminService.js              |  18 +
+ frontend/src/api/configService.js             |  10 +
+ frontend/src/components/Navbar.jsx            |  43 ++-
+ frontend/src/components/admin/ActionLine.jsx  |   3 +-
+ .../src/components/admin/AdminPrivacy.jsx     | 264 ++++++++++++++
+ .../src/components/admin/AdminSettings.jsx    | 212 ++++++++++++
+ frontend/src/components/admin/adminUtils.js   |   9 +-
+ .../src/components/admin/settingsLabels.js    |  45 +++
+ frontend/src/components/settings/Managed.jsx  |  37 ++
+ .../components/settings/NotificationsCard.jsx |   9 +-
+ .../src/components/settings/PrivacyCard.jsx   |  61 ++--
+ frontend/src/context/AppConfigContext.jsx     |  59 ++++
+ frontend/src/context/LanguageContext.jsx      |  27 +-
+ frontend/src/context/SettingsContext.jsx      |  49 ++-
+ frontend/src/context/ThemeContext.jsx         |  39 ++-
+ frontend/src/i18n/admin.js                    | 148 +++++++-
+ frontend/src/i18n/privacy.js                  |   8 +-
+ frontend/src/i18n/translations.js             |   7 +
+ frontend/src/pages/AdminPage.jsx              |  16 +-
+ frontend/src/pages/GamePage.jsx               |  54 ++-
+ frontend/src/pages/PrivacyPage.jsx            |  32 +-
+ frontend/src/pages/SettingsPage.jsx           | 325 +++++++++---------
+ frontend/src/styles/account.css               |   8 +
+ frontend/src/styles/admin.css                 |  70 ++++
+ frontend/src/utils/appConfig.js               |  77 +++++
+ frontend/src/utils/privacyDoc.js              |  16 +
+ 44 files changed, 2318 insertions(+), 328 deletions(-)
+ create mode 100644 backend/alembic/versions/0014_app_config.py
+ create mode 100644 backend/app/appconfig/__init__.py
+ create mode 100644 backend/app/appconfig/catalog.py
+ create mode 100644 backend/app/appconfig/models.py
+ create mode 100644 backend/app/appconfig/privacy_doc.py
+ create mode 100644 backend/app/appconfig/router.py
+ create mode 100644 backend/app/appconfig/service.py
+ create mode 100644 backend/tests/test_admin_settings.py
+ create mode 100644 frontend/src/api/configService.js
+ create mode 100644 frontend/src/components/admin/AdminPrivacy.jsx
+ create mode 100644 frontend/src/components/admin/AdminSettings.jsx
+ create mode 100644 frontend/src/components/admin/settingsLabels.js
+ create mode 100644 frontend/src/components/settings/Managed.jsx
+ create mode 100644 frontend/src/context/AppConfigContext.jsx
+ create mode 100644 frontend/src/utils/appConfig.js
+ create mode 100644 frontend/src/utils/privacyDoc.js
+
+diff --git a/backend/alembic/versions/0014_app_config.py b/backend/alembic/versions/0014_app_config.py
+new file mode 100644
+index 0000000..fe4124f
+--- /dev/null
++++ b/backend/alembic/versions/0014_app_config.py
+@@ -0,0 +1,28 @@
++"""dashboard admin : configuration globale (paramètres, politique de confidentialité)
++
++Revision ID: 0014_app_config
++Revises: 0013_admin_actions
++Create Date: 2026-11-26
++"""
++from alembic import op
++import sqlalchemy as sa
++from sqlalchemy.dialects import postgresql
++
++revision = "0014_app_config"
++down_revision = "0013_admin_actions"
++branch_labels = None
++depends_on = None
++
++
++def upgrade() -> None:
++    op.create_table(
++        "app_config",
++        sa.Column("key", sa.String(32), primary_key=True),
++        sa.Column("value", postgresql.JSONB(), nullable=False),
++        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
++        sa.Column("updated_by", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
++    )
++
++
++def downgrade() -> None:
++    op.drop_table("app_config")
+diff --git a/backend/app/admin/router.py b/backend/app/admin/router.py
+index a2555fd..5b0bbca 100644
+--- a/backend/app/admin/router.py
++++ b/backend/app/admin/router.py
+@@ -7,6 +7,8 @@
+ #   GET    /admin/users/{id}              fiche complète d'un joueur
+ #   PATCH  /admin/users/{id}              activer / désactiver, rôle admin, pseudo
+ #   GET    /admin/actions                 journal des actions des administrateurs
++#   GET/PUT/DELETE /admin/settings        politique des paramètres (lot A2)
++#   GET/PUT/DELETE /admin/privacy-policy  politique de confidentialité (lot A2)
+ #
+ # Les lots suivants ajouteront ici : paramètres globaux (A2), abonnements et
+ # crédits (A3), messagerie, profil, notifications et publications (A4).
+@@ -436,3 +438,118 @@ async def update_user(user_id: int, body: UserPatch, admin: User = Depends(requi
+ async def list_actions(limit: int = Query(50, ge=1, le=200), before_id: Optional[int] = Query(None, ge=1),
+                        _admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+     return await _actions(db, limit=limit, before_id=before_id)
++
++
++# ── Paramètres globaux (lot A2) ───────────────────────────────────
++
++from app.appconfig import service as config_service                          # noqa: E402
++from app.appconfig.catalog import SettingsPolicy, catalog_out, builtin_policy  # noqa: E402
++from app.appconfig.privacy_doc import PrivacyPolicyDoc                        # noqa: E402
++
++
++class SettingsAdminOut(BaseModel):
++    catalog: list[dict]
++    policy: dict
++    custom: bool
++    updated_at: Optional[datetime] = None
++    updated_by_name: Optional[str] = None
++    privacy_updates: dict[str, int] = {}       # comptes ramenés au défaut lors de l'enregistrement
++
++
++class SettingsAdminIn(SettingsPolicy):
++    note: Optional[str] = None
++
++
++async def _name_of(db: AsyncSession, user_id: Optional[int]) -> Optional[str]:
++    if not user_id:
++        return None
++    return (await db.execute(select(User.display_name).where(User.id == user_id))).scalar_one_or_none()
++
++
++async def _settings_out(db: AsyncSession, policy: SettingsPolicy, privacy_updates=None) -> SettingsAdminOut:
++    row = await db.get(config_service.AppConfig, config_service.SETTINGS_KEY)
++    return SettingsAdminOut(
++        catalog=catalog_out(),
++        policy={k: p.model_dump() for k, p in policy.settings.items()},
++        custom=row is not None,
++        updated_at=_as_utc(row.updated_at) if row else None,
++        updated_by_name=await _name_of(db, row.updated_by) if row else None,
++        privacy_updates=privacy_updates or {},
++    )
++
++
++def _changed_keys(before: SettingsPolicy, after: SettingsPolicy) -> list[str]:
++    return [k for k in after.settings if before.settings[k] != after.settings[k]]
++
++
++@router.get("/settings", response_model=SettingsAdminOut, summary="Politique des paramètres")
++async def get_settings_policy(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
++    config_service.invalidate()                  # toujours la version en base
++    return await _settings_out(db, await config_service.get_policy(db))
++
++
++@router.put("/settings", response_model=SettingsAdminOut, summary="Modifier la politique des paramètres")
++async def put_settings_policy(body: SettingsAdminIn, admin: User = Depends(require_admin),
++                              db: AsyncSession = Depends(get_db)):
++    config_service.invalidate()
++    before = await config_service.get_policy(db)
++    policy = SettingsPolicy(settings=body.settings)       # déjà complétée et validée
++    await config_service.save(db, config_service.SETTINGS_KEY,
++                              {"settings": {k: p.model_dump() for k, p in policy.settings.items()}}, admin.id)
++    updates = await config_service.enforce_privacy(db, policy)
++    changed = _changed_keys(before, policy)
++    log_action(db, admin, "config.settings", target_type="config",
++               details={"changed": changed, **({"privacy_updates": updates} if updates else {}),
++                        **({"reason": body.note.strip()[:200]} if body.note and body.note.strip() else {})})
++    await db.flush()
++    logger.info("Admin %d : politique des paramètres modifiée (%s)", admin.id, changed)
++    return await _settings_out(db, policy, updates)
++
++
++@router.delete("/settings", response_model=SettingsAdminOut, summary="Revenir aux paramètres d'origine")
++async def reset_settings_policy(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
++    if await config_service.delete(db, config_service.SETTINGS_KEY):
++        log_action(db, admin, "config.settings_reset", target_type="config")
++        await db.flush()
++    return await _settings_out(db, builtin_policy())
++
++
++# ── Politique de confidentialité (lot A2) ─────────────────────────
++
++class PrivacyAdminOut(BaseModel):
++    custom: bool
++    document: Optional[dict] = None
++    updated_at: Optional[datetime] = None
++    updated_by_name: Optional[str] = None
++
++
++async def _privacy_out(db: AsyncSession) -> PrivacyAdminOut:
++    row = await db.get(config_service.AppConfig, config_service.PRIVACY_KEY)
++    if row is None:
++        return PrivacyAdminOut(custom=False)
++    return PrivacyAdminOut(custom=True, document={k: v for k, v in row.value.items() if k != "note"},
++                           updated_at=_as_utc(row.updated_at), updated_by_name=await _name_of(db, row.updated_by))
++
++
++@router.get("/privacy-policy", response_model=PrivacyAdminOut, summary="Politique de confidentialité (admin)")
++async def get_privacy_policy(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
++    return await _privacy_out(db)
++
++
++@router.put("/privacy-policy", response_model=PrivacyAdminOut, summary="Publier la politique de confidentialité")
++async def put_privacy_policy(body: PrivacyPolicyDoc, admin: User = Depends(require_admin),
++                             db: AsyncSession = Depends(get_db)):
++    await config_service.save(db, config_service.PRIVACY_KEY, body.model_dump(mode="json", exclude={"note"}), admin.id)
++    note = (body.note or "").strip()
++    log_action(db, admin, "config.privacy_policy", target_type="config",
++               details={"updated_on": body.updated_on.isoformat(), **({"reason": note[:200]} if note else {})})
++    await db.flush()
++    return await _privacy_out(db)
++
++
++@router.delete("/privacy-policy", response_model=PrivacyAdminOut, summary="Revenir au texte d'origine")
++async def reset_privacy_policy(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
++    if await config_service.delete(db, config_service.PRIVACY_KEY):
++        log_action(db, admin, "config.privacy_policy_reset", target_type="config")
++        await db.flush()
++    return await _privacy_out(db)
+diff --git a/backend/app/appconfig/__init__.py b/backend/app/appconfig/__init__.py
+new file mode 100644
+index 0000000..8b13789
+--- /dev/null
++++ b/backend/app/appconfig/__init__.py
+@@ -0,0 +1 @@
++
+diff --git a/backend/app/appconfig/catalog.py b/backend/app/appconfig/catalog.py
+new file mode 100644
+index 0000000..9dd3be6
+--- /dev/null
++++ b/backend/app/appconfig/catalog.py
+@@ -0,0 +1,184 @@
++# app/appconfig/catalog.py
++#
++# Dashboard admin, lot A2 : catalogue des paramètres que l'administrateur contrôle
++# et règles d'application. Aucun accès à la base ici (fonctions pures, testables).
++#
++# Chaque paramètre a une « politique » :
++#   mode     free   → le joueur choisit (parmi `options`), `default` s'il n'a rien choisi
++#            locked → visible mais grisé : tout le monde a `default`
++#            hidden → invisible : tout le monde a `default`
++#   default  valeur des joueurs qui n'ont rien choisi (et valeur imposée si locked/hidden)
++#   options  (choix seulement) valeurs proposées ; une valeur retirée retombe sur `default`
++#
++# Les clés « privacy.* » correspondent aux colonnes privacy_* de users (lot 8) ;
++# « language » est la langue de l'interface, gardée par l'appareil (pas en base).
++from __future__ import annotations
++
++from typing import Any, Literal, Optional
++
++from pydantic import BaseModel, model_validator
++
++# Doivent rester alignés sur users/router.py (validateurs) et sur le frontend
++PALETTES = ["vintage", "classique", "ocean", "bordeaux", "ardoise",
++            "lavande", "foret", "terracotta", "tournesol", "contraste"]
++DIFFICULTIES = ["beginner", "easy", "medium", "hard_minus", "hard"]
++TURN_DURATIONS = [0, 60, 120, 180, 300]
++
++# key: (section, type, options, valeur d'origine, verrouillable)
++#   type « choice » : une valeur parmi options ; « bool » : oui / non
++#   themeMode / colorPalette : None d'origine = « pas de défaut imposé » (le client
++#   garde le choix de l'appareil, comportement d'avant le lot A2)
++CATALOG: dict[str, tuple[str, str, Optional[list], Any, bool]] = {
++    # Apparence
++    "themeMode":          ("appearance", "choice", ["light", "dark", "system"], None, True),
++    "colorPalette":       ("appearance", "choice", PALETTES, None, True),
++    "language":           ("appearance", "choice", ["fr", "en"], "fr", True),
++    # Parties
++    "difficulty":         ("game", "choice", DIFFICULTIES, "medium", True),
++    "gameLanguage":       ("game", "choice", ["fr", "en"], "fr", True),
++    "turnDuration":       ("game", "choice", TURN_DURATIONS, 0, True),
++    # Affichage
++    "showScorePreview":   ("display", "bool", None, True, True),
++    "showRemainingTiles": ("display", "bool", None, True, True),
++    "showBonusLabels":    ("display", "bool", None, True, True),
++    "animationsEnabled":  ("display", "bool", None, True, True),
++    # Comportement
++    "autoSortRack":       ("behavior", "bool", None, False, True),
++    "confirmValidation":  ("behavior", "bool", None, False, True),
++    # Notifications push (catégories)
++    "pushInvites":        ("notifications", "bool", None, True, True),
++    "pushFriends":        ("notifications", "bool", None, True, True),
++    "pushMessages":       ("notifications", "bool", None, True, True),
++    "pushTurn":           ("notifications", "bool", None, True, True),
++    # Confidentialité (colonnes users.privacy_*)
++    "privacy.profile":     ("privacy", "choice", ["everyone", "friends", "nobody"], "everyone", True),
++    "privacy.stats":       ("privacy", "choice", ["everyone", "friends", "nobody"], "everyone", True),
++    # Présence : défaut seulement. La verrouiller obligerait à réécrire en masse la
++    # copie Firebase des listes d'amis (règles de lecture de la présence).
++    "privacy.presence":    ("privacy", "choice", ["friends", "nobody"], "friends", False),
++    "privacy.requests":    ("privacy", "choice", ["everyone", "code"], "everyone", True),
++    "privacy.search":      ("privacy", "bool", None, True, True),
++    "privacy.leaderboard": ("privacy", "bool", None, True, True),
++}
++
++SECTIONS = ["appearance", "game", "display", "behavior", "notifications", "privacy"]
++PRIVACY_COLUMNS = {
++    "privacy.profile": "privacy_profile", "privacy.stats": "privacy_stats",
++    "privacy.presence": "privacy_presence", "privacy.requests": "privacy_requests",
++    "privacy.search": "privacy_search", "privacy.leaderboard": "privacy_leaderboard",
++}
++
++Mode = Literal["free", "locked", "hidden"]
++
++
++class SettingPolicy(BaseModel):
++    mode: Mode = "free"
++    default: Any = None
++    options: Optional[list] = None
++
++
++class SettingsPolicy(BaseModel):
++    """Politique complète : une entrée par clé du catalogue (les absentes prennent l'origine)."""
++    settings: dict[str, SettingPolicy] = {}
++
++    @model_validator(mode="after")
++    def _check(self) -> "SettingsPolicy":
++        unknown = set(self.settings) - set(CATALOG)
++        if unknown:
++            raise ValueError(f"Paramètres inconnus : {sorted(unknown)}")
++        full: dict[str, SettingPolicy] = {}
++        for key, (_section, kind, options, origin, lockable) in CATALOG.items():
++            p = self.settings.get(key) or SettingPolicy(default=origin, options=list(options) if options else None)
++            if p.mode != "free" and not lockable:
++                raise ValueError(f"{key} : ce paramètre ne peut être que libre.")
++            if kind == "bool":
++                if not isinstance(p.default, bool):
++                    raise ValueError(f"{key} : la valeur par défaut doit être oui ou non.")
++                p = SettingPolicy(mode=p.mode, default=p.default, options=None)
++            else:
++                allowed = list(options)
++                chosen = [o for o in (p.options if p.options is not None else allowed) if o in allowed]
++                chosen = [o for o in allowed if o in chosen]                 # ordre du catalogue, sans doublon
++                if not chosen:
++                    raise ValueError(f"{key} : au moins une option doit rester proposée.")
++                # themeMode / colorPalette : None = pas de défaut imposé (seulement en mode libre)
++                if p.default is None and origin is None and p.mode == "free":
++                    pass
++                elif p.default not in chosen:
++                    raise ValueError(f"{key} : la valeur par défaut doit faire partie des options proposées.")
++                p = SettingPolicy(mode=p.mode, default=p.default, options=chosen)
++            full[key] = p
++        self.settings = full
++        return self
++
++
++def builtin_policy() -> SettingsPolicy:
++    return SettingsPolicy()
++
++
++def catalog_out() -> list[dict]:
++    """Description du catalogue pour le dashboard (ordre d'affichage)."""
++    return [
++        {"key": key, "section": section, "type": kind, "options": options,
++         "origin": origin, "lockable": lockable}
++        for key, (section, kind, options, origin, lockable) in CATALOG.items()
++    ]
++
++
++# ── Application de la politique ───────────────────────────────────
++
++def _forced(p: SettingPolicy) -> bool:
++    return p.mode in ("locked", "hidden")
++
++
++def effective_value(key: str, stored: Any, policy: SettingsPolicy, *, has_value: bool) -> Any:
++    """Valeur qu'a vraiment le joueur pour `key`."""
++    p = policy.settings[key]
++    if _forced(p) or not has_value:
++        return p.default
++    if p.options is not None and stored not in p.options:
++        return p.default
++    return stored
++
++
++def effective_preferences(stored: dict, base_defaults: dict, policy: SettingsPolicy) -> dict:
++    """
++    Préférences du joueur après politique. `stored` = ce que le joueur a enregistré,
++    `base_defaults` = DEFAULT_PREFERENCES (clés hors catalogue : tutorialSeen, boardSize…).
++    """
++    out = {**base_defaults, **(stored or {})}
++    for key in out.keys() & policy.settings.keys():
++        p = policy.settings[key]
++        has = key in (stored or {}) and stored[key] is not None
++        if key in ("themeMode", "colorPalette") and p.default is None and not has:
++            out[key] = None                       # pas de défaut imposé : le client garde le sien
++            continue
++        out[key] = effective_value(key, (stored or {}).get(key), policy, has_value=has)
++    return out
++
++
++def filter_patch(patch: dict, policy: SettingsPolicy, *, prefix: str = "") -> tuple[dict, list[str]]:
++    """
++    Retire d'une modification les clés verrouillées/masquées et les valeurs non proposées.
++    Retourne (patch accepté, clés refusées). Les clés hors catalogue passent telles quelles.
++    """
++    accepted, refused = {}, []
++    for key, value in patch.items():
++        p = policy.settings.get(prefix + key)
++        if p is None:
++            accepted[key] = value
++        elif _forced(p) or (p.options is not None and value not in p.options):
++            refused.append(key)
++        else:
++            accepted[key] = value
++    return accepted, refused
++
++
++def privacy_defaults(policy: SettingsPolicy) -> dict[str, Any]:
++    """Valeurs des colonnes privacy_* d'un nouveau compte."""
++    return {col: policy.settings[key].default for key, col in PRIVACY_COLUMNS.items()}
++
++
++def public_policy(policy: SettingsPolicy) -> dict:
++    """Ce que reçoivent les clients (pas de secret ici : tout est public)."""
++    return {key: p.model_dump() for key, p in policy.settings.items()}
+diff --git a/backend/app/appconfig/models.py b/backend/app/appconfig/models.py
+new file mode 100644
+index 0000000..f0b7552
+--- /dev/null
++++ b/backend/app/appconfig/models.py
+@@ -0,0 +1,31 @@
++# app/appconfig/models.py
++#
++# Dashboard admin, lot A2 : configuration globale modifiable depuis le dashboard.
++# Une ligne par document JSON :
++#   settings        politique des paramètres (défauts, verrouillés, masqués, options)
++#   privacy_policy  texte de la politique de confidentialité (FR / EN)
++from __future__ import annotations
++
++from datetime import datetime, timezone
++from typing import Optional
++
++from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
++from sqlalchemy.dialects.postgresql import JSONB
++from sqlalchemy.orm import Mapped, mapped_column
++
++from app.db.database import Base
++
++JSONType = JSON().with_variant(JSONB(), "postgresql")
++
++
++def _utcnow() -> datetime:
++    return datetime.now(timezone.utc)
++
++
++class AppConfig(Base):
++    __tablename__ = "app_config"
++
++    key:        Mapped[str] = mapped_column(String(32), primary_key=True)
++    value:      Mapped[dict] = mapped_column(JSONType, nullable=False)
++    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
++    updated_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+diff --git a/backend/app/appconfig/privacy_doc.py b/backend/app/appconfig/privacy_doc.py
+new file mode 100644
+index 0000000..c19f387
+--- /dev/null
++++ b/backend/app/appconfig/privacy_doc.py
+@@ -0,0 +1,59 @@
++# app/appconfig/privacy_doc.py
++#
++# Politique de confidentialité modifiable (lot A2). Texte brut uniquement : le
++# client l'affiche comme du texte (aucun HTML interprété). Sans document en base,
++# le client affiche le texte livré avec l'application (frontend/src/i18n/privacy.js).
++from __future__ import annotations
++
++from datetime import date
++from typing import Optional
++
++from pydantic import BaseModel, Field, field_validator
++
++
++def _clean(v: str) -> str:
++    v = "".join(ch for ch in (v or "") if ch == "\n" or ch.isprintable())
++    return v.strip()
++
++
++class PolicySection(BaseModel):
++    title: str = Field(min_length=1, max_length=160)
++    warning: bool = False
++    paragraphs: list[str] = Field(default_factory=list, max_length=20)
++    items: list[str] = Field(default_factory=list, max_length=40)
++
++    @field_validator("title")
++    @classmethod
++    def _title(cls, v: str) -> str:
++        v = _clean(v)
++        if not v:
++            raise ValueError("Chaque section a besoin d'un titre.")
++        return v
++
++    @field_validator("paragraphs", "items")
++    @classmethod
++    def _lines(cls, v: list[str]) -> list[str]:
++        out = [_clean(x) for x in v]
++        if any(len(x) > 2000 for x in out):
++            raise ValueError("2000 caractères au plus par paragraphe ou par point.")
++        return [x for x in out if x]
++
++
++class PolicyLanguage(BaseModel):
++    title: str = Field(min_length=1, max_length=160)
++    intro: str = Field(default="", max_length=4000)
++    contactLabel: str = Field(default="", max_length=200)
++    contactFallback: str = Field(default="", max_length=1000)
++    sections: list[PolicySection] = Field(min_length=1, max_length=40)
++
++    @field_validator("title", "intro", "contactLabel", "contactFallback")
++    @classmethod
++    def _text(cls, v: str) -> str:
++        return _clean(v)
++
++
++class PrivacyPolicyDoc(BaseModel):
++    updated_on: date                       # « Dernière mise à jour : … »
++    fr: PolicyLanguage
++    en: PolicyLanguage
++    note: Optional[str] = Field(default=None, max_length=200)    # motif, gardé dans le journal
+diff --git a/backend/app/appconfig/router.py b/backend/app/appconfig/router.py
+new file mode 100644
+index 0000000..304b0a1
+--- /dev/null
++++ b/backend/app/appconfig/router.py
+@@ -0,0 +1,57 @@
++# app/appconfig/router.py
++#
++# Configuration publique (lot A2), lue par tous les clients, connectés ou non :
++#   GET /config                   politique des paramètres (défauts, verrous, options)
++#   GET /config/privacy-policy    politique de confidentialité modifiée par l'admin
++#                                 (custom: false → le client affiche son texte d'origine)
++# Sans base de données, les valeurs d'origine sont servies : le jeu reste jouable.
++from __future__ import annotations
++
++from datetime import datetime
++from typing import Optional
++
++from fastapi import APIRouter, Response
++from pydantic import BaseModel
++
++from app.appconfig import service
++from app.appconfig.catalog import builtin_policy, public_policy
++from app.db import database
++
++router = APIRouter(prefix="/config", tags=["Configuration"])
++
++CACHE_HEADER = "public, max-age=60"
++
++
++class PublicConfig(BaseModel):
++    settings: dict
++    updated_at: Optional[datetime] = None
++
++
++class PublicPrivacyPolicy(BaseModel):
++    custom: bool
++    document: Optional[dict] = None
++    updated_at: Optional[datetime] = None
++
++
++@router.get("", response_model=PublicConfig, summary="Paramètres fixés par l'administrateur")
++async def public_config(response: Response):
++    response.headers["Cache-Control"] = CACHE_HEADER
++    if database.AsyncSessionLocal is None:
++        return PublicConfig(settings=public_policy(builtin_policy()))
++    async with database.AsyncSessionLocal() as session:
++        policy = await service.get_policy(session)
++        row = await service.get_row(session, service.SETTINGS_KEY)
++    return PublicConfig(settings=public_policy(policy), updated_at=row.updated_at if row else None)
++
++
++@router.get("/privacy-policy", response_model=PublicPrivacyPolicy, summary="Politique de confidentialité")
++async def public_privacy_policy(response: Response):
++    response.headers["Cache-Control"] = CACHE_HEADER
++    if database.AsyncSessionLocal is None:
++        return PublicPrivacyPolicy(custom=False)
++    async with database.AsyncSessionLocal() as session:
++        row = await service.get_row(session, service.PRIVACY_KEY)
++    if row is None:
++        return PublicPrivacyPolicy(custom=False)
++    doc = {k: v for k, v in row.value.items() if k != "note"}
++    return PublicPrivacyPolicy(custom=True, document=doc, updated_at=row.updated_at)
+diff --git a/backend/app/appconfig/service.py b/backend/app/appconfig/service.py
+new file mode 100644
+index 0000000..b1c5daf
+--- /dev/null
++++ b/backend/app/appconfig/service.py
+@@ -0,0 +1,119 @@
++# app/appconfig/service.py
++#
++# Lecture / écriture de la configuration globale, avec un petit cache en mémoire :
++# la politique des paramètres est lue à chaque chargement de préférences, elle ne
++# doit pas coûter une requête à chaque fois. Le cache expire au bout de TTL_S
++# secondes (plusieurs processus finissent ainsi par voir la même version) et il est
++# vidé dès qu'un administrateur enregistre.
++from __future__ import annotations
++
++import logging
++import time
++from typing import Any, Optional
++
++from sqlalchemy import update
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from app.appconfig.catalog import PRIVACY_COLUMNS, SettingsPolicy, builtin_policy
++from app.appconfig.models import AppConfig
++
++logger = logging.getLogger(__name__)
++
++TTL_S = 30
++SETTINGS_KEY = "settings"
++PRIVACY_KEY = "privacy_policy"
++
++_cache: dict[str, tuple[float, Optional[AppConfig]]] = {}
++_last_policy: SettingsPolicy = builtin_policy()
++
++
++def invalidate() -> None:
++    global _last_policy
++    _cache.clear()
++    _last_policy = builtin_policy()
++
++
++async def get_row(db: AsyncSession, key: str) -> Optional[AppConfig]:
++    hit = _cache.get(key)
++    if hit and time.monotonic() - hit[0] < TTL_S:
++        return hit[1]
++    try:
++        # Point de sauvegarde : si la table manque (base pas encore migrée), seule
++        # cette lecture est annulée, pas la transaction de la requête en cours.
++        async with db.begin_nested():
++            row = await db.get(AppConfig, key)
++    except Exception as exc:
++        logger.warning("app_config illisible (%s) : valeurs d'origine utilisées.", exc)
++        row = None
++    if row is not None:
++        db.expunge(row)                           # gardé en cache hors de la session
++    _cache[key] = (time.monotonic(), row)
++    return row
++
++
++async def get_policy(db: AsyncSession) -> SettingsPolicy:
++    """Politique à jour (au plus TTL_S secondes de retard)."""
++    global _last_policy
++    row = await get_row(db, SETTINGS_KEY)
++    policy = builtin_policy()
++    if row is not None:
++        try:
++            policy = SettingsPolicy.model_validate(row.value)
++        except Exception as exc:                  # document abîmé : on n'empêche pas de jouer
++            logger.error("Politique des paramètres invalide en base : %s", exc)
++    _last_policy = policy
++    return policy
++
++
++def cached_policy() -> SettingsPolicy:
++    """Dernière politique connue (synchrone : modèles, notifications push)."""
++    return _last_policy
++
++
++async def save(db: AsyncSession, key: str, value: dict[str, Any], admin_id: Optional[int]) -> AppConfig:
++    row = await db.get(AppConfig, key)
++    if row is None:
++        row = AppConfig(key=key, value=value, updated_by=admin_id)
++        db.add(row)
++    else:
++        row.value = value
++        row.updated_by = admin_id
++        from sqlalchemy.orm.attributes import flag_modified
++        flag_modified(row, "value")
++    await db.flush()
++    invalidate()
++    return row
++
++
++async def delete(db: AsyncSession, key: str) -> bool:
++    row = await db.get(AppConfig, key)
++    if row is None:
++        return False
++    await db.delete(row)
++    await db.flush()
++    invalidate()
++    return True
++
++
++async def enforce_privacy(db: AsyncSession, policy: SettingsPolicy) -> dict[str, int]:
++    """
++    Confidentialité verrouillée, masquée ou option retirée : les colonnes des joueurs
++    concernés reprennent la valeur par défaut. Écrit en base, la règle vaut pour
++    toutes les routes qui lisent ces colonnes (profil, recherche, classements…).
++    Retourne le nombre de comptes modifiés par paramètre.
++    """
++    from app.db.models import User
++    changed: dict[str, int] = {}
++    for key, col in PRIVACY_COLUMNS.items():
++        p = policy.settings[key]
++        column = getattr(User, col)
++        if p.mode in ("locked", "hidden"):
++            cond = column != p.default
++        elif p.options is not None:
++            cond = column.notin_(p.options)
++        else:
++            continue
++        result = await db.execute(update(User).where(cond).values({col: p.default}))
++        if result.rowcount:
++            changed[key] = result.rowcount
++    return changed
+diff --git a/backend/app/auth/router.py b/backend/app/auth/router.py
+index 7fa2763..1263105 100644
+--- a/backend/app/auth/router.py
++++ b/backend/app/auth/router.py
+@@ -175,6 +175,14 @@ def _promote_if_listed(user: User) -> None:
+         logger.info("Utilisateur %s promu administrateur (ADMIN_EMAILS).", user.firebase_uid)
+ 
+ 
++async def _apply_privacy_defaults(db: AsyncSession, user: User) -> None:
++    """Lot A2 : un nouveau compte reçoit les défauts de confidentialité de l'administrateur."""
++    from app.appconfig.catalog import privacy_defaults
++    from app.appconfig.service import get_policy
++    for column, value in privacy_defaults(await get_policy(db)).items():
++        setattr(user, column, value)
++
++
+ class LoginResponse(BaseModel):
+     user: UserOut
+     is_new_user: bool
+@@ -221,6 +229,7 @@ async def register(
+         is_admin=False,
+     )
+     _promote_if_listed(user)
++    await _apply_privacy_defaults(db, user)
+     db.add(user)
+     await db.flush()
+     await db.refresh(user)
+@@ -271,6 +280,7 @@ async def login(
+         is_admin=False,
+     )
+     _promote_if_listed(user)
++    await _apply_privacy_defaults(db, user)
+     db.add(user)
+     await db.flush()
+     await db.refresh(user)
+diff --git a/backend/app/db/models.py b/backend/app/db/models.py
+index c4760e6..72311a6 100644
+--- a/backend/app/db/models.py
++++ b/backend/app/db/models.py
+@@ -98,24 +98,28 @@ class User(Base):
+         back_populates="user", cascade="all, delete-orphan"
+     )
+ 
+-    def get_preferences(self) -> dict:
+-        """Retourne les préférences fusionnées avec les valeurs par défaut."""
+-        if not self.game_preferences:
+-            return DEFAULT_PREFERENCES.copy()
+-        return {**DEFAULT_PREFERENCES, **self.game_preferences}
++    def get_preferences(self, policy=None) -> dict:
++        """
++        Préférences effectives : choix du joueur, complétés par les défauts, puis
++        politique de l'administrateur (lot A2 : défauts, réglages verrouillés ou masqués).
++        `policy` absent : dernière politique connue (cache du processus).
++        """
++        from app.appconfig.catalog import effective_preferences
++        from app.appconfig.service import cached_policy
++        return effective_preferences(self.game_preferences or {}, DEFAULT_PREFERENCES, policy or cached_policy())
+ 
+-    def set_preferences(self, patch: dict) -> dict:
++    def set_preferences(self, patch: dict, policy=None) -> dict:
+         """
+-        Fusionne patch avec les préférences existantes.
+-        Ne garde que les clés connues pour éviter la pollution.
+-        Retourne les préférences complètes mises à jour.
++        Enregistre les choix du joueur (clés connues seulement) et retourne les
++        préférences effectives. Depuis le lot A2, seules les clés choisies sont
++        stockées : une clé jamais choisie suit le défaut fixé par l'administrateur.
+         """
+-        current = self.get_preferences()
++        stored = dict(self.game_preferences or {})
+         for key, value in patch.items():
+             if key in DEFAULT_PREFERENCES:
+-                current[key] = value
+-        self.game_preferences = current
+-        return current
++                stored[key] = value
++        self.game_preferences = stored
++        return self.get_preferences(policy)
+ 
+     def update_stats_after_game(
+         self, score: int, won: bool,
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 7dec9ae..75e34e5 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -33,6 +33,7 @@ from app.push.router import router as push_router
+ from app.account.router import router as account_router
+ from app.users.privacy import router as privacy_router
+ from app.admin.router import router as admin_router
++from app.appconfig.router import router as config_router
+ 
+ # NB : les migrations Alembic sont lancées par la commande de démarrage
+ # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
+@@ -92,10 +93,16 @@ async def lifespan(application: FastAPI):
+                     from app.chat import models as _chat_models  # noqa — messagerie
+                     from app.push import models as _push_models  # noqa — jetons des notifications push
+                     from app.admin import models as _admin_models  # noqa — journal des administrateurs
++                    from app.appconfig import models as _config_models  # noqa — configuration globale (lot A2)
+                     await conn.run_sync(Base.metadata.create_all)
+                 logger.info("Tables DB créées / vérifiées (mode dev).")
+             else:
+                 logger.info("Mode production — schéma géré par Alembic.")
++        # Politique des paramètres (lot A2) : chargée tout de suite dans le cache
++        if db.AsyncSessionLocal is not None:
++            from app.appconfig.service import get_policy
++            async with db.AsyncSessionLocal() as session:
++                await get_policy(session)
+     except Exception as exc:
+         logger.warning("DB non initialisée : %s", exc)
+ 
+@@ -183,6 +190,7 @@ app.include_router(push_router,          prefix="/api/v2")
+ app.include_router(account_router,       prefix="/api/v2")
+ app.include_router(privacy_router,       prefix="/api/v2")
+ app.include_router(admin_router,         prefix="/api/v2")
++app.include_router(config_router,        prefix="/api/v2")
+ # ── Routes système ────────────────────────────────────────────────
+ 
+ @app.get("/health", tags=["Système"])
+diff --git a/backend/app/push/service.py b/backend/app/push/service.py
+index b19a015..013609e 100644
+--- a/backend/app/push/service.py
++++ b/backend/app/push/service.py
+@@ -119,6 +119,10 @@ async def _deliver(uids: list[str], category: str, kind: str, params: dict,
+         return 0
+     pref_key = CATEGORY_PREF.get(category)
+     async with factory() as session:
++        from app.appconfig.catalog import effective_preferences
++        from app.appconfig.service import get_policy
++        from app.db.models import DEFAULT_PREFERENCES
++        policy = await get_policy(session)          # lot A2 : avant de charger les jetons
+         rows = (await session.execute(
+             select(PushToken, User.firebase_uid, User.game_preferences)
+             .join(User, User.id == PushToken.user_id)
+@@ -126,7 +130,8 @@ async def _deliver(uids: list[str], category: str, kind: str, params: dict,
+         )).all()
+         messages = []
+         for token, uid, prefs in rows:
+-            if pref_key and (prefs or {}).get(pref_key) is False:
++            # Lot A2 : catégorie verrouillée ou masquée par l'administrateur → sa valeur
++            if pref_key and effective_preferences(prefs or {}, DEFAULT_PREFERENCES, policy).get(pref_key) is False:
+                 continue
+             p = {**params, **((per_uid or {}).get(uid) or {})}
+             title, body = render(p.pop("_kind", kind), token.locale, p)
+diff --git a/backend/app/users/privacy.py b/backend/app/users/privacy.py
+index 65ab595..7419b8f 100644
+--- a/backend/app/users/privacy.py
++++ b/backend/app/users/privacy.py
+@@ -20,7 +20,7 @@ import asyncio
+ import logging
+ from typing import Iterable, Literal, Optional
+ 
+-from fastapi import APIRouter, Depends
++from fastapi import APIRouter, Depends, HTTPException
+ from pydantic import BaseModel
+ from sqlalchemy import or_, select
+ from sqlalchemy.ext.asyncio import AsyncSession
+@@ -108,8 +108,14 @@ async def get_privacy(current_user: User = Depends(get_current_user)):
+ @router.put("/me/privacy", response_model=PrivacySettings, summary="Modifier mes réglages de confidentialité")
+ async def update_privacy(body: PrivacyPatch, current_user: User = Depends(get_current_user),
+                          db: AsyncSession = Depends(get_db)):
++    from app.appconfig.catalog import filter_patch
++    from app.appconfig.service import get_policy
+     before = settings_of(current_user)
+-    for key, value in body.model_dump(exclude_none=True).items():
++    # Lot A2 : réglage fixé par l'administrateur ou option retirée → refusé
++    patch, refused = filter_patch(body.model_dump(exclude_none=True), await get_policy(db), prefix="privacy.")
++    if refused:
++        raise HTTPException(status_code=403, detail="Ce réglage est fixé par l'administrateur.")
++    for key, value in patch.items():
+         setattr(current_user, FIELDS[key], value)
+     await db.flush()
+     after = settings_of(current_user)
+diff --git a/backend/app/users/router.py b/backend/app/users/router.py
+index 7279d55..664d661 100644
+--- a/backend/app/users/router.py
++++ b/backend/app/users/router.py
+@@ -11,6 +11,8 @@ from app.auth.dependencies import get_current_user, get_current_user_optional
+ from app.users.privacy import can_see, friend_ids_of
+ from app.auth.router import UserOut
+ 
++import logging
++logger = logging.getLogger(__name__)
+ router = APIRouter(prefix="/users", tags=["Utilisateurs"])
+ 
+ 
+@@ -401,12 +403,14 @@ async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db),
+ # ── Préférences de jeu ─────────────────────────────────────────────
+ 
+ @router.get("/me/preferences", response_model=PreferencesResponse)
+-async def get_preferences(current_user: User = Depends(get_current_user)):
++async def get_preferences(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+     """
+     Retourne les préférences de jeu de l'utilisateur connecté.
+-    Les valeurs manquantes sont complétées par les défauts.
++    Les valeurs manquantes sont complétées par les défauts, puis la politique de
++    l'administrateur s'applique (réglages verrouillés ou masqués, options retirées).
+     """
+-    return PreferencesResponse(**current_user.get_preferences())
++    from app.appconfig.service import get_policy
++    return PreferencesResponse(**current_user.get_preferences(await get_policy(db)))
+ 
+ 
+ @router.put("/me/preferences", response_model=PreferencesResponse)
+@@ -420,13 +424,21 @@ async def update_preferences(
+     Seuls les champs fournis dans le body sont modifiés.
+     Les préférences sont fusionnées avec les valeurs existantes.
+     """
++    from app.appconfig.catalog import filter_patch
++    from app.appconfig.service import get_policy
++    policy = await get_policy(db)
+     patch = {k: v for k, v in payload.model_dump().items() if v is not None}
++    # Lot A2 : un réglage verrouillé / masqué ou une option retirée n'est pas enregistré
++    # (ignoré sans erreur : un ancien client peut encore envoyer toutes ses valeurs)
++    patch, refused = filter_patch(patch, policy)
++    if refused:
++        logger.info("Préférences refusées par la politique (user %d) : %s", current_user.id, refused)
+ 
+     if not patch:
+         # Rien à modifier — retourner les préférences actuelles
+-        return PreferencesResponse(**current_user.get_preferences())
++        return PreferencesResponse(**current_user.get_preferences(policy))
+ 
+-    updated = current_user.set_preferences(patch)
++    updated = current_user.set_preferences(patch, policy)
+ 
+     # Force SQLAlchemy à détecter la mutation du champ JSON
+     from sqlalchemy.orm.attributes import flag_modified
+diff --git a/backend/tests/conftest.py b/backend/tests/conftest.py
+index 317f39f..f5771ad 100644
+--- a/backend/tests/conftest.py
++++ b/backend/tests/conftest.py
+@@ -68,3 +68,12 @@ def _reset_friends_mirror_cache():
+     from app.friends import router as friends_router
+     friends_router._mirror_cache.clear()
+     yield
++
++
++@pytest.fixture(autouse=True)
++def _reset_app_config_cache():
++    """Politique des paramètres (lot A2) : cache du processus vidé entre les tests."""
++    from app.appconfig import service
++    service.invalidate()
++    yield
++    service.invalidate()
+diff --git a/backend/tests/test_admin_settings.py b/backend/tests/test_admin_settings.py
+new file mode 100644
+index 0000000..6d3d350
+--- /dev/null
++++ b/backend/tests/test_admin_settings.py
+@@ -0,0 +1,273 @@
++# tests/test_admin_settings.py
++#
++# Dashboard admin, lot A2 : politique des paramètres (défauts, verrouillés, masqués,
++# options proposées), son application côté serveur (préférences, confidentialité,
++# nouveaux comptes) et politique de confidentialité modifiable.
++#
++import pytest
++from fastapi import Depends
++from sqlalchemy import select
++
++from app.admin.models import AdminAction
++from app.appconfig.models import AppConfig
++from app.auth.dependencies import get_current_user, get_current_user_optional
++from app.db import database as db
++from app.db.database import get_db
++from app.db.models import User
++
++pytestmark = pytest.mark.anyio
++
++API = "/api/v2"
++
++
++@pytest.fixture
++async def sqlite_db():
++    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
++    from sqlalchemy.pool import StaticPool
++
++    engine = create_async_engine("sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
++    async with engine.begin() as conn:
++        for model in (User, AdminAction, AppConfig):
++            await conn.run_sync(model.__table__.create)
++    previous = db.AsyncSessionLocal
++    db.AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
++    try:
++        yield db.AsyncSessionLocal
++    finally:
++        db.AsyncSessionLocal = previous
++        await engine.dispose()
++
++
++@pytest.fixture
++async def users(sqlite_db):
++    out = {}
++    async with sqlite_db() as session:
++        async with session.begin():
++            out["admin"] = User(firebase_uid="uid-admin", email="admin@test.dev", display_name="Admin", is_admin=True)
++            # Bruno a déjà choisi sa difficulté et sa palette ; Carla n'a rien choisi
++            out["bruno"] = User(firebase_uid="uid-bruno", email="bruno@test.dev", display_name="Bruno",
++                                game_preferences={"difficulty": "easy", "colorPalette": "ocean"})
++            out["carla"] = User(firebase_uid="uid-carla", email="carla@test.dev", display_name="Carla")
++            session.add_all(out.values())
++    return out
++
++
++@pytest.fixture
++def login(app):
++    def _login(user):
++        user_id = user.id
++
++        async def current(session=Depends(get_db)):
++            return await session.get(User, user_id)
++        app.dependency_overrides[get_current_user] = current
++        app.dependency_overrides[get_current_user_optional] = current
++    yield _login
++    app.dependency_overrides.pop(get_current_user, None)
++    app.dependency_overrides.pop(get_current_user_optional, None)
++
++
++async def _policy(client):
++    return (await client.get(f"{API}/admin/settings")).json()["policy"]
++
++
++async def _put(client, changes: dict, **extra):
++    policy = await _policy(client)
++    for key, value in changes.items():
++        policy[key] = {**policy[key], **value}
++    return await client.put(f"{API}/admin/settings", json={"settings": policy, **extra})
++
++
++# ── Catalogue et validation ───────────────────────────────────────
++
++async def test_settings_reserved_to_admins(client, login, users):
++    login(users["bruno"])
++    assert (await client.get(f"{API}/admin/settings")).status_code == 403
++    assert (await client.put(f"{API}/admin/settings", json={"settings": {}})).status_code == 403
++    assert (await client.put(f"{API}/admin/privacy-policy", json={})).status_code == 403
++
++
++async def test_builtin_policy_and_catalog(client, login, users):
++    login(users["admin"])
++    body = (await client.get(f"{API}/admin/settings")).json()
++    assert body["custom"] is False
++    keys = [c["key"] for c in body["catalog"]]
++    assert keys[0] == "themeMode" and "privacy.leaderboard" in keys
++    assert body["policy"]["difficulty"] == {"mode": "free", "default": "medium",
++                                            "options": ["beginner", "easy", "medium", "hard_minus", "hard"]}
++    assert body["policy"]["colorPalette"]["default"] is None          # pas de défaut imposé d'origine
++    # Public, sans connexion
++    pub = (await client.get(f"{API}/config")).json()
++    assert pub["settings"]["showBonusLabels"] == {"mode": "free", "default": True, "options": None}
++
++
++@pytest.mark.parametrize("changes, message", [
++    ({"difficulty": {"default": "hard", "options": ["easy", "medium"]}}, "doit faire partie"),
++    ({"turnDuration": {"options": []}}, "au moins une option"),
++    ({"privacy.presence": {"mode": "locked"}}, "ne peut être que libre"),
++    ({"showBonusLabels": {"default": "oui"}}, "oui ou non"),
++    ({"colorPalette": {"mode": "locked"}}, "doit faire partie"),          # verrouillé sans défaut
++])
++async def test_invalid_policies_are_refused(client, login, users, changes, message):
++    login(users["admin"])
++    r = await _put(client, changes)
++    assert r.status_code == 422 and message in r.text, r.text
++
++
++async def test_unknown_setting_is_refused(client, login, users):
++    login(users["admin"])
++    r = await client.put(f"{API}/admin/settings", json={"settings": {"nope": {"mode": "free", "default": 1}}})
++    assert r.status_code == 422
++
++
++async def test_options_keep_catalog_order(client, login, users):
++    login(users["admin"])
++    r = await _put(client, {"turnDuration": {"default": 60, "options": [300, 60, 60]}})
++    assert r.json()["policy"]["turnDuration"]["options"] == [60, 300]
++
++
++# ── Préférences des joueurs ───────────────────────────────────────
++
++async def test_defaults_locks_and_options_apply_to_preferences(client, login, users):
++    login(users["admin"])
++    r = await _put(client, {
++        "showBonusLabels": {"mode": "locked", "default": False},
++        "autoSortRack":    {"default": True},                                  # nouveau défaut, libre
++        "difficulty":      {"default": "medium", "options": ["medium", "hard_minus", "hard"]},
++        "colorPalette":    {"default": "foret"},
++    }, note="essai")
++    assert r.status_code == 200, r.text
++    assert r.json()["custom"] is True and r.json()["updated_by_name"] == "Admin"
++
++    login(users["carla"])                       # rien choisi : défauts de l'admin
++    prefs = (await client.get(f"{API}/users/me/preferences")).json()
++    assert (prefs["showBonusLabels"], prefs["autoSortRack"], prefs["colorPalette"]) == (False, True, "foret")
++
++    login(users["bruno"])                       # « easy » n'est plus proposé → défaut ; palette choisie gardée
++    prefs = (await client.get(f"{API}/users/me/preferences")).json()
++    assert (prefs["difficulty"], prefs["colorPalette"]) == ("medium", "ocean")
++
++    # Modifications : verrouillé et option retirée ignorés, le reste enregistré
++    r = await client.put(f"{API}/users/me/preferences",
++                         json={"showBonusLabels": True, "difficulty": "easy", "autoSortRack": False})
++    assert r.status_code == 200
++    assert (r.json()["showBonusLabels"], r.json()["difficulty"], r.json()["autoSortRack"]) == (False, "medium", False)
++    r = await client.put(f"{API}/users/me/preferences", json={"difficulty": "hard"})
++    assert r.json()["difficulty"] == "hard"
++
++    # Journal
++    login(users["admin"])
++    action = (await client.get(f"{API}/admin/actions")).json()[0]
++    assert action["action"] == "config.settings"
++    assert set(action["details"]["changed"]) == {"showBonusLabels", "autoSortRack", "difficulty", "colorPalette"}
++    assert action["details"]["reason"] == "essai"
++
++
++async def test_only_chosen_preferences_are_stored(client, login, users, sqlite_db):
++    login(users["carla"])
++    await client.put(f"{API}/users/me/preferences", json={"turnDuration": 60})
++    async with sqlite_db() as s:
++        stored = (await s.get(User, users["carla"].id)).game_preferences
++    assert stored == {"turnDuration": 60}
++
++    # Un défaut changé ensuite s'applique aux clés jamais choisies
++    login(users["admin"])
++    await _put(client, {"animationsEnabled": {"default": False}})
++    login(users["carla"])
++    prefs = (await client.get(f"{API}/users/me/preferences")).json()
++    assert (prefs["turnDuration"], prefs["animationsEnabled"]) == (60, False)
++
++
++async def test_reset_returns_to_builtin(client, login, users):
++    login(users["admin"])
++    await _put(client, {"showBonusLabels": {"mode": "hidden", "default": False}})
++    r = await client.delete(f"{API}/admin/settings")
++    assert r.json()["custom"] is False and r.json()["policy"]["showBonusLabels"]["mode"] == "free"
++    login(users["carla"])
++    assert (await client.get(f"{API}/users/me/preferences")).json()["showBonusLabels"] is True
++
++
++# ── Confidentialité ───────────────────────────────────────────────
++
++async def test_privacy_lock_rewrites_accounts_and_blocks_changes(client, login, users, sqlite_db):
++    login(users["admin"])
++    r = await _put(client, {
++        "privacy.leaderboard": {"mode": "locked", "default": False},
++        "privacy.stats":       {"default": "friends", "options": ["friends", "nobody"]},
++    })
++    assert r.json()["privacy_updates"] == {"privacy.leaderboard": 3, "privacy.stats": 3}
++    async with sqlite_db() as s:
++        rows = (await s.execute(select(User.privacy_leaderboard, User.privacy_stats))).all()
++    assert set(rows) == {(False, "friends")}
++
++    login(users["bruno"])
++    r = await client.put(f"{API}/users/me/privacy", json={"leaderboard": True})
++    assert r.status_code == 403
++    assert (await client.put(f"{API}/users/me/privacy", json={"stats": "everyone"})).status_code == 403
++    r = await client.put(f"{API}/users/me/privacy", json={"stats": "nobody"})
++    assert r.status_code == 200 and r.json()["stats"] == "nobody"
++
++
++async def test_new_accounts_get_privacy_defaults(client, login, users, sqlite_db):
++    from app.auth.router import _apply_privacy_defaults
++    login(users["admin"])
++    await _put(client, {"privacy.profile": {"default": "friends"}, "privacy.search": {"default": False}})
++    async with sqlite_db() as s:
++        u = User(firebase_uid="new", email="new@test.dev", display_name="Nouveau")
++        await _apply_privacy_defaults(s, u)
++    assert (u.privacy_profile, u.privacy_search, u.privacy_presence) == ("friends", False, "friends")
++
++
++async def test_public_config_reflects_policy(client, login, users):
++    login(users["admin"])
++    await _put(client, {"language": {"mode": "locked", "default": "en"}})
++    pub = (await client.get(f"{API}/config")).json()
++    assert pub["settings"]["language"] == {"mode": "locked", "default": "en", "options": ["fr", "en"]}
++    assert pub["updated_at"]
++
++
++# ── Politique de confidentialité ──────────────────────────────────
++
++POLICY = {
++    "updated_on": "2026-11-26",
++    "fr": {"title": "Politique", "intro": "Bonjour", "contactLabel": "Contact", "contactFallback": "Messagerie",
++           "sections": [{"title": "Données", "items": ["E-mail", "  ", "Pseudo"], "paragraphs": []},
++                        {"title": "Messagerie", "warning": True, "paragraphs": ["Pas chiffrée."]}]},
++    "en": {"title": "Policy", "intro": "Hello", "contactLabel": "Contact", "contactFallback": "Messaging",
++           "sections": [{"title": "Data", "items": ["Email"]}]},
++    "note": "ajout de la section admin",
++}
++
++
++async def test_privacy_policy_publish_read_reset(client, login, users):
++    assert (await client.get(f"{API}/config/privacy-policy")).json() == {"custom": False, "document": None, "updated_at": None}
++    login(users["admin"])
++    r = await client.put(f"{API}/admin/privacy-policy", json=POLICY)
++    assert r.status_code == 200, r.text
++    assert r.json()["document"]["fr"]["sections"][0]["items"] == ["E-mail", "Pseudo"]      # lignes vides retirées
++    assert "note" not in r.json()["document"]
++
++    pub = (await client.get(f"{API}/config/privacy-policy")).json()
++    assert pub["custom"] is True and pub["document"]["updated_on"] == "2026-11-26"
++    assert pub["document"]["en"]["title"] == "Policy"
++
++    action = (await client.get(f"{API}/admin/actions")).json()[0]
++    assert (action["action"], action["details"]["reason"]) == ("config.privacy_policy", "ajout de la section admin")
++
++    r = await client.delete(f"{API}/admin/privacy-policy")
++    assert r.json()["custom"] is False
++    assert (await client.get(f"{API}/config/privacy-policy")).json()["custom"] is False
++
++
++async def test_privacy_policy_validation(client, login, users):
++    login(users["admin"])
++    bad = {**POLICY, "en": {**POLICY["en"], "sections": []}}
++    assert (await client.put(f"{API}/admin/privacy-policy", json=bad)).status_code == 422
++    bad = {**POLICY, "fr": {**POLICY["fr"], "sections": [{"title": "   ", "items": ["x"]}]}}
++    assert (await client.put(f"{API}/admin/privacy-policy", json=bad)).status_code == 422
++
++
++async def test_public_config_without_database(client):
++    # Pas de base (CI) : valeurs d'origine, le jeu reste jouable
++    r = await client.get(f"{API}/config")
++    assert r.status_code == 200 and r.json()["settings"]["difficulty"]["default"] == "medium"
++    assert r.headers["cache-control"] == "public, max-age=60"
+diff --git a/frontend/eslint.config.js b/frontend/eslint.config.js
+index bdc5d52..70b3b32 100644
+--- a/frontend/eslint.config.js
++++ b/frontend/eslint.config.js
+@@ -38,6 +38,7 @@ export default defineConfig([
+         allowExportNames: [
+           'useAuth', 'useLanguage', 'useSettings', 'useTheme',
+           'useTutorialContext', 'useTutorialRef', 'useNotifications',
++          'useAppConfig', 'useAppConfigOptional',
+         ],
+       }],
+     },
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index e1f9915..35701f8 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -11,6 +11,7 @@ import { InviteBanner } from './components/Notifications';
+ import { ThemeProvider }    from './context/ThemeContext';
+ import { SettingsProvider, useSettings } from './context/SettingsContext';
+ import { LanguageProvider, useLanguage } from './context/LanguageContext';
++import { AppConfigProvider } from './context/AppConfigContext';
+ 
+ import Navbar         from './components/Navbar';
+ import ProtectedRoute from './components/ProtectedRoute';
+@@ -154,19 +155,22 @@ function AppWithTutorial({ children }) {
+ 
+ export default function App() {
+   return (
+-    <LanguageProvider>
+-      <AuthProvider>
+-        <SettingsProvider>
+-          {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
+-          <ThemeProvider>
+-            <AppWithTutorial>
+-              <NotificationsProvider>
+-                <Router />
+-              </NotificationsProvider>
+-            </AppWithTutorial>
+-          </ThemeProvider>
+-        </SettingsProvider>
+-      </AuthProvider>
+-    </LanguageProvider>
++    // Paramètres fixés par l'administrateur (lot A2) : lus par la langue, les réglages et le thème
++    <AppConfigProvider>
++      <LanguageProvider>
++        <AuthProvider>
++          <SettingsProvider>
++            {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
++            <ThemeProvider>
++              <AppWithTutorial>
++                <NotificationsProvider>
++                  <Router />
++                </NotificationsProvider>
++              </AppWithTutorial>
++            </ThemeProvider>
++          </SettingsProvider>
++        </AuthProvider>
++      </LanguageProvider>
++    </AppConfigProvider>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/frontend/src/api/adminService.js b/frontend/src/api/adminService.js
+index 9ac840a..eb673a4 100644
+--- a/frontend/src/api/adminService.js
++++ b/frontend/src/api/adminService.js
+@@ -21,3 +21,21 @@ export const listActions = async ({ limit = 50, beforeId = null } = {}) =>
+ 
+ // Sourdine dans la messagerie : route existante du lot 6 (0 = lever la sourdine)
+ export { muteUser } from './chatService';
++
++// ── Lot A2 : paramètres globaux et politique de confidentialité ──
++
++/** { catalog, policy, custom, updated_at, updated_by_name } */
++export const getSettingsPolicy = async () => (await api.get('/admin/settings')).data;
++
++/** policy : { clé: { mode, default, options } } — retourne la politique enregistrée (+ privacy_updates). */
++export const saveSettingsPolicy = async (policy, note) =>
++  (await api.put('/admin/settings', { settings: policy, ...(note ? { note } : {}) })).data;
++
++export const resetSettingsPolicy = async () => (await api.delete('/admin/settings')).data;
++
++/** { custom, document, updated_at, updated_by_name } */
++export const getPrivacyPolicy = async () => (await api.get('/admin/privacy-policy')).data;
++
++export const savePrivacyPolicy = async (document) => (await api.put('/admin/privacy-policy', document)).data;
++
++export const resetPrivacyPolicy = async () => (await api.delete('/admin/privacy-policy')).data;
+diff --git a/frontend/src/api/configService.js b/frontend/src/api/configService.js
+new file mode 100644
+index 0000000..8f8bdf4
+--- /dev/null
++++ b/frontend/src/api/configService.js
+@@ -0,0 +1,10 @@
++// src/api/configService.js
++// Configuration publique (dashboard admin, lot A2) : lisible sans être connecté.
++
++import { api } from './axiosInstance';
++
++/** { settings: { clé: { mode, default, options } }, updated_at } */
++export const getPublicConfig = async () => (await api.get('/config')).data;
++
++/** { custom, document, updated_at } — custom: false → texte livré avec l'application. */
++export const getPublicPrivacyPolicy = async () => (await api.get('/config/privacy-policy')).data;
+diff --git a/frontend/src/components/Navbar.jsx b/frontend/src/components/Navbar.jsx
+index 301967c..774147d 100644
+--- a/frontend/src/components/Navbar.jsx
++++ b/frontend/src/components/Navbar.jsx
+@@ -14,8 +14,8 @@ const ThemeIcons = { light: '☀️', dark: '🌙', system: '⚙️' };
+ 
+ export default function Navbar() {
+   const { user, isAuthenticated, logout, loading } = useAuth();
+-  const { preference, setTheme, THEMES, resolvedTheme } = useTheme();
+-  const { t, language, setLanguage }                    = useLanguage();
++  const { preference, setTheme, THEMES, resolvedTheme, PALETTES } = useTheme();
++  const { t, language, setLanguage, availableLanguages } = useLanguage();
+   const [showThemeMenu, setShowThemeMenu] = useState(false);
+   const { unreadMessages } = useNotifications();   // lot 6 : non-lus de la messagerie
+   const isMobile = useIsMobile();
+@@ -42,10 +42,14 @@ export default function Navbar() {
+     ...(user?.is_admin ? [{ label: t('nav_admin'), hash: '#/admin', authOnly: true }] : []),
+   ];
+ 
++  // Lot A2 : seules les options que l'administrateur laisse au choix ; une seule → sélecteur masqué
+   const LANGUAGES = [
+     { value: 'fr', emoji: '🇫🇷' },
+     { value: 'en', emoji: '🇬🇧' },
+-  ];
++  ].filter(l => availableLanguages.includes(l.value));
++  const canPickLanguage = LANGUAGES.length > 1;
++  const canPickTheme = THEMES.length > 1;
++  const canPickPalette = PALETTES.length > 1;
+ 
+   const handleLogout = async () => {
+     await stopPresence();   // tant que le jeton est valide : « hors ligne » pour les amis
+@@ -60,10 +64,11 @@ export default function Navbar() {
+       <MobileNavbar
+         links={NAV_LINKS.filter(l => !l.authOnly || isAuthenticated)}
+         currentHash={currentHash}
+-        languages={LANGUAGES}
++        languages={canPickLanguage ? LANGUAGES : []}
+         language={language}
+         setLanguage={setLanguage}
+-        themes={THEMES}
++        themes={canPickTheme ? THEMES : []}
++        canPickPalette={canPickPalette}
+         themeIcons={ThemeIcons}
+         themeLabels={ThemeLabels}
+         preference={preference}
+@@ -133,7 +138,7 @@ export default function Navbar() {
+         {isAuthenticated && <NotificationBell />}
+ 
+         {/* ── Sélecteur de langue ────────────────────────── */}
+-        <div className="app-nav-lang" style={{ display: 'flex', gap: '4px' }}>
++        {canPickLanguage && <div className="app-nav-lang" style={{ display: 'flex', gap: '4px' }}>
+           {LANGUAGES.map(l => (
+             <button
+               key={l.value}
+@@ -154,10 +159,10 @@ export default function Navbar() {
+               {l.emoji}
+             </button>
+           ))}
+-        </div>
++        </div>}
+ 
+         {/* ── Theme toggle ───────────────────────────────── */}
+-        <div className="app-nav-theme" style={{ position: 'relative' }}>
++        {(canPickTheme || canPickPalette) && <div className="app-nav-theme" style={{ position: 'relative' }}>
+           <button
+             onClick={() => setShowThemeMenu(v => !v)}
+             title={`${t('section_appearance')} : ${ThemeLabels[preference]}`}
+@@ -213,7 +218,7 @@ export default function Navbar() {
+                   {t('nav_appearance')}
+                 </div>
+ 
+-                {THEMES.map(theme => (
++                {(canPickTheme ? THEMES : []).map(theme => (
+                   <button
+                     key={theme}
+                     onClick={() => { setTheme(theme); setShowThemeMenu(false); }}
+@@ -253,7 +258,7 @@ export default function Navbar() {
+                 ))}
+ 
+                 {/* Palette de couleurs */}
+-                <div style={{ borderTop: '1px solid var(--border-muted)', padding: '10px 14px 12px' }}>
++                {canPickPalette && <div style={{ borderTop: '1px solid var(--border-muted)', padding: '10px 14px 12px' }}>
+                   <div style={{
+                     fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.12em',
+                     textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px',
+@@ -261,11 +266,11 @@ export default function Navbar() {
+                     {t('nav_palette')}
+                   </div>
+                   <PalettePicker variant="compact" />
+-                </div>
++                </div>}
+               </div>
+             </>
+           )}
+-        </div>
++        </div>}
+ 
+         {/* ── Auth zone ──────────────────────────────────── */}
+         {isAuthenticated ? (
+@@ -360,7 +365,7 @@ export default function Navbar() {
+ 
+ function MobileNavbar({
+   links, currentHash, languages, language, setLanguage,
+-  themes, themeIcons, themeLabels, preference, setTheme,
++  themes, themeIcons, themeLabels, preference, setTheme, canPickPalette,
+   isAuthenticated, user, onLogout, t,
+ }) {
+   const [open, setOpen] = useState(false);
+@@ -420,7 +425,7 @@ function MobileNavbar({
+               ))}
+             </div>
+ 
+-            <div className="mnav-row" role="group" aria-label={t('nav_language')}>
++            {languages.length > 0 && <div className="mnav-row" role="group" aria-label={t('nav_language')}>
+               <span className="mnav-row-label">{t('nav_language')}</span>
+               {languages.map(l => (
+                 <button
+@@ -434,9 +439,9 @@ function MobileNavbar({
+                   {l.value === 'fr' ? 'Français' : 'English'}
+                 </button>
+               ))}
+-            </div>
++            </div>}
+ 
+-            <div className="mnav-row" role="group" aria-label={t('nav_appearance')}>
++            {themes.length > 0 && <div className="mnav-row" role="group" aria-label={t('nav_appearance')}>
+               <span className="mnav-row-label">{t('nav_appearance')}</span>
+               {themes.map(theme => (
+                 <button
+@@ -450,12 +455,12 @@ function MobileNavbar({
+                   {themeLabels[theme]}
+                 </button>
+               ))}
+-            </div>
++            </div>}
+ 
+-            <div className="mnav-row">
++            {canPickPalette && <div className="mnav-row">
+               <span className="mnav-row-label">{t('nav_palette')}</span>
+               <PalettePicker variant="compact" />
+-            </div>
++            </div>}
+ 
+             <div className="mnav-row">
+               {isAuthenticated ? (
+diff --git a/frontend/src/components/admin/ActionLine.jsx b/frontend/src/components/admin/ActionLine.jsx
+index 9e75640..5070081 100644
+--- a/frontend/src/components/admin/ActionLine.jsx
++++ b/frontend/src/components/admin/ActionLine.jsx
+@@ -8,6 +8,7 @@ function detailText(action, t) {
+   const d = action.details || {};
+   const parts = [];
+   if (d.to) parts.push(t('adm_detail_rename', { from: d.from, to: d.to }));
++  if (Array.isArray(d.changed)) parts.push(t('adm_detail_changed', { count: d.changed.length }));
+   if (d.minutes) parts.push(t('adm_detail_minutes', { count: d.minutes }));
+   if (d.seconds != null && action.action === 'chat.slow_mode') parts.push(t('adm_detail_seconds', { count: d.seconds }));
+   if (d.reason) parts.push(`« ${d.reason} »`);
+@@ -16,7 +17,7 @@ function detailText(action, t) {
+ 
+ export default function ActionLine({ action, showTarget = true }) {
+   const { t, language } = useLanguage();
+-  const key = `adm_act_${action.action.replace('.', '_')}`;
++  const key = `adm_act_${action.action.replaceAll('.', '_')}`;
+   const label = t(key) === key ? action.action : t(key);
+   const extra = detailText(action, t);
+   return (
+diff --git a/frontend/src/components/admin/AdminPrivacy.jsx b/frontend/src/components/admin/AdminPrivacy.jsx
+new file mode 100644
+index 0000000..a795bde
+--- /dev/null
++++ b/frontend/src/components/admin/AdminPrivacy.jsx
+@@ -0,0 +1,264 @@
++// src/components/admin/AdminPrivacy.jsx
++// Dashboard › Confidentialité (lot A2) : modifier et publier la politique de
++// confidentialité (FR et EN). Sans version publiée, la page #/privacy affiche
++// le texte livré avec l'application ; l'éditeur part alors de ce texte.
++// Texte brut uniquement : une ligne = un paragraphe ou un point de liste.
++
++import React, { useEffect, useState } from 'react';
++import { useLanguage } from '../../context/LanguageContext';
++import { getPrivacyPolicy, resetPrivacyPolicy, savePrivacyPolicy } from '../../api/adminService';
++import { privacy as builtin, PRIVACY_UPDATED } from '../../i18n/privacy';
++import { fromDocument } from '../../utils/privacyDoc';
++import { RetroButton, Spinner } from '../ui';
++import { errorOf, formatDate } from './adminUtils';
++
++const LANGS = ['fr', 'en'];
++const today = () => new Date().toISOString().slice(0, 10);
++
++// Document (serveur ou texte d'origine) → brouillon éditable (lignes en texte)
++const toDraftLang = (p) => ({
++  title: p.title ?? '',
++  intro: p.intro ?? '',
++  contactLabel: p.contactLabel ?? '',
++  contactFallback: p.contactFallback ?? '',
++  sections: (p.sections ?? []).map(s => ({
++    title: s.title ?? '',
++    warning: !!s.warning,
++    paragraphs: (s.paragraphs ?? []).join('\n'),
++    items: (s.items ?? []).join('\n'),
++  })),
++});
++
++const toDraft = (doc) => ({
++  updated_on: doc?.updated_on ?? PRIVACY_UPDATED,
++  fr: toDraftLang(doc?.fr ?? builtin.fr),
++  en: toDraftLang(doc?.en ?? builtin.en),
++});
++
++const lines = (text) => text.split('\n').map(l => l.trim()).filter(Boolean);
++
++// Brouillon → document envoyé au serveur
++const toDocument = (draft, note) => ({
++  updated_on: draft.updated_on,
++  note: note || null,
++  ...Object.fromEntries(LANGS.map(l => [l, {
++    ...draft[l],
++    sections: draft[l].sections.map(s => ({
++      title: s.title, warning: s.warning, paragraphs: lines(s.paragraphs), items: lines(s.items),
++    })),
++  }])),
++});
++
++function Field({ label, children, hint }) {
++  return (
++    <label className="adm-field">
++      <span className="adm-field-label">{label}</span>
++      {children}
++      {hint && <span className="adm-hint">{hint}</span>}
++    </label>
++  );
++}
++
++function SectionEditor({ section, index, count, onChange, onMove, onRemove, t }) {
++  const set = (patch) => onChange({ ...section, ...patch });
++  return (
++    <fieldset className="adm-pp-section" data-warning={section.warning || undefined}>
++      <legend className="adm-field-label">{t('adm_pp_section_n', { n: index + 1 })}</legend>
++      <div className="adm-pp-row">
++        <Field label={t('adm_pp_section_title')}>
++          <input className="adm-input" value={section.title} maxLength={160} onChange={e => set({ title: e.target.value })} />
++        </Field>
++        <div className="adm-actions adm-pp-tools">
++          <button type="button" className="s-chip" disabled={index === 0} onClick={() => onMove(-1)} aria-label={t('adm_pp_up')}>↑</button>
++          <button type="button" className="s-chip" disabled={index === count - 1} onClick={() => onMove(1)} aria-label={t('adm_pp_down')}>↓</button>
++          <button type="button" className="s-chip" disabled={count === 1} onClick={onRemove}>{t('adm_pp_remove')}</button>
++        </div>
++      </div>
++      <label className="adm-check">
++        <input type="checkbox" checked={section.warning} onChange={e => set({ warning: e.target.checked })} />
++        {t('adm_pp_warning')}
++      </label>
++      <Field label={t('adm_pp_paragraphs')} hint={t('adm_pp_lines_hint')}>
++        <textarea className="adm-input adm-textarea" rows={Math.max(2, section.paragraphs.split('\n').length)}
++                  value={section.paragraphs} onChange={e => set({ paragraphs: e.target.value })} />
++      </Field>
++      <Field label={t('adm_pp_items')} hint={t('adm_pp_lines_hint')}>
++        <textarea className="adm-input adm-textarea" rows={Math.max(3, section.items.split('\n').length)}
++                  value={section.items} onChange={e => set({ items: e.target.value })} />
++      </Field>
++    </fieldset>
++  );
++}
++
++function Preview({ draft, lang, t }) {
++  const p = fromDocument(toDocument(draft), lang, t);
++  return (
++    <article className="pv-page adm-pp-preview" lang={lang}>
++      <header className="pv-head">
++        <h1 className="pv-title">{p.title}</h1>
++        <p className="pv-updated">{p.updated}</p>
++        <p className="pv-intro">{p.intro}</p>
++      </header>
++      {p.sections.map((s, i) => (
++        <section key={i} className="pv-section" data-warning={s.warning || undefined}>
++          <h2 className="pv-h2">{s.warning ? '⚠️ ' : ''}{s.title}</h2>
++          {s.paragraphs.map((text, j) => <p key={j} className="pv-p">{text}</p>)}
++          {s.items.length > 0 && <ul className="pv-list">{s.items.map((text, j) => <li key={j}>{text}</li>)}</ul>}
++        </section>
++      ))}
++      <section className="pv-section">
++        <h2 className="pv-h2">{p.contactLabel}</h2>
++        <p className="pv-p">{p.contactFallback}</p>
++      </section>
++    </article>
++  );
++}
++
++export default function AdminPrivacy() {
++  const { t, language } = useLanguage();
++  const [data, setData] = useState(null);
++  const [draft, setDraft] = useState(null);
++  const [saved, setSaved] = useState(null);         // brouillon au dernier chargement / enregistrement
++  const [lang, setLang] = useState('fr');
++  const [preview, setPreview] = useState(false);
++  const [note, setNote] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState(null);
++  const [notice, setNotice] = useState(null);
++  const [confirmReset, setConfirmReset] = useState(false);
++
++  const load = (d) => { const dr = toDraft(d.document); setData(d); setDraft(dr); setSaved(dr); };
++
++  useEffect(() => {
++    let cancelled = false;
++    getPrivacyPolicy()
++      .then(d => { if (!cancelled) load(d); })
++      .catch(err => { if (!cancelled) setError(errorOf(err, t)); });
++    return () => { cancelled = true; };
++  }, [t]);
++
++  if (error && !data) return <p className="st-note" data-tone="error">{error}</p>;
++  if (!draft) return <div className="adm-loading"><Spinner size={18} /></div>;
++
++  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
++  const L = draft[lang];
++  const setL = (patch) => setDraft(d => ({ ...d, [lang]: { ...d[lang], ...patch } }));
++  const setSection = (i, s) => setL({ sections: L.sections.map((x, j) => (j === i ? s : x)) });
++  const moveSection = (i, dir) => {
++    const next = [...L.sections];
++    [next[i], next[i + dir]] = [next[i + dir], next[i]];
++    setL({ sections: next });
++  };
++
++  const run = async (fn, doneKey) => {
++    setBusy(true); setError(null); setNotice(null);
++    try {
++      load(await fn());
++      setNote(''); setConfirmReset(false);
++      setNotice(t(doneKey));
++    } catch (err) {
++      setError(errorOf(err, t));
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  return (
++    <div className="adm-stack">
++      <div className="adm-panel adm-intro">
++        <p className="acc-text">{t('adm_pp_intro')}</p>
++        <p className="adm-hint">
++          {data.custom
++            ? t('adm_pp_published_by', { date: formatDate(data.updated_at, language), name: data.updated_by_name ?? '—' })
++            : t('adm_pp_builtin')}
++          {' · '}<a className="adm-link" href="#/privacy" target="_blank" rel="noreferrer">{t('adm_pp_open_page')}</a>
++        </p>
++      </div>
++
++      {notice && <p className="st-note" data-tone="ok" role="status">{notice}</p>}
++      {error && <p className="st-note" data-tone="error" role="alert">{error}</p>}
++
++      <div className="adm-toolbar">
++        <div className="adm-seg" role="radiogroup" aria-label={t('adm_pp_language')}>
++          {LANGS.map(l => (
++            <button key={l} type="button" role="radio" className="adm-seg-btn"
++                    aria-checked={lang === l} onClick={() => setLang(l)}>
++              {l === 'fr' ? 'Français' : 'English'}
++            </button>
++          ))}
++        </div>
++        <button type="button" className="s-chip" data-active={preview} onClick={() => setPreview(v => !v)}>
++          {preview ? t('adm_pp_edit') : t('adm_pp_preview')}
++        </button>
++        <span className="adm-toolbar-note">{t('adm_pp_both_languages')}</span>
++      </div>
++
++      {preview ? <Preview draft={draft} lang={lang} t={t} /> : (
++        <div className="adm-panel adm-stack adm-pp-form" lang={lang}>
++          <div className="adm-pp-row">
++            <Field label={t('adm_pp_title')}>
++              <input className="adm-input" value={L.title} maxLength={160} onChange={e => setL({ title: e.target.value })} />
++            </Field>
++            <Field label={t('adm_pp_updated_on')} hint={t('adm_pp_updated_hint')}>
++              <input type="date" className="adm-input" value={draft.updated_on} max={today()}
++                     onChange={e => setDraft(d => ({ ...d, updated_on: e.target.value }))} />
++            </Field>
++          </div>
++          <Field label={t('adm_pp_intro_field')}>
++            <textarea className="adm-input adm-textarea" rows={4} value={L.intro} maxLength={4000}
++                      onChange={e => setL({ intro: e.target.value })} />
++          </Field>
++
++          {L.sections.map((s, i) => (
++            <SectionEditor key={i} section={s} index={i} count={L.sections.length} t={t}
++                           onChange={x => setSection(i, x)} onMove={dir => moveSection(i, dir)}
++                           onRemove={() => setL({ sections: L.sections.filter((_, j) => j !== i) })} />
++          ))}
++          <div className="adm-actions">
++            <RetroButton onClick={() => setL({ sections: [...L.sections, { title: '', warning: false, paragraphs: '', items: '' }] })}>
++              + {t('adm_pp_add_section')}
++            </RetroButton>
++          </div>
++
++          <div className="adm-pp-row adm-pp-row--even">
++            <Field label={t('adm_pp_contact_label')}>
++              <input className="adm-input" value={L.contactLabel} maxLength={200} onChange={e => setL({ contactLabel: e.target.value })} />
++            </Field>
++            <Field label={t('adm_pp_contact_fallback')} hint={t('adm_pp_contact_hint')}>
++              <input className="adm-input" value={L.contactFallback} maxLength={1000} onChange={e => setL({ contactFallback: e.target.value })} />
++            </Field>
++          </div>
++        </div>
++      )}
++
++      <div className="adm-panel adm-reset">
++        {confirmReset ? (
++          <>
++            <p className="acc-text">{t('adm_pp_reset_confirm')}</p>
++            <div className="adm-actions">
++              <RetroButton variant="danger" disabled={busy} onClick={() => run(resetPrivacyPolicy, 'adm_pp_reset_done')}>{t('adm_pp_reset')}</RetroButton>
++              <RetroButton disabled={busy} onClick={() => setConfirmReset(false)}>{t('adm_cancel')}</RetroButton>
++            </div>
++          </>
++        ) : (
++          <div className="adm-actions">
++            <RetroButton disabled={busy || !data.custom} onClick={() => setConfirmReset(true)}>{t('adm_pp_reset')}</RetroButton>
++            <span className="adm-hint">{t('adm_pp_reset_hint')}</span>
++          </div>
++        )}
++      </div>
++
++      {(dirty || !data.custom) && (
++        <div className="adm-savebar" role="region" aria-label={t('adm_pp_publish')}>
++          <span className="adm-savebar-text">{dirty ? t('adm_pp_unsaved') : t('adm_pp_not_published')}</span>
++          <input className="adm-input adm-input--sm" value={note} maxLength={200} onChange={e => setNote(e.target.value)}
++                 placeholder={t('adm_reason_ph_short')} aria-label={t('adm_reason')} />
++          {dirty && <RetroButton disabled={busy} onClick={() => { setDraft(saved); setNotice(null); }}>{t('adm_cancel')}</RetroButton>}
++          <RetroButton variant="primary" disabled={busy} onClick={() => run(() => savePrivacyPolicy(toDocument(draft, note.trim())), 'adm_pp_published')}>
++            {t('adm_pp_publish')}
++          </RetroButton>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/frontend/src/components/admin/AdminSettings.jsx b/frontend/src/components/admin/AdminSettings.jsx
+new file mode 100644
+index 0000000..8ae6fa5
+--- /dev/null
++++ b/frontend/src/components/admin/AdminSettings.jsx
+@@ -0,0 +1,212 @@
++// src/components/admin/AdminSettings.jsx
++// Dashboard › Paramètres (lot A2) : pour chaque réglage des joueurs, l'état
++// (libre, verrouillé, masqué), la valeur par défaut et les options proposées.
++// Les modifications s'accumulent dans un brouillon, enregistré d'un coup.
++
++import React, { useEffect, useMemo, useState } from 'react';
++import { useLanguage } from '../../context/LanguageContext';
++import { useAppConfig } from '../../context/AppConfigContext';
++import { getSettingsPolicy, resetSettingsPolicy, saveSettingsPolicy } from '../../api/adminService';
++import { RetroButton, Spinner } from '../ui';
++import { errorOf, formatDate } from './adminUtils';
++import { optionLabel, settingLabel } from './settingsLabels';
++
++const SECTIONS = ['appearance', 'game', 'display', 'behavior', 'notifications', 'privacy'];
++const MODES = ['free', 'locked', 'hidden'];
++
++const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
++
++function SettingRow({ item, rule, onChange, t }) {
++  const forced = rule.mode !== 'free';
++  const isChoice = item.type === 'choice';
++  // themeMode / colorPalette : « aucun défaut » possible tant que le réglage est libre
++  const canBeEmpty = isChoice && item.origin === null && !forced;
++  const defaults = isChoice ? [...(canBeEmpty ? [null] : []), ...rule.options] : [true, false];
++  const changed = (patch) => onChange({ ...rule, ...patch });
++
++  const setMode = (mode) => {
++    // Verrouiller sans défaut : la première option proposée devient le défaut
++    if (mode !== 'free' && rule.default === null) changed({ mode, default: rule.options?.[0] ?? null });
++    else changed({ mode });
++  };
++
++  const toggleOption = (value) => {
++    const on = rule.options.includes(value);
++    if (on && (rule.options.length === 1 || value === rule.default)) return;   // garder le défaut et au moins une option
++    const options = item.options.filter(o => (o === value ? !on : rule.options.includes(o)));
++    changed({ options });
++  };
++
++  return (
++    <tr data-mode={rule.mode}>
++      <th scope="row" className="adm-set-name">{settingLabel(item.key, t)}</th>
++      <td>
++        <div className="adm-seg" role="radiogroup" aria-label={t('adm_set_col_mode')}>
++          {MODES.map(m => (
++            <button key={m} type="button" role="radio" aria-checked={rule.mode === m}
++                    className="adm-seg-btn" data-mode={m}
++                    disabled={!item.lockable && m !== 'free'}
++                    title={!item.lockable && m !== 'free' ? t('adm_set_not_lockable') : t(`adm_set_mode_${m}_hint`)}
++                    onClick={() => setMode(m)}>
++              {t(`adm_set_mode_${m}`)}
++            </button>
++          ))}
++        </div>
++      </td>
++      <td>
++        <select className="adm-input adm-input--sm" aria-label={t('adm_set_col_default')}
++                value={JSON.stringify(rule.default)}
++                onChange={e => changed({ default: JSON.parse(e.target.value) })}>
++          {defaults.map(v => (
++            <option key={JSON.stringify(v)} value={JSON.stringify(v)}>{optionLabel(item.key, v, t)}</option>
++          ))}
++        </select>
++      </td>
++      <td>
++        {isChoice ? (
++          <div className="adm-opts" aria-label={t('adm_set_col_options')}>
++            {item.options.map(o => {
++              const on = rule.options.includes(o);
++              const locked = on && (o === rule.default || rule.options.length === 1);
++              return (
++                <label key={String(o)} className="adm-opt" data-on={on || undefined} data-disabled={(forced || locked) || undefined}
++                       title={locked ? t('adm_set_option_default') : undefined}>
++                  <input type="checkbox" checked={on} disabled={forced || locked} onChange={() => toggleOption(o)} />
++                  {optionLabel(item.key, o, t)}
++                </label>
++              );
++            })}
++          </div>
++        ) : <span className="adm-muted">—</span>}
++      </td>
++    </tr>
++  );
++}
++
++export default function AdminSettings() {
++  const { t, language } = useLanguage();
++  const { reload } = useAppConfig();
++  const [data, setData] = useState(null);           // réponse du serveur
++  const [draft, setDraft] = useState(null);         // politique en cours d'édition
++  const [note, setNote] = useState('');
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState(null);
++  const [notice, setNotice] = useState(null);
++  const [confirmReset, setConfirmReset] = useState(false);
++
++  useEffect(() => {
++    let cancelled = false;
++    getSettingsPolicy()
++      .then(d => { if (!cancelled) { setData(d); setDraft(d.policy); } })
++      .catch(err => { if (!cancelled) setError(errorOf(err, t)); });
++    return () => { cancelled = true; };
++  }, [t]);
++
++  const dirtyKeys = useMemo(
++    () => (data && draft ? Object.keys(draft).filter(k => !same(draft[k], data.policy[k])) : []),
++    [data, draft],
++  );
++
++  const afterSave = (d, doneText) => {
++    setData(d); setDraft(d.policy); setNote(''); setConfirmReset(false);
++    const updates = Object.entries(d.privacy_updates ?? {});
++    setNotice(updates.length
++      ? `${doneText} ${t('adm_set_privacy_updates', { list: updates.map(([k, n]) => `${settingLabel(k, t)} (${n})`).join(', ') })}`
++      : doneText);
++    reload(true);                                    // l'interface de l'admin suit aussi
++  };
++
++  const run = async (fn, doneKey) => {
++    setBusy(true); setError(null); setNotice(null);
++    try { afterSave(await fn(), t(doneKey)); } catch (err) { setError(errorOf(err, t)); } finally { setBusy(false); }
++  };
++
++  if (error && !data) return <p className="st-note" data-tone="error">{error}</p>;
++  if (!data || !draft) return <div className="adm-loading"><Spinner size={18} /></div>;
++
++  const bySection = (section) => data.catalog.filter(c => c.section === section);
++  const summary = (section) => {
++    const items = bySection(section);
++    const locked = items.filter(c => draft[c.key].mode !== 'free').length;
++    return locked ? t('adm_set_section_fixed', { count: locked }) : t('adm_set_section_free');
++  };
++
++  return (
++    <div className="adm-stack adm-settings">
++      <div className="adm-panel adm-intro">
++        <p className="acc-text">{t('adm_set_intro')}</p>
++        <ul className="adm-legend">
++          {MODES.map(m => <li key={m}><strong>{t(`adm_set_mode_${m}`)}</strong> — {t(`adm_set_mode_${m}_hint`)}</li>)}
++        </ul>
++        <p className="adm-hint">
++          {data.custom
++            ? t('adm_set_saved_by', { date: formatDate(data.updated_at, language), name: data.updated_by_name ?? '—' })
++            : t('adm_set_builtin')}
++        </p>
++      </div>
++
++      {notice && <p className="st-note" data-tone="ok" role="status">{notice}</p>}
++      {error && <p className="st-note" data-tone="error" role="alert">{error}</p>}
++
++      {SECTIONS.map(section => (
++        <section key={section} className="adm-panel" aria-labelledby={`adm-set-${section}`}>
++          <div className="adm-set-head">
++            <h3 id={`adm-set-${section}`} className="adm-h3">{t(`section_${section}`)}</h3>
++            <span className="adm-hint">{summary(section)}</span>
++          </div>
++          <div className="adm-table-wrap adm-table-wrap--flat">
++            <table className="adm-table adm-set-table">
++              <thead>
++                <tr>
++                  <th>{t('adm_set_col_setting')}</th>
++                  <th>{t('adm_set_col_mode')}</th>
++                  <th>{t('adm_set_col_default')}</th>
++                  <th>{t('adm_set_col_options')}</th>
++                </tr>
++              </thead>
++              <tbody>
++                {bySection(section).map(item => (
++                  <SettingRow key={item.key} item={item} rule={draft[item.key]} t={t}
++                              onChange={rule => setDraft(d => ({ ...d, [item.key]: rule }))} />
++                ))}
++              </tbody>
++            </table>
++          </div>
++          {section === 'privacy' && <p className="adm-hint">{t('adm_set_privacy_note')}</p>}
++          {section === 'appearance' && <p className="adm-hint">{t('adm_set_appearance_note')}</p>}
++        </section>
++      ))}
++
++      <div className="adm-panel adm-reset">
++        {confirmReset ? (
++          <>
++            <p className="acc-text">{t('adm_set_reset_confirm')}</p>
++            <div className="adm-actions">
++              <RetroButton variant="danger" disabled={busy} onClick={() => run(resetSettingsPolicy, 'adm_set_reset_done')}>
++                {t('adm_set_reset')}
++              </RetroButton>
++              <RetroButton disabled={busy} onClick={() => setConfirmReset(false)}>{t('adm_cancel')}</RetroButton>
++            </div>
++          </>
++        ) : (
++          <div className="adm-actions">
++            <RetroButton disabled={busy || !data.custom} onClick={() => setConfirmReset(true)}>{t('adm_set_reset')}</RetroButton>
++            <span className="adm-hint">{t('adm_set_reset_hint')}</span>
++          </div>
++        )}
++      </div>
++
++      {dirtyKeys.length > 0 && (
++        <div className="adm-savebar" role="region" aria-label={t('adm_set_unsaved', { count: dirtyKeys.length })}>
++          <span className="adm-savebar-text">{t('adm_set_unsaved', { count: dirtyKeys.length })}</span>
++          <input className="adm-input adm-input--sm" value={note} maxLength={200} onChange={e => setNote(e.target.value)}
++                 placeholder={t('adm_reason_ph_short')} aria-label={t('adm_reason')} />
++          <RetroButton disabled={busy} onClick={() => { setDraft(data.policy); setNotice(null); }}>{t('adm_cancel')}</RetroButton>
++          <RetroButton variant="primary" disabled={busy} onClick={() => run(() => saveSettingsPolicy(draft, note.trim()), 'adm_set_saved')}>
++            {t('adm_save')}
++          </RetroButton>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/frontend/src/components/admin/adminUtils.js b/frontend/src/components/admin/adminUtils.js
+index 9684acc..37f1fa2 100644
+--- a/frontend/src/components/admin/adminUtils.js
++++ b/frontend/src/components/admin/adminUtils.js
+@@ -1,7 +1,14 @@
+ // src/components/admin/adminUtils.js
+ // Petits utilitaires partagés par les écrans du dashboard admin (pas de JSX ici).
+ 
+-export const errorOf = (err, t) => err?.response?.data?.detail || t('adm_error');
++export const errorOf = (err, t) => {
++  const detail = err?.response?.data?.detail;
++  // 422 de FastAPI : liste d'erreurs de validation → leurs messages
++  if (Array.isArray(detail)) {
++    return detail.map(d => String(d?.msg ?? d).replace(/^Value error, /, '')).join(' · ') || t('adm_error');
++  }
++  return (typeof detail === 'string' && detail) || t('adm_error');
++};
+ 
+ const LOCALES = { fr: 'fr-CA', en: 'en-CA' };
+ 
+diff --git a/frontend/src/components/admin/settingsLabels.js b/frontend/src/components/admin/settingsLabels.js
+new file mode 100644
+index 0000000..59b6122
+--- /dev/null
++++ b/frontend/src/components/admin/settingsLabels.js
+@@ -0,0 +1,45 @@
++// src/components/admin/settingsLabels.js
++// Libellés des paramètres et de leurs options dans le dashboard (lot A2).
++// Réutilise les clés de la page Paramètres pour que l'admin voie les mêmes mots
++// que les joueurs.
++
++const SETTING_LABELS = {
++  themeMode:          'row_theme',
++  colorPalette:       'row_palette',
++  language:           'row_language',
++  difficulty:         'row_difficulty',
++  gameLanguage:       'gl_label',
++  turnDuration:       'row_turn_duration',
++  showScorePreview:   'row_score_preview',
++  showRemainingTiles: 'row_remaining_tiles',
++  showBonusLabels:    'row_bonus_labels',
++  animationsEnabled:  'row_animations',
++  autoSortRack:       'row_auto_sort',
++  confirmValidation:  'row_confirm_validation',
++  pushInvites:        'push_cat_invites',
++  pushFriends:        'push_cat_friends',
++  pushMessages:       'push_cat_messages',
++  pushTurn:           'push_cat_turn',
++};
++
++const TURN_LABELS = { 0: 'turn_unlimited', 60: 'turn_1min', 120: 'turn_2min', 180: 'turn_3min', 300: 'turn_5min' };
++const LANGUAGE_NAMES = { fr: 'Français', en: 'English' };
++
++export function settingLabel(key, t) {
++  if (key.startsWith('privacy.')) return t(`privacy_${key.slice(8)}`);
++  return t(SETTING_LABELS[key] ?? key);
++}
++
++export function optionLabel(key, value, t) {
++  if (value === null || value === undefined) return t('adm_set_no_default');
++  if (typeof value === 'boolean') return value ? t('adm_yes') : t('adm_no');
++  switch (key) {
++    case 'themeMode':    return t(`theme_${value}`);
++    case 'colorPalette': return t(`palette_${value}`);
++    case 'language':
++    case 'gameLanguage': return LANGUAGE_NAMES[value] ?? value;
++    case 'difficulty':   return t(`diff_${value}_label`);
++    case 'turnDuration': return t(TURN_LABELS[value] ?? String(value));
++    default:             return key.startsWith('privacy.') ? t(`privacy_opt_${value}`) : String(value);
++  }
++}
+diff --git a/frontend/src/components/settings/Managed.jsx b/frontend/src/components/settings/Managed.jsx
+new file mode 100644
+index 0000000..a82bbc8
+--- /dev/null
++++ b/frontend/src/components/settings/Managed.jsx
+@@ -0,0 +1,37 @@
++// src/components/settings/Managed.jsx
++// Paramètres fixés par l'administrateur (lot A2) : mention « fixé » et liste de
++// lignes séparées qui saute les lignes masquées.
++import React from 'react';
++import { useLanguage } from '../../context/LanguageContext';
++
++/** « 🔒 Fixé par l'administrateur », sous un contrôle verrouillé. */
++export function LockNote() {
++  const { t } = useLanguage();
++  return (
++    <span className="st-lock" role="note">
++      <span aria-hidden="true">🔒</span> {t('settings_locked')}
++    </span>
++  );
++}
++
++/** Contrôle + mention si verrouillé ; le contrôle ne reçoit plus les clics. */
++export function Managed({ locked, children }) {
++  if (!locked) return children;
++  return (
++    <div className="st-managed" data-locked="">
++      <div className="st-managed-ctl" aria-disabled="true" inert>{children}</div>
++      <LockNote />
++    </div>
++  );
++}
++
++/** Lignes séparées par un filet ; les lignes `null` (masquées) disparaissent avec leur filet. */
++export function RowList({ children }) {
++  const rows = React.Children.toArray(children).filter(Boolean);
++  return rows.map((row, i) => (
++    <React.Fragment key={row.key ?? i}>
++      {i > 0 && <div style={{ borderTop: '1px solid var(--border-muted)' }} />}
++      {row}
++    </React.Fragment>
++  ));
++}
+diff --git a/frontend/src/components/settings/NotificationsCard.jsx b/frontend/src/components/settings/NotificationsCard.jsx
+index a4a29ce..1faae84 100644
+--- a/frontend/src/components/settings/NotificationsCard.jsx
++++ b/frontend/src/components/settings/NotificationsCard.jsx
+@@ -11,6 +11,8 @@ import { Card, MonoLabel, RetroButton, Spinner } from '../ui';
+ import { Row, Toggle, SectionTitle } from './SettingsParts';
+ import { disablePush, enablePush, pushEnabledHere, pushSupport } from '../../utils/push';
+ import { sendTestPush } from '../../api/accountService';
++import { useAppConfig } from '../../context/AppConfigContext';
++import { Managed } from './Managed';
+ 
+ const CATEGORIES = [
+   { key: 'pushInvites',  label: 'push_cat_invites',  desc: 'push_cat_invites_desc'  },
+@@ -21,6 +23,7 @@ const CATEGORIES = [
+ 
+ export default function NotificationsCard({ settings, update }) {
+   const { t, language } = useLanguage();
++  const { isHidden, isLocked } = useAppConfig();      // lot A2 : catégories fixées par l'admin
+   const [support, setSupport] = useState(() => pushSupport());
+   const [enabled, setEnabled] = useState(() => pushEnabledHere());
+   const [busy, setBusy] = useState(false);
+@@ -90,9 +93,11 @@ export default function NotificationsCard({ settings, update }) {
+         <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+ 
+         <MonoLabel size="xs" style={{ lineHeight: 1.5 }}>{t('push_categories_hint')}</MonoLabel>
+-        {CATEGORIES.map(c => (
++        {CATEGORIES.filter(c => !isHidden(c.key)).map(c => (
+           <Row key={c.key} label={t(c.label)} desc={t(c.desc)}>
+-            <Toggle value={settings[c.key] !== false} onChange={v => update(c.key, v)} label={t(c.label)} />
++            <Managed locked={isLocked(c.key)}>
++              <Toggle value={settings[c.key] !== false} onChange={v => update(c.key, v)} label={t(c.label)} />
++            </Managed>
+           </Row>
+         ))}
+ 
+diff --git a/frontend/src/components/settings/PrivacyCard.jsx b/frontend/src/components/settings/PrivacyCard.jsx
+index 90be75c..d3e41ea 100644
+--- a/frontend/src/components/settings/PrivacyCard.jsx
++++ b/frontend/src/components/settings/PrivacyCard.jsx
+@@ -9,9 +9,22 @@ import { useLanguage } from '../../context/LanguageContext';
+ import { Card, MonoLabel, Spinner } from '../ui';
+ import { Row, Toggle, SectionTitle } from './SettingsParts';
+ import { getPrivacy, updatePrivacy } from '../../api/accountService';
++import { useAppConfig } from '../../context/AppConfigContext';
++import { choosable } from '../../utils/appConfig';
++import { Managed, RowList } from './Managed';
+ 
+ const AUDIENCE = ['everyone', 'friends', 'nobody'];
+ 
++// Ordre d'affichage ; options : null pour un oui / non
++const ROWS = [
++  { key: 'profile',     options: AUDIENCE },
++  { key: 'stats',       options: AUDIENCE },
++  { key: 'presence',    options: ['friends', 'nobody'] },
++  { key: 'requests',    options: ['everyone', 'code'] },
++  { key: 'search',      options: null },
++  { key: 'leaderboard', options: null },
++];
++
+ function Choice({ name, options, value, onChange, disabled, t }) {
+   return (
+     <div className="pv-choice" role="radiogroup" aria-label={name}>
+@@ -28,6 +41,7 @@ function Choice({ name, options, value, onChange, disabled, t }) {
+ export default function PrivacyCard() {
+   const { t } = useLanguage();
+   const { refreshUser } = useAuth();
++  const { policy, isHidden, isLocked } = useAppConfig();   // lot A2 : réglages fixés par l'admin
+   const [privacy, setPrivacy] = useState(null);
+   const [saving, setSaving] = useState(null);       // clé en cours d'enregistrement
+   const [note, setNote] = useState(null);           // { tone, text }
+@@ -66,37 +80,22 @@ export default function PrivacyCard() {
+         <MonoLabel size="xs" style={{ lineHeight: 1.5 }}>{t('privacy_intro')}</MonoLabel>
+ 
+         {!privacy ? (note ? null : <Spinner size={18} />) : (
+-          <>
+-            <Row label={t('privacy_profile')} desc={t('privacy_profile_desc')}>
+-              <Choice name={t('privacy_profile')} options={AUDIENCE} value={privacy.profile}
+-                onChange={v => change('profile', v)} disabled={saving === 'profile'} t={t} />
+-            </Row>
+-            <div className="pv-sep" />
+-            <Row label={t('privacy_stats')} desc={t('privacy_stats_desc')}>
+-              <Choice name={t('privacy_stats')} options={AUDIENCE} value={privacy.stats}
+-                onChange={v => change('stats', v)} disabled={saving === 'stats'} t={t} />
+-            </Row>
+-            <div className="pv-sep" />
+-            <Row label={t('privacy_presence')} desc={t('privacy_presence_desc')}>
+-              <Choice name={t('privacy_presence')} options={['friends', 'nobody']} value={privacy.presence}
+-                onChange={v => change('presence', v)} disabled={saving === 'presence'} t={t} />
+-            </Row>
+-            <div className="pv-sep" />
+-            <Row label={t('privacy_requests')} desc={t('privacy_requests_desc')}>
+-              <Choice name={t('privacy_requests')} options={['everyone', 'code']} value={privacy.requests}
+-                onChange={v => change('requests', v)} disabled={saving === 'requests'} t={t} />
+-            </Row>
+-            <div className="pv-sep" />
+-            <Row label={t('privacy_search')} desc={t('privacy_search_desc')}>
+-              <Toggle value={privacy.search} onChange={v => change('search', v)}
+-                label={t('privacy_search')} disabled={saving === 'search'} />
+-            </Row>
+-            <div className="pv-sep" />
+-            <Row label={t('privacy_leaderboard')} desc={t('privacy_leaderboard_desc')}>
+-              <Toggle value={privacy.leaderboard} onChange={v => change('leaderboard', v)}
+-                label={t('privacy_leaderboard')} disabled={saving === 'leaderboard'} />
+-            </Row>
+-          </>
++          <RowList>
++            {ROWS.filter(r => !isHidden(`privacy.${r.key}`)).map(r => {
++              const label = t(`privacy_${r.key}`);
++              const control = r.options ? (
++                <Choice name={label} options={choosable(policy, `privacy.${r.key}`, r.options)} value={privacy[r.key]}
++                  onChange={v => change(r.key, v)} disabled={saving === r.key} t={t} />
++              ) : (
++                <Toggle value={privacy[r.key]} onChange={v => change(r.key, v)} label={label} disabled={saving === r.key} />
++              );
++              return (
++                <Row key={r.key} label={label} desc={t(`privacy_${r.key}_desc`)}>
++                  <Managed locked={isLocked(`privacy.${r.key}`)}>{control}</Managed>
++                </Row>
++              );
++            })}
++          </RowList>
+         )}
+ 
+         {note && <p role="status" className="st-note" data-tone={note.tone}>{note.text}</p>}
+diff --git a/frontend/src/context/AppConfigContext.jsx b/frontend/src/context/AppConfigContext.jsx
+new file mode 100644
+index 0000000..168a8a9
+--- /dev/null
++++ b/frontend/src/context/AppConfigContext.jsx
+@@ -0,0 +1,59 @@
++// src/context/AppConfigContext.jsx
++//
++// Paramètres fixés par l'administrateur (dashboard, lot A2).
++//   1. Au démarrage : dernière politique gardée par l'appareil (aucun délai)
++//   2. Puis GET /config, et de nouveau toutes les 5 minutes et au retour sur l'onglet
++// Le serveur applique aussi la politique : ce contexte sert à l'affichage
++// (réglages masqués, grisés, options retirées) et aux choix faits hors connexion.
++import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
++import { getPublicConfig } from '../api/configService';
++import { readCachedPolicy, ruleOf, writeCachedPolicy } from '../utils/appConfig';
++
++const AppConfigContext = createContext(null);
++
++const REFRESH_MS = 5 * 60 * 1000;
++const MIN_GAP_MS = 30 * 1000;              // pas plus d'une requête toutes les 30 s (focus répétés)
++
++export function AppConfigProvider({ children }) {
++  const [policy, setPolicy] = useState(readCachedPolicy);
++  const lastFetch = useRef(0);
++
++  const reload = useCallback(async (force = false) => {
++    if (!force && Date.now() - lastFetch.current < MIN_GAP_MS) return;
++    lastFetch.current = Date.now();
++    try {
++      const config = await getPublicConfig();
++      writeCachedPolicy(config);
++      setPolicy(config.settings ?? null);
++    } catch {
++      /* hors ligne ou serveur indisponible : la politique gardée reste valable */
++    }
++  }, []);
++
++  useEffect(() => {
++    const first = setTimeout(() => reload(true), 0);
++    const id = setInterval(() => reload(true), REFRESH_MS);
++    const onFocus = () => reload();
++    window.addEventListener('focus', onFocus);
++    return () => { clearTimeout(first); clearInterval(id); window.removeEventListener('focus', onFocus); };
++  }, [reload]);
++
++  const value = useMemo(() => ({
++    policy,
++    reload,
++    rule: (key) => ruleOf(policy, key),
++    isHidden: (key) => ruleOf(policy, key).mode === 'hidden',
++    isLocked: (key) => ruleOf(policy, key).mode === 'locked',
++  }), [policy, reload]);
++
++  return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
++}
++
++export const useAppConfig = () => {
++  const ctx = useContext(AppConfigContext);
++  if (!ctx) throw new Error('useAppConfig doit être utilisé dans <AppConfigProvider>');
++  return ctx;
++};
++
++/** Variante sans erreur hors du provider (null) : contextes de base, bancs d'essai. */
++export const useAppConfigOptional = () => useContext(AppConfigContext);
+diff --git a/frontend/src/context/LanguageContext.jsx b/frontend/src/context/LanguageContext.jsx
+index 5d649a5..b073386 100644
+--- a/frontend/src/context/LanguageContext.jsx
++++ b/frontend/src/context/LanguageContext.jsx
+@@ -1,6 +1,8 @@
+ // src/context/LanguageContext.jsx
+ import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+ import { translations } from '../i18n/translations';
++import { useAppConfigOptional } from './AppConfigContext';
++import { canChoose, choosable, effectiveValue, isForced, readCachedPolicy, ruleOf } from '../utils/appConfig';
+ 
+ const LanguageContext = createContext(null);
+ 
+@@ -8,20 +10,35 @@ const STORAGE_KEY = 'scrabble-language';
+ const SUPPORTED   = ['fr', 'en'];
+ const IS_DEV      = import.meta.env.DEV;
+ 
+-function detectDefault() {
++// Choix de l'appareil, sinon langue du navigateur, sinon défaut de l'administrateur
++function detectDefault(policy) {
+   try {
+     const stored = localStorage.getItem(STORAGE_KEY);
+     if (stored && SUPPORTED.includes(stored)) return stored;
+   } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
+   const nav = navigator.language?.slice(0, 2).toLowerCase();
+-  return SUPPORTED.includes(nav) ? nav : 'fr';
++  if (SUPPORTED.includes(nav) && canChoose(policy, 'language', nav)) return nav;
++  return ruleOf(policy, 'language').default ?? 'fr';
+ }
+ 
+ export function LanguageProvider({ children }) {
+-  const [language, setLanguage] = useState(detectDefault);
++  // Lot A2 : l'administrateur peut imposer la langue ou retirer une option
++  const policy = useAppConfigOptional()?.policy ?? null;
++  const [chosen, setChosen] = useState(() => detectDefault(readCachedPolicy()));
++  const language = effectiveValue(policy, 'language', chosen, 'fr');
++  const availableLanguages = choosable(policy, 'language', SUPPORTED);
++  const languageLocked = isForced(ruleOf(policy, 'language'));
++
++  const setLanguage = useCallback((lang) => {
++    if (SUPPORTED.includes(lang) && canChoose(policy, 'language', lang)) setChosen(lang);
++  }, [policy]);
++
++  useEffect(() => {
++    try { localStorage.setItem(STORAGE_KEY, chosen); } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
++  }, [chosen]);
+ 
+   useEffect(() => {
+-    try { localStorage.setItem(STORAGE_KEY, language); } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
++    document.documentElement.lang = language;
+   }, [language]);
+ 
+   /**
+@@ -57,7 +74,7 @@ export function LanguageProvider({ children }) {
+   }, [t]);
+ 
+   return (
+-    <LanguageContext.Provider value={{ language, setLanguage, t, tp, SUPPORTED }}>
++    <LanguageContext.Provider value={{ language, setLanguage, t, tp, SUPPORTED, availableLanguages, languageLocked }}>
+       {children}
+     </LanguageContext.Provider>
+   );
+diff --git a/frontend/src/context/SettingsContext.jsx b/frontend/src/context/SettingsContext.jsx
+index 173df00..dfeb29a 100644
+--- a/frontend/src/context/SettingsContext.jsx
++++ b/frontend/src/context/SettingsContext.jsx
+@@ -7,10 +7,12 @@
+ //                        → debounce 800ms → sauvegarde sur le serveur si connecté
+ //  4. Au logout           → nettoie le localStorage de l'utilisateur courant
+ //
+-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
++import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+ import { onAuthStateChanged } from 'firebase/auth';
+ import { auth } from '../firebase';
+ import { getPreferences, savePreferences } from '../api/authService';
++import { useAppConfigOptional } from './AppConfigContext';
++import { applyPolicy, canChoose, policyDefaults, readCachedPolicy } from '../utils/appConfig';
+ 
+ const SettingsContext = createContext(null);
+ 
+@@ -64,13 +66,16 @@ function storageKey(uid) {
+   return uid ? `scrabble-settings-${uid}` : 'scrabble-settings-guest';
+ }
+ 
++// Appareil sans réglages enregistrés : défauts de l'administrateur (lot A2)
++const freshDefaults = () => ({ ...DEFAULTS, ...policyDefaults(readCachedPolicy()) });
++
+ function loadFromStorage(uid) {
+   try {
+     const raw = localStorage.getItem(storageKey(uid));
+-    if (!raw) return { ...DEFAULTS };
++    if (!raw) return freshDefaults();
+     return { ...DEFAULTS, ...JSON.parse(raw) };
+   } catch {
+-    return { ...DEFAULTS };
++    return freshDefaults();
+   }
+ }
+ 
+@@ -90,7 +95,10 @@ function clearGuestStorage() {
+ 
+ export function SettingsProvider({ children }) {
+   const [currentUid, setCurrentUid] = useState(null);
+-  const [settings, setSettings]     = useState(() => loadFromStorage(null));
++  const [rawSettings, setSettings]  = useState(() => loadFromStorage(null));
++  // Lot A2 : réglages verrouillés / masqués et options retirées par l'administrateur
++  const policy = useAppConfigOptional()?.policy ?? null;
++  const settings = useMemo(() => applyPolicy(policy, rawSettings), [policy, rawSettings]);
+   const [syncing, setSyncing]        = useState(false);
+   const [lastSynced, setLastSynced]  = useState(null);
+   // uid dont les préférences serveur viennent d'être chargées (ThemeContext
+@@ -137,8 +145,8 @@ export function SettingsProvider({ children }) {
+ 
+   // ── Persistance locale à chaque changement ────────────────────
+   useEffect(() => {
+-    persistToStorage(currentUid, settings);
+-  }, [settings, currentUid]);
++    persistToStorage(currentUid, rawSettings);
++  }, [rawSettings, currentUid]);
+ 
+   // ── Sync serveur debounced ────────────────────────────────────
+   // Les changements rapprochés sont cumulés : un seul envoi, rien de perdu
+@@ -162,20 +170,29 @@ export function SettingsProvider({ children }) {
+     }, 800);
+   }, [currentUid]);
+ 
+-  const update = useCallback((key, value) => {
+-    setSettings(prev => ({ ...prev, [key]: value }));
+-    syncToServer({ [key]: value });
+-  }, [syncToServer]);
++  // Un réglage fixé par l'administrateur, ou une option retirée, n'est pas modifiable
++  const allowedPatch = useCallback((patch) => Object.fromEntries(
++    Object.entries(patch).filter(([k, v]) => canChoose(policy, k, v)),
++  ), [policy]);
+ 
+-  const updateMany = useCallback((patch) => {
++  const update = useCallback((key, value) => {
++    const patch = allowedPatch({ [key]: value });
++    if (!(key in patch)) return;
+     setSettings(prev => ({ ...prev, ...patch }));
+     syncToServer(patch);
+-  }, [syncToServer]);
++  }, [syncToServer, allowedPatch]);
++
++  const updateMany = useCallback((patch) => {
++    const allowed = allowedPatch(patch);
++    setSettings(prev => ({ ...prev, ...allowed }));
++    syncToServer(allowed);
++  }, [syncToServer, allowedPatch]);
+ 
+   const reset = useCallback(() => {
+-    setSettings({ ...DEFAULTS });
+-    syncToServer(DEFAULTS);
+-  }, [syncToServer]);
++    const defaults = allowedPatch({ ...DEFAULTS, ...policyDefaults(policy) });
++    setSettings(prev => ({ ...prev, ...defaults }));
++    syncToServer(defaults);
++  }, [syncToServer, allowedPatch, policy]);
+ 
+   return (
+     <SettingsContext.Provider value={{
+@@ -193,4 +210,4 @@ export function SettingsProvider({ children }) {
+       {children}
+     </SettingsContext.Provider>
+   );
+-}
+\ No newline at end of file
++}
+diff --git a/frontend/src/context/ThemeContext.jsx b/frontend/src/context/ThemeContext.jsx
+index 0c247b5..1db43c8 100644
+--- a/frontend/src/context/ThemeContext.jsx
++++ b/frontend/src/context/ThemeContext.jsx
+@@ -13,6 +13,8 @@
+ //   choix local de l'appareil est envoyé au compte.
+ import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+ import { useSettings } from './SettingsContext';
++import { useAppConfigOptional } from './AppConfigContext';
++import { canChoose, choosable, effectiveValue, isForced, readCachedPolicy, ruleOf } from '../utils/appConfig';
+ 
+ const ThemeContext = createContext(null);
+ 
+@@ -73,16 +75,26 @@ function applyTheme(preference, palette) {
+ export function ThemeProvider({ children }) {
+   const { settings, update, currentUid, serverLoadedFor } = useSettings();
+ 
+-  const [preference, setPreference] = useState(() => {
++  // Choix de l'appareil ; sans choix enregistré : défaut de l'administrateur (lot A2)
++  const [chosenMode, setPreference] = useState(() => {
+     const stored = readStored(STORAGE_KEY);
+-    return THEMES.includes(stored) ? stored : 'system';
++    return THEMES.includes(stored) ? stored : (ruleOf(readCachedPolicy(), 'themeMode').default ?? 'system');
+   });
+ 
+-  const [palette, setPaletteState] = useState(() => {
++  const [chosenPalette, setPaletteState] = useState(() => {
+     const stored = readStored(PALETTE_STORAGE_KEY);
+-    return PALETTES.includes(stored) ? stored : DEFAULT_PALETTE;
++    return PALETTES.includes(stored) ? stored : (ruleOf(readCachedPolicy(), 'colorPalette').default ?? DEFAULT_PALETTE);
+   });
+ 
++  // Lot A2 : mode / palette imposés ou options retirées par l'administrateur
++  const policy = useAppConfigOptional()?.policy ?? null;
++  const preference = effectiveValue(policy, 'themeMode', chosenMode, 'system');
++  const palette = effectiveValue(policy, 'colorPalette', chosenPalette, DEFAULT_PALETTE);
++  const themes = choosable(policy, 'themeMode', THEMES);
++  const palettes = choosable(policy, 'colorPalette', PALETTES);
++  const themeLocked = isForced(ruleOf(policy, 'themeMode'));
++  const paletteLocked = isForced(ruleOf(policy, 'colorPalette'));
++
+   // Appliquer au montage et à chaque changement de mode ou de palette
+   useEffect(() => {
+     applyTheme(preference, palette);
+@@ -101,18 +113,18 @@ export function ThemeProvider({ children }) {
+   // (update ne contacte le serveur que si quelqu'un est connecté)
+ 
+   const setTheme = useCallback((newTheme) => {
+-    if (!THEMES.includes(newTheme)) return;
++    if (!THEMES.includes(newTheme) || !canChoose(policy, 'themeMode', newTheme)) return;
+     writeStored(STORAGE_KEY, newTheme);
+     setPreference(newTheme);
+     update('themeMode', newTheme);
+-  }, [update]);
++  }, [update, policy]);
+ 
+   const setPalette = useCallback((newPalette) => {
+-    if (!PALETTES.includes(newPalette)) return;
++    if (!PALETTES.includes(newPalette) || !canChoose(policy, 'colorPalette', newPalette)) return;
+     writeStored(PALETTE_STORAGE_KEY, newPalette);
+     setPaletteState(newPalette);
+     update('colorPalette', newPalette);
+-  }, [update]);
++  }, [update, policy]);
+ 
+   // ── À la connexion : réconcilier avec les préférences du compte ────
+   // Une seule fois par chargement serveur (serverLoadedFor change), pour ne
+@@ -120,7 +132,7 @@ export function ThemeProvider({ children }) {
+   // valeurs du moment sans relancer l'effet à chaque changement.
+   const latest = useRef(null);
+   useEffect(() => {
+-    latest.current = { settings, preference, palette };
++    latest.current = { settings, preference: chosenMode, palette: chosenPalette };
+   });
+ 
+   useEffect(() => {
+@@ -147,16 +159,17 @@ export function ThemeProvider({ children }) {
+   }, [serverLoadedFor, currentUid, update]);
+ 
+   const cycleTheme = useCallback(() => {
+-    const next = THEMES[(THEMES.indexOf(preference) + 1) % THEMES.length];
++    const next = themes[(themes.indexOf(preference) + 1) % themes.length];
+     setTheme(next);
+-  }, [preference, setTheme]);
++  }, [preference, setTheme, themes]);
+ 
+   const resolvedTheme = resolveTheme(preference);
+ 
+   return (
+     <ThemeContext.Provider value={{
+-      preference, resolvedTheme, setTheme, cycleTheme, THEMES,
+-      palette, setPalette, PALETTES,
++      // THEMES / PALETTES : ce que le joueur peut choisir (politique de l'administrateur)
++      preference, resolvedTheme, setTheme, cycleTheme, THEMES: themes, themeLocked,
++      palette, setPalette, PALETTES: palettes, paletteLocked, ALL_PALETTES: PALETTES,
+     }}>
+       {children}
+     </ThemeContext.Provider>
+diff --git a/frontend/src/i18n/admin.js b/frontend/src/i18n/admin.js
+index 2357db4..1bf0f71 100644
+--- a/frontend/src/i18n/admin.js
++++ b/frontend/src/i18n/admin.js
+@@ -19,15 +19,13 @@ export const admin = {
+     adm_nav_overview:         'Vue d\'ensemble',
+     adm_nav_users:            'Joueurs',
+     adm_nav_journal:          'Journal',
+-    adm_nav_settings:         'Paramètres',
++    adm_nav_settings:         'Paramètres des joueurs',
+     adm_nav_privacy:          'Confidentialité',
+     adm_nav_subscriptions:    'Abonnements',
+     adm_nav_credits:          'Crédits',
+     adm_nav_messaging:        'Messagerie',
+     adm_nav_profile:          'Profil',
+     adm_nav_publications:     'Notifications',
+-    adm_soon_settings:        'Valeurs par défaut, options masquées ou verrouillées pour tous : apparence (mode, thème de couleur, langue), parties, affichage, comportement, notifications et confidentialité.',
+-    adm_soon_privacy:         'Modifier le texte de la politique de confidentialité en français et en anglais, avec sa date de mise à jour.',
+     adm_soon_subscriptions:   'Créer des niveaux d\'abonnement (nom, couleur, badge, avantages) et les attribuer aux joueurs, avec une date de fin.',
+     adm_soon_credits:         'Régler les gains et les dépenses de crédits, créditer ou débiter un joueur, consulter l\'historique des mouvements.',
+     adm_soon_messaging:       'Signalements, sourdines, mode lent, mots interdits et règles du salon universel.',
+@@ -188,6 +186,77 @@ export const admin = {
+     adm_detail_rename:        '{{from}} → {{to}}',
+     adm_detail_minutes:       '{{count}} min',
+     adm_detail_seconds:       '{{count}} s',
++
++    // Lot A2 : paramètres des joueurs
++    adm_save:                 'Enregistrer',
++    adm_reason_ph_short:      'Motif (facultatif)',
++    adm_set_intro:            'Choisissez, pour chaque réglage de la page Paramètres, s\'il reste au choix des joueurs, sa valeur par défaut et les options proposées. Le serveur applique ces règles : un réglage verrouillé ne peut pas être modifié, même par une ancienne version de l\'application.',
++    adm_set_mode_free:        'Libre',
++    adm_set_mode_locked:      'Verrouillé',
++    adm_set_mode_hidden:      'Masqué',
++    adm_set_mode_free_hint:   'le joueur choisit parmi les options proposées ; le défaut vaut pour qui n\'a rien choisi.',
++    adm_set_mode_locked_hint: 'visible mais grisé, avec la mention « fixé par l\'administrateur » ; tout le monde a la valeur par défaut.',
++    adm_set_mode_hidden_hint: 'retiré de l\'interface ; tout le monde a la valeur par défaut.',
++    adm_set_not_lockable:     'Ce réglage ne peut pas être verrouillé (seul son défaut se règle).',
++    adm_set_col_setting:      'Réglage',
++    adm_set_col_mode:         'État',
++    adm_set_col_default:      'Par défaut',
++    adm_set_col_options:      'Options proposées',
++    adm_set_no_default:       'Aucun (choix de l\'appareil)',
++    adm_set_option_default:   'La valeur par défaut doit rester proposée.',
++    adm_set_section_free:     'Tout est libre',
++    adm_set_section_fixed:    'Réglages fixés : {{count}}',
++    adm_set_builtin:          'Réglages d\'origine de l\'application : rien n\'est encore fixé.',
++    adm_set_saved_by:         'Enregistré le {{date}} par {{name}}.',
++    adm_set_unsaved:          'Modifications non enregistrées : {{count}}',
++    adm_set_saved:            'Paramètres enregistrés. Ils s\'appliquent aux joueurs d\'ici quelques minutes (au plus tard à leur retour sur l\'application).',
++    adm_set_privacy_updates:  'Comptes ramenés à la valeur par défaut : {{list}}.',
++    adm_set_privacy_note:     'Verrouiller un réglage de confidentialité, ou retirer une option, remet tout de suite la valeur par défaut sur les comptes concernés. Un nouveau défaut seul ne touche que les comptes créés ensuite. La présence en ligne ne se verrouille pas.',
++    adm_set_appearance_note:  'Le défaut d\'un réglage s\'applique aux joueurs qui ne l\'ont jamais modifié. Pour le mode et la palette, « Aucun » garde le choix de chaque appareil.',
++    adm_set_reset:            'Revenir aux réglages d\'origine',
++    adm_set_reset_hint:       'Tout redevient libre, avec les valeurs par défaut de l\'application.',
++    adm_set_reset_confirm:    'Tous les réglages redeviendront libres, avec les valeurs par défaut de l\'application. Les choix déjà faits par les joueurs sont conservés.',
++    adm_set_reset_done:       'Réglages d\'origine rétablis.',
++
++    // Lot A2 : politique de confidentialité
++    adm_pp_intro:             'Modifiez la politique affichée sur la page Confidentialité, en français et en anglais. Une ligne = un paragraphe ou un point de liste. Texte brut : aucune mise en forme ni lien.',
++    adm_pp_builtin:           'Texte d\'origine de l\'application (aucune version publiée).',
++    adm_pp_published_by:      'Version publiée le {{date}} par {{name}}.',
++    adm_pp_open_page:         'Voir la page publique',
++    adm_pp_language:          'Langue du texte',
++    adm_pp_preview:           'Aperçu',
++    adm_pp_edit:              'Modifier',
++    adm_pp_both_languages:    'Pensez à mettre à jour les deux langues.',
++    adm_pp_title:             'Titre',
++    adm_pp_updated_on:        'Date de mise à jour',
++    adm_pp_updated_hint:      'Affichée en haut de la page. Changez-la quand le fond change, pas pour une coquille.',
++    adm_pp_intro_field:       'Introduction',
++    adm_pp_section_n:         'Section {{n}}',
++    adm_pp_section_title:     'Titre de la section',
++    adm_pp_warning:           'Section d\'avertissement (encadrée, avec ⚠️)',
++    adm_pp_paragraphs:        'Paragraphes',
++    adm_pp_items:             'Points de liste',
++    adm_pp_lines_hint:        'Un par ligne ; les lignes vides sont ignorées.',
++    adm_pp_up:                'Monter la section',
++    adm_pp_down:              'Descendre la section',
++    adm_pp_remove:            'Supprimer',
++    adm_pp_add_section:       'Ajouter une section',
++    adm_pp_contact_label:     'Titre du contact',
++    adm_pp_contact_fallback:  'Texte du contact',
++    adm_pp_contact_hint:      'Affiché si aucune adresse n\'est configurée (VITE_PRIVACY_CONTACT).',
++    adm_pp_unsaved:           'Modifications non publiées',
++    adm_pp_not_published:     'Texte d\'origine : publiez pour le remplacer',
++    adm_pp_publish:           'Publier',
++    adm_pp_published:         'Politique publiée : la page Confidentialité l\'affiche maintenant.',
++    adm_pp_reset:             'Revenir au texte d\'origine',
++    adm_pp_reset_hint:        'Retire la version publiée ; la page affiche de nouveau le texte livré avec l\'application.',
++    adm_pp_reset_confirm:     'La version publiée sera retirée et la page affichera le texte livré avec l\'application.',
++    adm_pp_reset_done:        'Texte d\'origine rétabli.',
++    adm_act_config_settings:              'a modifié les paramètres des joueurs',
++    adm_act_config_settings_reset:        'a rétabli les paramètres d\'origine',
++    adm_act_config_privacy_policy:        'a publié la politique de confidentialité',
++    adm_act_config_privacy_policy_reset:  'a rétabli la politique de confidentialité d\'origine',
++    adm_detail_changed:       'réglages modifiés : {{count}}',
+   },
+ 
+   en: {
+@@ -202,15 +271,13 @@ export const admin = {
+     adm_nav_overview:         'Overview',
+     adm_nav_users:            'Players',
+     adm_nav_journal:          'Log',
+-    adm_nav_settings:         'Settings',
++    adm_nav_settings:         'Player settings',
+     adm_nav_privacy:          'Privacy',
+     adm_nav_subscriptions:    'Subscriptions',
+     adm_nav_credits:          'Credits',
+     adm_nav_messaging:        'Messaging',
+     adm_nav_profile:          'Profile',
+     adm_nav_publications:     'Notifications',
+-    adm_soon_settings:        'Defaults, plus options hidden or locked for everyone: appearance (mode, color theme, language), games, display, behavior, notifications and privacy.',
+-    adm_soon_privacy:         'Edit the privacy policy text in French and English, with its last-updated date.',
+     adm_soon_subscriptions:   'Create subscription tiers (name, color, badge, perks) and assign them to players, with an end date.',
+     adm_soon_credits:         'Set how credits are earned and spent, credit or debit a player, review the transaction history.',
+     adm_soon_messaging:       'Reports, mutes, slow mode, banned words and rules of the global chat.',
+@@ -367,5 +434,74 @@ export const admin = {
+     adm_detail_rename:        '{{from}} → {{to}}',
+     adm_detail_minutes:       '{{count}} min',
+     adm_detail_seconds:       '{{count}} s',
++
++    adm_save:                 'Save',
++    adm_reason_ph_short:      'Reason (optional)',
++    adm_set_intro:            'For each setting on the Settings page, choose whether players can change it, its default value and the options offered. The server enforces these rules: a locked setting can\'t be changed, even by an older version of the app.',
++    adm_set_mode_free:        'Free',
++    adm_set_mode_locked:      'Locked',
++    adm_set_mode_hidden:      'Hidden',
++    adm_set_mode_free_hint:   'players pick from the options offered; the default applies to anyone who hasn\'t chosen.',
++    adm_set_mode_locked_hint: 'visible but greyed out, marked "set by the administrator"; everyone gets the default value.',
++    adm_set_mode_hidden_hint: 'removed from the interface; everyone gets the default value.',
++    adm_set_not_lockable:     'This setting can\'t be locked (only its default can be set).',
++    adm_set_col_setting:      'Setting',
++    adm_set_col_mode:         'State',
++    adm_set_col_default:      'Default',
++    adm_set_col_options:      'Options offered',
++    adm_set_no_default:       'None (device choice)',
++    adm_set_option_default:   'The default value must stay available.',
++    adm_set_section_free:     'All free',
++    adm_set_section_fixed:    'Settings fixed: {{count}}',
++    adm_set_builtin:          'The app\'s original settings: nothing is fixed yet.',
++    adm_set_saved_by:         'Saved on {{date}} by {{name}}.',
++    adm_set_unsaved:          'Unsaved changes: {{count}}',
++    adm_set_saved:            'Settings saved. Players get them within a few minutes (at the latest when they come back to the app).',
++    adm_set_privacy_updates:  'Accounts reset to the default value: {{list}}.',
++    adm_set_privacy_note:     'Locking a privacy setting, or removing an option, immediately resets the affected accounts to the default value. A new default alone only affects accounts created afterwards. Online presence can\'t be locked.',
++    adm_set_appearance_note:  'A setting\'s default applies to players who have never changed it. For mode and palette, "None" keeps each device\'s choice.',
++    adm_set_reset:            'Restore original settings',
++    adm_set_reset_hint:       'Everything becomes free again, with the app\'s default values.',
++    adm_set_reset_confirm:    'All settings will be free again, with the app\'s default values. Choices players already made are kept.',
++    adm_set_reset_done:       'Original settings restored.',
++
++    adm_pp_intro:             'Edit the policy shown on the Privacy page, in French and English. One line = one paragraph or one bullet point. Plain text: no formatting or links.',
++    adm_pp_builtin:           'The app\'s original text (no published version).',
++    adm_pp_published_by:      'Version published on {{date}} by {{name}}.',
++    adm_pp_open_page:         'View the public page',
++    adm_pp_language:          'Text language',
++    adm_pp_preview:           'Preview',
++    adm_pp_edit:              'Edit',
++    adm_pp_both_languages:    'Remember to update both languages.',
++    adm_pp_title:             'Title',
++    adm_pp_updated_on:        'Last-updated date',
++    adm_pp_updated_hint:      'Shown at the top of the page. Change it when the substance changes, not for a typo.',
++    adm_pp_intro_field:       'Introduction',
++    adm_pp_section_n:         'Section {{n}}',
++    adm_pp_section_title:     'Section title',
++    adm_pp_warning:           'Warning section (boxed, with ⚠️)',
++    adm_pp_paragraphs:        'Paragraphs',
++    adm_pp_items:             'Bullet points',
++    adm_pp_lines_hint:        'One per line; empty lines are ignored.',
++    adm_pp_up:                'Move section up',
++    adm_pp_down:              'Move section down',
++    adm_pp_remove:            'Remove',
++    adm_pp_add_section:       'Add a section',
++    adm_pp_contact_label:     'Contact heading',
++    adm_pp_contact_fallback:  'Contact text',
++    adm_pp_contact_hint:      'Shown when no address is configured (VITE_PRIVACY_CONTACT).',
++    adm_pp_unsaved:           'Unpublished changes',
++    adm_pp_not_published:     'Original text: publish to replace it',
++    adm_pp_publish:           'Publish',
++    adm_pp_published:         'Policy published: the Privacy page now shows it.',
++    adm_pp_reset:             'Restore original text',
++    adm_pp_reset_hint:        'Removes the published version; the page shows the text shipped with the app again.',
++    adm_pp_reset_confirm:     'The published version will be removed and the page will show the text shipped with the app.',
++    adm_pp_reset_done:        'Original text restored.',
++    adm_act_config_settings:              'changed the player settings',
++    adm_act_config_settings_reset:        'restored the original player settings',
++    adm_act_config_privacy_policy:        'published the privacy policy',
++    adm_act_config_privacy_policy_reset:  'restored the original privacy policy',
++    adm_detail_changed:       'settings changed: {{count}}',
+   },
+ };
+diff --git a/frontend/src/i18n/privacy.js b/frontend/src/i18n/privacy.js
+index f2dde45..efc322a 100644
+--- a/frontend/src/i18n/privacy.js
++++ b/frontend/src/i18n/privacy.js
+@@ -6,13 +6,13 @@
+ //
+ // Adresse de contact du responsable : variable VITE_PRIVACY_CONTACT (Vercel).
+ 
+-export const PRIVACY_UPDATED = '2026-10-31';
++export const PRIVACY_UPDATED = '2026-11-26';
+ export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || '';
+ 
+ export const privacy = {
+   fr: {
+     title: 'Politique de confidentialité',
+-    updated: 'Dernière mise à jour : 31 octobre 2026',
++    updated: 'Dernière mise à jour : 26 novembre 2026',
+     intro: "Cette page explique quels renseignements personnels l'application Scrabble recueille, pourquoi, "
+       + "où ils sont conservés, qui peut les lire et comment vous pouvez les consulter, les télécharger ou les "
+       + "supprimer. Elle suit la Loi sur la protection des renseignements personnels dans le secteur privé du "
+@@ -60,6 +60,7 @@ export const privacy = {
+           'Présence en ligne : vos amis par défaut, ou personne. Elle n\'est jamais visible des inconnus.',
+           'Vous choisissez aussi si l\'on peut vous trouver par votre pseudo, vous demander en ami sans votre code ami, et si vous apparaissez dans les classements.',
+           'Les membres d\'une conversation : ses messages. L\'administrateur : les messages signalés.',
++          "Les administrateurs du jeu : les données de votre compte et de votre profil (dont l'e-mail, le nom, le prénom et l'âge) et vos statistiques, pour gérer les comptes et modérer. Chaque action d'un administrateur est consignée dans un journal.",
+           'Votre adresse e-mail, vos nom, prénom et âge ne sont jamais montrés aux autres joueurs.',
+         ],
+       },
+@@ -120,7 +121,7 @@ export const privacy = {
+ 
+   en: {
+     title: 'Privacy policy',
+-    updated: 'Last updated: October 31, 2026',
++    updated: 'Last updated: November 26, 2026',
+     intro: 'This page explains what personal information the Scrabble app collects, why, where it is stored, '
+       + 'who can read it, and how you can view, download or delete it. It follows Québec\'s Act respecting the '
+       + 'protection of personal information in the private sector (Law 25).',
+@@ -167,6 +168,7 @@ export const privacy = {
+           'Online presence: your friends by default, or nobody. It is never visible to strangers.',
+           'You also choose whether people can find you by username, send you friend requests without your friend code, and whether you appear in leaderboards.',
+           'Members of a conversation: its messages. The administrator: reported messages.',
++          'Game administrators: your account and profile data (including email, name and age) and your statistics, to manage accounts and moderate. Every administrator action is recorded in a log.',
+           'Your email address, name and age are never shown to other players.',
+         ],
+       },
+diff --git a/frontend/src/i18n/translations.js b/frontend/src/i18n/translations.js
+index a947104..c6a44ea 100644
+--- a/frontend/src/i18n/translations.js
++++ b/frontend/src/i18n/translations.js
+@@ -724,6 +724,10 @@ export const translations = {
+     fr_code_only:              'Code ami requis',
+     fr_code_only_hint:         'Ce joueur n\'accepte les demandes qu\'avec son code ami.',
+ 
++    // ── Lot A2 : réglages fixés par l'administrateur ──────────────
++    settings_locked:           'Fixé par l\'administrateur',
++    privacy_updated_on:        'Dernière mise à jour : {{date}}',
++
+     ...admin.fr,
+   },
+ 
+@@ -1425,6 +1429,9 @@ export const translations = {
+     fr_code_only:              'Friend code needed',
+     fr_code_only_hint:         'This player only accepts requests with their friend code.',
+ 
++    settings_locked:           'Set by the administrator',
++    privacy_updated_on:        'Last updated: {{date}}',
++
+     ...admin.en,
+   },
+ };
+diff --git a/frontend/src/pages/AdminPage.jsx b/frontend/src/pages/AdminPage.jsx
+index 5f6caa7..482b2ac 100644
+--- a/frontend/src/pages/AdminPage.jsx
++++ b/frontend/src/pages/AdminPage.jsx
+@@ -5,9 +5,11 @@
+ //   #/admin/users           joueurs            #/admin/users/{id}   fiche d'un joueur
+ //   #/admin/journal         journal des actions
+ //
+-// Rubriques des lots suivants (affichées « bientôt ») : paramètres et politique de
+-// confidentialité (A2), abonnements et crédits (A3), messagerie, profil,
+-// notifications et publications (A4).
++//   #/admin/settings        paramètres des joueurs (lot A2)
++//   #/admin/privacy         politique de confidentialité (lot A2)
++//
++// Rubriques des lots suivants (affichées « bientôt ») : abonnements et crédits (A3),
++// messagerie, profil, notifications et publications (A4).
+ 
+ import React, { useEffect, useState } from 'react';
+ import { useAuth } from '../context/AuthContext';
+@@ -17,14 +19,16 @@ import AdminOverview from '../components/admin/AdminOverview';
+ import AdminUsers from '../components/admin/AdminUsers';
+ import AdminUserDetail from '../components/admin/AdminUserDetail';
+ import AdminJournal from '../components/admin/AdminJournal';
++import AdminSettings from '../components/admin/AdminSettings';
++import AdminPrivacy from '../components/admin/AdminPrivacy';
+ import '../styles/admin.css';
+ 
+ const SECTIONS = [
+   { id: 'overview',      icon: '◧', ready: true },
+   { id: 'users',         icon: '☺', ready: true },
+   { id: 'journal',       icon: '≡', ready: true },
+-  { id: 'settings',      icon: '⚙', lot: 'A2' },
+-  { id: 'privacy',       icon: '§', lot: 'A2' },
++  { id: 'settings',      icon: '⚙', ready: true },
++  { id: 'privacy',       icon: '§', ready: true },
+   { id: 'subscriptions', icon: '★', lot: 'A3' },
+   { id: 'credits',       icon: '◎', lot: 'A3' },
+   { id: 'messaging',     icon: '✉', lot: 'A4' },
+@@ -76,6 +80,8 @@ export default function AdminPage() {
+   let body;
+   if (section === 'users') body = Number.isFinite(id) && id > 0 ? <AdminUserDetail key={id} userId={id} /> : <AdminUsers />;
+   else if (section === 'journal') body = <AdminJournal />;
++  else if (section === 'settings') body = <AdminSettings />;
++  else if (section === 'privacy') body = <AdminPrivacy />;
+   else if (section === 'overview') body = <AdminOverview />;
+   else body = <Soon section={current} t={t} />;
+ 
+diff --git a/frontend/src/pages/GamePage.jsx b/frontend/src/pages/GamePage.jsx
+index 808e591..251bd45 100644
+--- a/frontend/src/pages/GamePage.jsx
++++ b/frontend/src/pages/GamePage.jsx
+@@ -27,6 +27,8 @@ import MoveHistory, { HistoryButton } from '../components/MoveHistory';
+ import { lastPlayedCells } from '../utils/gameState';
+ import { setPresenceActivity } from '../utils/presence';
+ import { GAME_LANGUAGES, languageTag, languageName } from '../utils/gameLanguage';
++import { useAppConfig } from '../context/AppConfigContext';
++import { choosable } from '../utils/appConfig';
+ 
+ // ── ScorePreview ──────────────────────────────────────────────────
+ 
+@@ -135,6 +137,38 @@ function AbandonModal({ onConfirm, onCancel, t }) {
+   );
+ }
+ 
++// ── Langue de la partie ───────────────────────────────────────────
++// Lot A2 : seules les langues que l'administrateur propose ; une seule
++// (ou réglage masqué) → pas de sélecteur.
++function GameLanguagePicker({ value, onChange, t }) {
++  const { policy } = useAppConfig();
++  if (policy?.gameLanguage?.mode === 'hidden') return null;
++  const allowed = choosable(policy, 'gameLanguage', GAME_LANGUAGES.map(l => l.value));
++  const options = GAME_LANGUAGES.filter(l => allowed.includes(l.value));
++  if (options.length < 2) return null;
++  return (
++    <div className="gl-field" role="radiogroup" aria-label={t('gl_label')}>
++      <div className="gl-label">{t('gl_label')}</div>
++      <div className="rr-chips">
++        {options.map(opt => (
++          <button
++            key={opt.value}
++            type="button"
++            role="radio"
++            lang={opt.value}
++            aria-checked={value === opt.value}
++            className="rr-chip"
++            onClick={() => onChange(opt.value)}
++          >
++            {opt.label}
++          </button>
++        ))}
++      </div>
++      <div className="gl-hint">{t('gl_hint')}</div>
++    </div>
++  );
++}
++
+ // ── GamePage ──────────────────────────────────────────────────────
+ 
+ export default function GamePage() {
+@@ -252,25 +286,7 @@ export default function GamePage() {
+           </div>
+ 
+           {/* Langue de la partie : dictionnaire, sac et valeurs des lettres */}
+-          <div className="gl-field" role="radiogroup" aria-label={t('gl_label')}>
+-            <div className="gl-label">{t('gl_label')}</div>
+-            <div className="rr-chips">
+-              {GAME_LANGUAGES.map(opt => (
+-                <button
+-                  key={opt.value}
+-                  type="button"
+-                  role="radio"
+-                  lang={opt.value}
+-                  aria-checked={(settings.gameLanguage ?? 'fr') === opt.value}
+-                  className="rr-chip"
+-                  onClick={() => updateSetting('gameLanguage', opt.value)}
+-                >
+-                  {opt.label}
+-                </button>
+-              ))}
+-            </div>
+-            <div className="gl-hint">{t('gl_hint')}</div>
+-          </div>
++          <GameLanguagePicker value={settings.gameLanguage ?? 'fr'} onChange={v => updateSetting('gameLanguage', v)} t={t} />
+ 
+           {/* Partie non terminée : on propose de la reprendre */}
+           {game.resumeOffer ? (() => {
+diff --git a/frontend/src/pages/PrivacyPage.jsx b/frontend/src/pages/PrivacyPage.jsx
+index 31b39af..8de4e2c 100644
+--- a/frontend/src/pages/PrivacyPage.jsx
++++ b/frontend/src/pages/PrivacyPage.jsx
+@@ -1,13 +1,27 @@
+ // src/pages/PrivacyPage.jsx
+ // Politique de confidentialité (lot 7 — Loi 25). Page publique : #/privacy.
+-// Le texte vit dans src/i18n/privacy.js (FR / EN).
+-import React from 'react';
++// Texte d'origine : src/i18n/privacy.js (FR / EN). Depuis le lot A2, un
++// administrateur peut publier une autre version depuis le dashboard : elle
++// remplace alors le texte d'origine (texte brut, aucun HTML interprété).
++import React, { useEffect, useState } from 'react';
+ import { useLanguage } from '../context/LanguageContext';
+ import { privacy, PRIVACY_CONTACT } from '../i18n/privacy';
++import { getPublicPrivacyPolicy } from '../api/configService';
++import { fromDocument } from '../utils/privacyDoc';
+ 
+ export default function PrivacyPage() {
+-  const { language } = useLanguage();
+-  const p = privacy[language] ?? privacy.fr;
++  const { language, t } = useLanguage();
++  const [custom, setCustom] = useState(null);
++
++  useEffect(() => {
++    let cancelled = false;
++    getPublicPrivacyPolicy()
++      .then(r => { if (!cancelled && r.custom && r.document) setCustom(r.document); })
++      .catch(() => { /* serveur indisponible : texte d'origine */ });
++    return () => { cancelled = true; };
++  }, []);
++
++  const p = custom ? fromDocument(custom, language, t) : (privacy[language] ?? privacy.fr);
+ 
+   return (
+     <div className="s-page">
+@@ -18,13 +32,13 @@ export default function PrivacyPage() {
+           <p className="pv-intro">{p.intro}</p>
+         </header>
+ 
+-        {p.sections.map(section => (
+-          <section key={section.title} className="pv-section" data-warning={section.warning || undefined}>
++        {p.sections.map((section, i) => (
++          <section key={`${i}-${section.title}`} className="pv-section" data-warning={section.warning || undefined}>
+             <h2 className="pv-h2">{section.warning ? '⚠️ ' : ''}{section.title}</h2>
+-            {section.paragraphs?.map(text => <p key={text} className="pv-p">{text}</p>)}
+-            {section.items && (
++            {section.paragraphs?.map((text, j) => <p key={j} className="pv-p">{text}</p>)}
++            {section.items?.length > 0 && (
+               <ul className="pv-list">
+-                {section.items.map(text => <li key={text}>{text}</li>)}
++                {section.items.map((text, j) => <li key={j}>{text}</li>)}
+               </ul>
+             )}
+           </section>
+diff --git a/frontend/src/pages/SettingsPage.jsx b/frontend/src/pages/SettingsPage.jsx
+index f86d528..62480ca 100644
+--- a/frontend/src/pages/SettingsPage.jsx
++++ b/frontend/src/pages/SettingsPage.jsx
+@@ -11,6 +11,9 @@ import NotificationsCard from '../components/settings/NotificationsCard';
+ import AccountCard from '../components/settings/AccountCard';
+ import PrivacyCard from '../components/settings/PrivacyCard';
+ import PalettePicker from '../components/settings/PalettePicker';
++import { Managed, RowList } from '../components/settings/Managed';
++import { useAppConfig } from '../context/AppConfigContext';
++import { choosable } from '../utils/appConfig';
+ 
+ // ── Composants internes ───────────────────────────────────────────
+ 
+@@ -87,26 +90,31 @@ export default function SettingsPage() {
+   } = useSettings();
+ 
+   const { user } = useAuth();
+-  const { preference, setTheme } = useTheme();
+-  const { language, setLanguage, t } = useLanguage();
++  const { preference, setTheme, THEMES } = useTheme();
++  const { language, setLanguage, availableLanguages, t } = useLanguage();
++  const { policy, isHidden, isLocked } = useAppConfig();
+   const [showResetConfirm, setShowResetConfirm] = useState(false);
+ 
+-  // ── Options traduites ─────────────────────────────────────────
++  // Lot A2 : réglage masqué → ligne absente ; verrouillé → visible, grisé, « fixé »
++  const shown = (key) => !isHidden(key);
++
++  // ── Options traduites (seulement celles que l'administrateur propose) ──
+ 
+   const themeOptions = [
+     { value: 'light',  emoji: '☀️', label: t('theme_light')  },
+     { value: 'dark',   emoji: '🌙', label: t('theme_dark')   },
+     { value: 'system', emoji: '⚙️', label: t('theme_system') },
+-  ];
++  ].filter(o => THEMES.includes(o.value));
+ 
+-  const langOptions = LANGUAGES.map(l => ({
++  const langOptions = LANGUAGES.filter(l => availableLanguages.includes(l.value)).map(l => ({
+     value: l.value,
+     label: l.label,
+     emoji: l.emoji,
+   }));
+ 
+   // Difficultés avec labels/descs traduits
+-  const diffOptions = Object.entries(DIFFICULTY_META).map(([key, meta]) => ({
++  const allowedDiffs = choosable(policy, 'difficulty', Object.keys(DIFFICULTY_META));
++  const diffOptions = Object.entries(DIFFICULTY_META).filter(([key]) => allowedDiffs.includes(key)).map(([key, meta]) => ({
+     key,
+     emoji: meta.emoji,
+     label: t(`diff_${key}_label`),
+@@ -116,11 +124,33 @@ export default function SettingsPage() {
+   // Durées de tour traduites
+   const turnKeys = ['turn_unlimited', 'turn_1min', 'turn_2min', 'turn_3min', 'turn_5min'];
+   const turnValues = [0, 60, 120, 180, 300];
++  const allowedTurns = choosable(policy, 'turnDuration', turnValues);
+   const turnOptions = TURN_OPTIONS.map((o, i) => ({
+     value: o.value,
+     label: t(turnKeys[i]),
+     short: i === 0 ? '∞' : `${turnValues[i] / 60} min`,
+-  }));
++  })).filter(o => allowedTurns.includes(o.value));
++
++  // Interrupteurs des sections Affichage et Comportement
++  const toggleRow = (key, label) => shown(key) && (
++    <Row key={key} label={t(label)} desc={t(`${label}_desc`)}>
++      <Managed locked={isLocked(key)}>
++        <Toggle value={settings[key]} onChange={v => update(key, v)} label={t(label)} />
++      </Managed>
++    </Row>
++  );
++  const displayRows = [
++    toggleRow('showScorePreview', 'row_score_preview'),
++    toggleRow('showRemainingTiles', 'row_remaining_tiles'),
++    toggleRow('showBonusLabels', 'row_bonus_labels'),
++    toggleRow('animationsEnabled', 'row_animations'),
++  ].filter(Boolean);
++  const behaviorRows = [
++    toggleRow('autoSortRack', 'row_auto_sort'),
++    toggleRow('confirmValidation', 'row_confirm_validation'),
++  ].filter(Boolean);
++  const showAppearance = ['themeMode', 'colorPalette', 'language'].some(shown);
++  const showGame = ['difficulty', 'turnDuration'].some(shown);
+ 
+   // ── Badge de synchronisation ──────────────────────────────────
+ 
+@@ -148,168 +178,139 @@ export default function SettingsPage() {
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+ 
+           {/* ── Apparence ──────────────────────────────────── */}
+-          <Card>
+-            <Card.Header>
+-              <SectionTitle emoji="🎨" label={t('section_appearance')} />
+-            </Card.Header>
+-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+-
+-              <Row label={t('row_theme')} desc={t('row_theme_desc')}>
+-                <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
+-              </Row>
+-
+-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+-                <Row label={t('row_palette')} desc={t('row_palette_desc')} />
+-                <PalettePicker />
+-              </div>
+-
+-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+-
+-              <Row label={t('row_language')} desc={t('row_language_desc')}>
+-                <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
+-              </Row>
+-
+-            </Card.Body>
+-          </Card>
++          {showAppearance && (
++            <Card>
++              <Card.Header>
++                <SectionTitle emoji="🎨" label={t('section_appearance')} />
++              </Card.Header>
++              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
++                <RowList>
++                  {shown('themeMode') && (
++                    <Row key="theme" label={t('row_theme')} desc={t('row_theme_desc')}>
++                      <Managed locked={isLocked('themeMode')}>
++                        <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
++                      </Managed>
++                    </Row>
++                  )}
++                  {shown('colorPalette') && (
++                    <div key="palette" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
++                      <Row label={t('row_palette')} desc={t('row_palette_desc')} />
++                      <Managed locked={isLocked('colorPalette')}>
++                        <PalettePicker />
++                      </Managed>
++                    </div>
++                  )}
++                  {shown('language') && (
++                    <Row key="language" label={t('row_language')} desc={t('row_language_desc')}>
++                      <Managed locked={isLocked('language')}>
++                        <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
++                      </Managed>
++                    </Row>
++                  )}
++                </RowList>
++              </Card.Body>
++            </Card>
++          )}
+ 
+           {/* ── Partie ─────────────────────────────────────── */}
+-          <Card>
+-            <Card.Header>
+-              <SectionTitle emoji="🎮" label={t('section_game')} />
+-            </Card.Header>
+-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+-
+-              <Row label={t('row_difficulty')} desc={t('row_difficulty_desc')}>
+-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 'min(260px, 100%)' }}>
+-                  {diffOptions.map(d => {
+-                    const active = d.key === settings.difficulty;
+-                    return (
+-                      <button
+-                        key={d.key}
+-                        onClick={() => update('difficulty', d.key)}
+-                        style={{
+-                          display:      'flex',
+-                          alignItems:   'center',
+-                          gap:          '10px',
+-                          padding:      '10px 14px',
+-                          borderRadius: '2px',
+-                          border:       `2px solid ${active ? 'var(--border-primary)' : 'var(--border-muted)'}`,
+-                          background:   active ? 'var(--bg-invert)' : 'transparent',
+-                          cursor:       'pointer',
+-                          transition:   'all 0.15s',
+-                          boxShadow:    active ? '3px 3px 0 var(--border-gold-dk)' : 'none',
+-                          textAlign:    'left',
+-                        }}
+-                      >
+-                        <span style={{ fontSize: '1.1rem' }}>{d.emoji}</span>
+-                        <div style={{ flex: 1 }}>
+-                          <div style={{
+-                            fontFamily: "'Playfair Display', serif",
+-                            fontSize:   '0.9rem',
+-                            fontWeight: 700,
+-                            color:      active ? 'var(--text-invert)' : 'var(--text-primary)',
+-                          }}>
+-                            {d.label}
+-                          </div>
+-                          <MonoLabel
+-                            size="xs"
+-                            color={active ? 'var(--text-invert-muted)' : 'var(--text-muted)'}
+-                            style={{ letterSpacing: '0.04em', marginTop: '2px' }}
+-                          >
+-                            {d.desc}
+-                          </MonoLabel>
++          {showGame && (
++            <Card>
++              <Card.Header>
++                <SectionTitle emoji="🎮" label={t('section_game')} />
++              </Card.Header>
++              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
++                <RowList>
++                  {shown('difficulty') && (
++                    <Row key="difficulty" label={t('row_difficulty')} desc={t('row_difficulty_desc')}>
++                      <Managed locked={isLocked('difficulty')}>
++                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 'min(260px, 100%)' }}>
++                          {diffOptions.map(d => {
++                            const active = d.key === settings.difficulty;
++                            return (
++                              <button
++                                key={d.key}
++                                onClick={() => update('difficulty', d.key)}
++                                style={{
++                                  display:      'flex',
++                                  alignItems:   'center',
++                                  gap:          '10px',
++                                  padding:      '10px 14px',
++                                  borderRadius: '2px',
++                                  border:       `2px solid ${active ? 'var(--border-primary)' : 'var(--border-muted)'}`,
++                                  background:   active ? 'var(--bg-invert)' : 'transparent',
++                                  cursor:       'pointer',
++                                  transition:   'all 0.15s',
++                                  boxShadow:    active ? '3px 3px 0 var(--border-gold-dk)' : 'none',
++                                  textAlign:    'left',
++                                }}
++                              >
++                                <span style={{ fontSize: '1.1rem' }}>{d.emoji}</span>
++                                <div style={{ flex: 1 }}>
++                                  <div style={{
++                                    fontFamily: "'Playfair Display', serif",
++                                    fontSize:   '0.9rem',
++                                    fontWeight: 700,
++                                    color:      active ? 'var(--text-invert)' : 'var(--text-primary)',
++                                  }}>
++                                    {d.label}
++                                  </div>
++                                  <MonoLabel
++                                    size="xs"
++                                    color={active ? 'var(--text-invert-muted)' : 'var(--text-muted)'}
++                                    style={{ letterSpacing: '0.04em', marginTop: '2px' }}
++                                  >
++                                    {d.desc}
++                                  </MonoLabel>
++                                </div>
++                                {active && (
++                                  <span style={{ color: 'var(--gold)', fontSize: '1rem' }}>✓</span>
++                                )}
++                              </button>
++                            );
++                          })}
+                         </div>
+-                        {active && (
+-                          <span style={{ color: 'var(--gold)', fontSize: '1rem' }}>✓</span>
+-                        )}
+-                      </button>
+-                    );
+-                  })}
+-                </div>
+-              </Row>
+-
+-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+-
+-              <Row label={t('row_turn_duration')} desc={t('row_turn_duration_desc')}>
+-                <ChipGroup
+-                  options={turnOptions}
+-                  value={settings.turnDuration}
+-                  onChange={v => update('turnDuration', v)}
+-                />
+-              </Row>
+-
+-            </Card.Body>
+-          </Card>
++                      </Managed>
++                    </Row>
++                  )}
++                  {shown('turnDuration') && (
++                    <Row key="turn" label={t('row_turn_duration')} desc={t('row_turn_duration_desc')}>
++                      <Managed locked={isLocked('turnDuration')}>
++                        <ChipGroup
++                          options={turnOptions}
++                          value={settings.turnDuration}
++                          onChange={v => update('turnDuration', v)}
++                        />
++                      </Managed>
++                    </Row>
++                  )}
++                </RowList>
++              </Card.Body>
++            </Card>
++          )}
+ 
+           {/* ── Affichage ──────────────────────────────────── */}
+-          <Card>
+-            <Card.Header>
+-              <SectionTitle emoji="👁️" label={t('section_display')} />
+-            </Card.Header>
+-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+-
+-              <Row label={t('row_score_preview')} desc={t('row_score_preview_desc')}>
+-                <Toggle
+-                  value={settings.showScorePreview}
+-                  onChange={v => update('showScorePreview', v)}
+-                />
+-              </Row>
+-
+-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+-
+-              <Row label={t('row_remaining_tiles')} desc={t('row_remaining_tiles_desc')}>
+-                <Toggle
+-                  value={settings.showRemainingTiles}
+-                  onChange={v => update('showRemainingTiles', v)}
+-                />
+-              </Row>
+-
+-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+-
+-              <Row label={t('row_bonus_labels')} desc={t('row_bonus_labels_desc')}>
+-                <Toggle
+-                  value={settings.showBonusLabels}
+-                  onChange={v => update('showBonusLabels', v)}
+-                />
+-              </Row>
+-
+-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+-
+-              <Row label={t('row_animations')} desc={t('row_animations_desc')}>
+-                <Toggle
+-                  value={settings.animationsEnabled}
+-                  onChange={v => update('animationsEnabled', v)}
+-                />
+-              </Row>
+-
+-            </Card.Body>
+-          </Card>
++          {displayRows.length > 0 && (
++            <Card>
++              <Card.Header>
++                <SectionTitle emoji="👁️" label={t('section_display')} />
++              </Card.Header>
++              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
++                <RowList>{displayRows}</RowList>
++              </Card.Body>
++            </Card>
++          )}
+ 
+           {/* ── Comportement ───────────────────────────────── */}
+-          <Card>
+-            <Card.Header>
+-              <SectionTitle emoji="⚙️" label={t('section_behavior')} />
+-            </Card.Header>
+-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+-
+-              <Row label={t('row_auto_sort')} desc={t('row_auto_sort_desc')}>
+-                <Toggle
+-                  value={settings.autoSortRack}
+-                  onChange={v => update('autoSortRack', v)}
+-                />
+-              </Row>
+-
+-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
+-
+-              <Row label={t('row_confirm_validation')} desc={t('row_confirm_validation_desc')}>
+-                <Toggle
+-                  value={settings.confirmValidation}
+-                  onChange={v => update('confirmValidation', v)}
+-                />
+-              </Row>
+-
+-            </Card.Body>
+-          </Card>
++          {behaviorRows.length > 0 && (
++            <Card>
++              <Card.Header>
++                <SectionTitle emoji="⚙️" label={t('section_behavior')} />
++              </Card.Header>
++              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
++                <RowList>{behaviorRows}</RowList>
++              </Card.Body>
++            </Card>
++          )}
+ 
+           {/* ── Notifications push (lot 7) ─────────────────── */}
+           {user && <NotificationsCard settings={settings} update={update} />}
+diff --git a/frontend/src/styles/account.css b/frontend/src/styles/account.css
+index 733d555..931bb37 100644
+--- a/frontend/src/styles/account.css
++++ b/frontend/src/styles/account.css
+@@ -105,3 +105,11 @@
+ .pv-choice .s-chip:disabled { opacity: 0.6; cursor: wait; }
+ .pv-sep { border-top: 1px solid var(--border-muted); }
+ @media (max-width: 640px) { .pv-choice { justify-content: flex-start; } }
++
++/* ── Lot A2 : réglages fixés par l'administrateur ──────────────── */
++.st-managed { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
++.st-managed-ctl { opacity: 0.55; pointer-events: none; }
++.st-lock {
++  font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.06em;
++  color: var(--text-muted); white-space: nowrap;
++}
+diff --git a/frontend/src/styles/admin.css b/frontend/src/styles/admin.css
+index 7961af7..446cd1a 100644
+--- a/frontend/src/styles/admin.css
++++ b/frontend/src/styles/admin.css
+@@ -206,6 +206,65 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
+ }
+ .adm-soon-title { margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 1.3rem; font-weight: 900; color: var(--text-primary); }
+ 
++
++/* ── Lot A2 : paramètres des joueurs ───────────────────────────── */
++.adm-intro { display: flex; flex-direction: column; gap: 10px; }
++.adm-legend { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 3px; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.84rem; color: var(--text-primary); }
++.adm-set-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
++.adm-table-wrap--flat { border-width: 1.5px; }
++.adm-set-table th[scope="row"] { position: static; background: none; color: var(--text-primary); text-transform: none; letter-spacing: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 0.9rem; font-weight: 700; white-space: normal; padding: 10px 12px; border-top: 1px solid var(--border-muted); min-width: 150px; }
++.adm-set-table tbody tr:first-child th[scope="row"] { border-top: none; }
++.adm-set-table tr[data-mode="locked"] th[scope="row"]::after { content: ' 🔒'; font-size: 0.75rem; }
++.adm-set-table tr[data-mode="hidden"] th[scope="row"] { color: var(--text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
++.adm-seg { display: inline-flex; border: 1.5px solid var(--border-primary); border-radius: 2px; overflow: hidden; }
++.adm-seg-btn {
++  padding: 5px 9px; border: none; background: transparent; cursor: pointer; white-space: nowrap;
++  font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
++}
++.adm-seg-btn + .adm-seg-btn { border-left: 1.5px solid var(--border-primary); }
++.adm-seg-btn[aria-checked="true"] { background: var(--bg-invert); color: var(--text-invert); }
++.adm-seg-btn[aria-checked="true"][data-mode="locked"] { background: var(--tobacco); color: var(--text-invert); }
++.adm-seg-btn[aria-checked="true"][data-mode="hidden"] { background: var(--brick); color: var(--text-invert); }
++.adm-seg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
++.adm-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
++.adm-input--sm { padding: 5px 8px; font-size: 0.82rem; max-width: 220px; }
++.adm-opts { display: flex; flex-wrap: wrap; gap: 4px 6px; max-width: 420px; }
++.adm-opt {
++  display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; cursor: pointer;
++  border: 1px solid var(--border-muted); border-radius: 2px;
++  font-family: 'DM Mono', monospace; font-size: 0.64rem; color: var(--text-muted);
++}
++.adm-opt[data-on] { border-color: var(--border-primary); color: var(--text-primary); }
++.adm-opt[data-disabled] { cursor: not-allowed; opacity: 0.7; }
++.adm-opt input { margin: 0; accent-color: var(--olive); }
++.adm-reset .adm-actions { align-items: center; }
++
++/* Barre d'enregistrement : collée en bas de l'écran tant qu'il reste des changements */
++.adm-savebar {
++  position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
++  padding: 10px 14px; background: var(--bg-invert); color: var(--text-invert);
++  border: 2px solid var(--border-primary); border-radius: 3px; box-shadow: 4px 4px 0 var(--shadow-card);
++}
++.adm-savebar-text { margin-right: auto; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.04em; }
++.adm-savebar .adm-input { background: var(--bg-input); }
++
++/* ── Lot A2 : politique de confidentialité ─────────────────────── */
++.adm-pp-form { gap: 16px; }
++.adm-pp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
++.adm-pp-row .adm-field { min-width: 0; }
++.adm-textarea { width: 100%; box-sizing: border-box; resize: vertical; line-height: 1.5; font-size: 0.86rem; }
++.adm-pp-form .adm-field > .adm-input:not([type="date"]) { width: 100%; box-sizing: border-box; }
++.adm-pp-section {
++  margin: 0; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px;
++  border: 1.5px solid var(--border-muted); border-radius: 2px;
++}
++.adm-pp-section[data-warning] { border-color: var(--brick); border-style: dashed; }
++.adm-pp-section legend { padding: 0 6px; }
++.adm-pp-tools { flex-wrap: nowrap; gap: 6px; }
++.adm-check { display: inline-flex; align-items: center; gap: 8px; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text-primary); }
++.adm-check input { accent-color: var(--brick); }
++.adm-pp-preview { margin: 0; max-width: none; padding: 20px 24px; background: var(--bg-card); border: 2px solid var(--border-primary); border-radius: 2px; }
++
+ /* ── Écrans étroits : la navigation passe au-dessus, en bandeau ─── */
+ @media (max-width: 900px) {
+   .adm-page { padding: 1.25rem 1rem 3rem; }
+@@ -219,4 +278,15 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
+   .adm-kv { grid-template-columns: 110px minmax(0, 1fr); }
+   .adm-chart-body { grid-template-rows: 150px auto; }
+   .adm-chart-x span[data-alt] { visibility: hidden; }        /* une date sur deux */
++  .adm-pp-row, .adm-pp-row--even { grid-template-columns: minmax(0, 1fr); }
++  .adm-savebar-text { width: 100%; }
+ }
++
++/* Mêmes largeurs de colonnes d'une section à l'autre */
++.adm-set-table { table-layout: fixed; min-width: 760px; }
++.adm-set-table thead th:nth-child(1) { width: 24%; }
++.adm-set-table thead th:nth-child(2) { width: 230px; }
++.adm-set-table thead th:nth-child(3) { width: 200px; }
++/* Les zones de texte grandissent avec leur contenu (navigateurs récents ; sinon : `rows`) */
++.adm-textarea { field-sizing: content; min-height: 3lh; max-height: 60vh; }
++.adm-pp-row--even { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+diff --git a/frontend/src/utils/appConfig.js b/frontend/src/utils/appConfig.js
+new file mode 100644
+index 0000000..7445f77
+--- /dev/null
++++ b/frontend/src/utils/appConfig.js
+@@ -0,0 +1,77 @@
++// src/utils/appConfig.js
++//
++// Paramètres fixés par l'administrateur (dashboard, lot A2) : fonctions pures
++// partagées par les contextes (langue, réglages, thème) et les écrans.
++//
++// Politique d'un paramètre : { mode, default, options }
++//   mode   free   → le joueur choisit (parmi options)
++//          locked → visible mais grisé, valeur imposée = default
++//          hidden → invisible, valeur imposée = default
++//   options        valeurs proposées (null pour un oui / non)
++// Sans politique connue (hors ligne, serveur d'avant le lot A2) : tout est libre.
++
++export const CONFIG_CACHE_KEY = 'scrabble-app-config';
++
++const FREE = Object.freeze({ mode: 'free', default: undefined, options: null });
++
++/** Dernière politique reçue, gardée par l'appareil (lecture instantanée au démarrage). */
++export function readCachedPolicy() {
++  try {
++    const raw = localStorage.getItem(CONFIG_CACHE_KEY);
++    return raw ? JSON.parse(raw)?.settings ?? null : null;
++  } catch {
++    return null;
++  }
++}
++
++export function writeCachedPolicy(config) {
++  try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(config)); } catch { /* stockage indisponible */ }
++}
++
++export const ruleOf = (policy, key) => policy?.[key] ?? FREE;
++export const isForced = (rule) => rule.mode === 'locked' || rule.mode === 'hidden';
++
++/** Valeur qu'a vraiment le joueur. `fallback` : valeur quand la politique n'impose rien. */
++export function effectiveValue(policy, key, chosen, fallback = chosen) {
++  const rule = ruleOf(policy, key);
++  const hasDefault = rule.default !== undefined && rule.default !== null;
++  if (isForced(rule) && hasDefault) return rule.default;
++  if (rule.options && !rule.options.includes(chosen)) {
++    return hasDefault ? rule.default : (rule.options.includes(fallback) ? fallback : rule.options[0]);
++  }
++  return chosen;
++}
++
++/** Ce que le joueur peut encore choisir (liste complète → liste proposée). */
++export function choosable(policy, key, all) {
++  const rule = ruleOf(policy, key);
++  if (isForced(rule)) return all.filter(v => v === rule.default);
++  return rule.options ? all.filter(v => rule.options.includes(v)) : all;
++}
++
++/** Le joueur peut-il choisir cette valeur ? */
++export function canChoose(policy, key, value) {
++  const rule = ruleOf(policy, key);
++  if (isForced(rule)) return false;
++  return !rule.options || rule.options.includes(value);
++}
++
++/** Défauts de l'administrateur (clés de préférences seulement, valeurs non nulles). */
++export function policyDefaults(policy) {
++  const out = {};
++  for (const [key, rule] of Object.entries(policy ?? {})) {
++    if (!key.includes('.') && rule.default !== undefined && rule.default !== null) out[key] = rule.default;
++  }
++  return out;
++}
++
++/** Préférences après politique (réglages verrouillés, options retirées). */
++export function applyPolicy(policy, settings) {
++  if (!policy) return settings;
++  const out = { ...settings };
++  for (const key of Object.keys(policy)) {
++    if (key.includes('.') || !(key in out)) continue;
++    out[key] = effectiveValue(policy, key, out[key]);
++  }
++  return out;
++}
+diff --git a/frontend/src/utils/privacyDoc.js b/frontend/src/utils/privacyDoc.js
+new file mode 100644
+index 0000000..d8a4551
+--- /dev/null
++++ b/frontend/src/utils/privacyDoc.js
+@@ -0,0 +1,16 @@
++// src/utils/privacyDoc.js
++// Politique de confidentialité publiée par l'administrateur (lot A2) → même forme
++// que le texte d'origine (src/i18n/privacy.js), pour la page #/privacy et l'aperçu
++// du dashboard.
++
++const LOCALES = { fr: 'fr-CA', en: 'en-CA' };
++
++export function formatPolicyDate(isoDate, language) {
++  return new Intl.DateTimeFormat(LOCALES[language] ?? language, { dateStyle: 'long', timeZone: 'UTC' })
++    .format(new Date(`${isoDate}T12:00:00Z`));
++}
++
++export function fromDocument(doc, language, t) {
++  const p = doc[language] ?? doc.fr;
++  return { ...p, updated: t('privacy_updated_on', { date: formatPolicyDate(doc.updated_on, language) }) };
++}
+-- 
+2.43.0
+
