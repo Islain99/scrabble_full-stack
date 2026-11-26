@@ -68,3 +68,12 @@ def _reset_friends_mirror_cache():
     from app.friends import router as friends_router
     friends_router._mirror_cache.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_app_config_cache():
+    """Politique des paramètres (lot A2) : cache du processus vidé entre les tests."""
+    from app.appconfig import service
+    service.invalidate()
+    yield
+    service.invalidate()

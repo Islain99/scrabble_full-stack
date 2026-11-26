@@ -27,6 +27,8 @@ import MoveHistory, { HistoryButton } from '../components/MoveHistory';
 import { lastPlayedCells } from '../utils/gameState';
 import { setPresenceActivity } from '../utils/presence';
 import { GAME_LANGUAGES, languageTag, languageName } from '../utils/gameLanguage';
+import { useAppConfig } from '../context/AppConfigContext';
+import { choosable } from '../utils/appConfig';
 
 // ── ScorePreview ──────────────────────────────────────────────────
 
@@ -131,6 +133,38 @@ function AbandonModal({ onConfirm, onCancel, t }) {
           </RetroButton>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Langue de la partie ───────────────────────────────────────────
+// Lot A2 : seules les langues que l'administrateur propose ; une seule
+// (ou réglage masqué) → pas de sélecteur.
+function GameLanguagePicker({ value, onChange, t }) {
+  const { policy } = useAppConfig();
+  if (policy?.gameLanguage?.mode === 'hidden') return null;
+  const allowed = choosable(policy, 'gameLanguage', GAME_LANGUAGES.map(l => l.value));
+  const options = GAME_LANGUAGES.filter(l => allowed.includes(l.value));
+  if (options.length < 2) return null;
+  return (
+    <div className="gl-field" role="radiogroup" aria-label={t('gl_label')}>
+      <div className="gl-label">{t('gl_label')}</div>
+      <div className="rr-chips">
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            lang={opt.value}
+            aria-checked={value === opt.value}
+            className="rr-chip"
+            onClick={() => onChange(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <div className="gl-hint">{t('gl_hint')}</div>
     </div>
   );
 }
@@ -252,25 +286,7 @@ export default function GamePage() {
           </div>
 
           {/* Langue de la partie : dictionnaire, sac et valeurs des lettres */}
-          <div className="gl-field" role="radiogroup" aria-label={t('gl_label')}>
-            <div className="gl-label">{t('gl_label')}</div>
-            <div className="rr-chips">
-              {GAME_LANGUAGES.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  lang={opt.value}
-                  aria-checked={(settings.gameLanguage ?? 'fr') === opt.value}
-                  className="rr-chip"
-                  onClick={() => updateSetting('gameLanguage', opt.value)}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="gl-hint">{t('gl_hint')}</div>
-          </div>
+          <GameLanguagePicker value={settings.gameLanguage ?? 'fr'} onChange={v => updateSetting('gameLanguage', v)} t={t} />
 
           {/* Partie non terminée : on propose de la reprendre */}
           {game.resumeOffer ? (() => {

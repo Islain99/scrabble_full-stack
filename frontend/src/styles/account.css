@@ -105,3 +105,11 @@
 .pv-choice .s-chip:disabled { opacity: 0.6; cursor: wait; }
 .pv-sep { border-top: 1px solid var(--border-muted); }
 @media (max-width: 640px) { .pv-choice { justify-content: flex-start; } }
+
+/* ── Lot A2 : réglages fixés par l'administrateur ──────────────── */
+.st-managed { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.st-managed-ctl { opacity: 0.55; pointer-events: none; }
+.st-lock {
+  font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.06em;
+  color: var(--text-muted); white-space: nowrap;
+}

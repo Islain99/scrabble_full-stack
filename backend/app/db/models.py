@@ -98,24 +98,28 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
 
-    def get_preferences(self) -> dict:
-        """Retourne les préférences fusionnées avec les valeurs par défaut."""
-        if not self.game_preferences:
-            return DEFAULT_PREFERENCES.copy()
-        return {**DEFAULT_PREFERENCES, **self.game_preferences}
+    def get_preferences(self, policy=None) -> dict:
+        """
+        Préférences effectives : choix du joueur, complétés par les défauts, puis
+        politique de l'administrateur (lot A2 : défauts, réglages verrouillés ou masqués).
+        `policy` absent : dernière politique connue (cache du processus).
+        """
+        from app.appconfig.catalog import effective_preferences
+        from app.appconfig.service import cached_policy
+        return effective_preferences(self.game_preferences or {}, DEFAULT_PREFERENCES, policy or cached_policy())
 
-    def set_preferences(self, patch: dict) -> dict:
+    def set_preferences(self, patch: dict, policy=None) -> dict:
         """
-        Fusionne patch avec les préférences existantes.
-        Ne garde que les clés connues pour éviter la pollution.
-        Retourne les préférences complètes mises à jour.
+        Enregistre les choix du joueur (clés connues seulement) et retourne les
+        préférences effectives. Depuis le lot A2, seules les clés choisies sont
+        stockées : une clé jamais choisie suit le défaut fixé par l'administrateur.
         """
-        current = self.get_preferences()
+        stored = dict(self.game_preferences or {})
         for key, value in patch.items():
             if key in DEFAULT_PREFERENCES:
-                current[key] = value
-        self.game_preferences = current
-        return current
+                stored[key] = value
+        self.game_preferences = stored
+        return self.get_preferences(policy)
 
     def update_stats_after_game(
         self, score: int, won: bool,

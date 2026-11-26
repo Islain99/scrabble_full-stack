@@ -1,6 +1,8 @@
 // src/context/LanguageContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { translations } from '../i18n/translations';
+import { useAppConfigOptional } from './AppConfigContext';
+import { canChoose, choosable, effectiveValue, isForced, readCachedPolicy, ruleOf } from '../utils/appConfig';
 
 const LanguageContext = createContext(null);
 
@@ -8,20 +10,35 @@ const STORAGE_KEY = 'scrabble-language';
 const SUPPORTED   = ['fr', 'en'];
 const IS_DEV      = import.meta.env.DEV;
 
-function detectDefault() {
+// Choix de l'appareil, sinon langue du navigateur, sinon défaut de l'administrateur
+function detectDefault(policy) {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && SUPPORTED.includes(stored)) return stored;
   } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
   const nav = navigator.language?.slice(0, 2).toLowerCase();
-  return SUPPORTED.includes(nav) ? nav : 'fr';
+  if (SUPPORTED.includes(nav) && canChoose(policy, 'language', nav)) return nav;
+  return ruleOf(policy, 'language').default ?? 'fr';
 }
 
 export function LanguageProvider({ children }) {
-  const [language, setLanguage] = useState(detectDefault);
+  // Lot A2 : l'administrateur peut imposer la langue ou retirer une option
+  const policy = useAppConfigOptional()?.policy ?? null;
+  const [chosen, setChosen] = useState(() => detectDefault(readCachedPolicy()));
+  const language = effectiveValue(policy, 'language', chosen, 'fr');
+  const availableLanguages = choosable(policy, 'language', SUPPORTED);
+  const languageLocked = isForced(ruleOf(policy, 'language'));
+
+  const setLanguage = useCallback((lang) => {
+    if (SUPPORTED.includes(lang) && canChoose(policy, 'language', lang)) setChosen(lang);
+  }, [policy]);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, language); } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
+    try { localStorage.setItem(STORAGE_KEY, chosen); } catch { /* stockage indisponible (navigation privée, quota) : on continue sans */ }
+  }, [chosen]);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
   }, [language]);
 
   /**
@@ -57,7 +74,7 @@ export function LanguageProvider({ children }) {
   }, [t]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, tp, SUPPORTED }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, tp, SUPPORTED, availableLanguages, languageLocked }}>
       {children}
     </LanguageContext.Provider>
   );

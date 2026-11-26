@@ -21,3 +21,21 @@ export const listActions = async ({ limit = 50, beforeId = null } = {}) =>
 
 // Sourdine dans la messagerie : route existante du lot 6 (0 = lever la sourdine)
 export { muteUser } from './chatService';
+
+// ── Lot A2 : paramètres globaux et politique de confidentialité ──
+
+/** { catalog, policy, custom, updated_at, updated_by_name } */
+export const getSettingsPolicy = async () => (await api.get('/admin/settings')).data;
+
+/** policy : { clé: { mode, default, options } } — retourne la politique enregistrée (+ privacy_updates). */
+export const saveSettingsPolicy = async (policy, note) =>
+  (await api.put('/admin/settings', { settings: policy, ...(note ? { note } : {}) })).data;
+
+export const resetSettingsPolicy = async () => (await api.delete('/admin/settings')).data;
+
+/** { custom, document, updated_at, updated_by_name } */
+export const getPrivacyPolicy = async () => (await api.get('/admin/privacy-policy')).data;
+
+export const savePrivacyPolicy = async (document) => (await api.put('/admin/privacy-policy', document)).data;
+
+export const resetPrivacyPolicy = async () => (await api.delete('/admin/privacy-policy')).data;

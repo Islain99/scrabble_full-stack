@@ -206,6 +206,65 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 }
 .adm-soon-title { margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 1.3rem; font-weight: 900; color: var(--text-primary); }
 
+
+/* ── Lot A2 : paramètres des joueurs ───────────────────────────── */
+.adm-intro { display: flex; flex-direction: column; gap: 10px; }
+.adm-legend { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 3px; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.84rem; color: var(--text-primary); }
+.adm-set-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.adm-table-wrap--flat { border-width: 1.5px; }
+.adm-set-table th[scope="row"] { position: static; background: none; color: var(--text-primary); text-transform: none; letter-spacing: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 0.9rem; font-weight: 700; white-space: normal; padding: 10px 12px; border-top: 1px solid var(--border-muted); min-width: 150px; }
+.adm-set-table tbody tr:first-child th[scope="row"] { border-top: none; }
+.adm-set-table tr[data-mode="locked"] th[scope="row"]::after { content: ' 🔒'; font-size: 0.75rem; }
+.adm-set-table tr[data-mode="hidden"] th[scope="row"] { color: var(--text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.adm-seg { display: inline-flex; border: 1.5px solid var(--border-primary); border-radius: 2px; overflow: hidden; }
+.adm-seg-btn {
+  padding: 5px 9px; border: none; background: transparent; cursor: pointer; white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
+}
+.adm-seg-btn + .adm-seg-btn { border-left: 1.5px solid var(--border-primary); }
+.adm-seg-btn[aria-checked="true"] { background: var(--bg-invert); color: var(--text-invert); }
+.adm-seg-btn[aria-checked="true"][data-mode="locked"] { background: var(--tobacco); color: var(--text-invert); }
+.adm-seg-btn[aria-checked="true"][data-mode="hidden"] { background: var(--brick); color: var(--text-invert); }
+.adm-seg-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.adm-seg-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.adm-input--sm { padding: 5px 8px; font-size: 0.82rem; max-width: 220px; }
+.adm-opts { display: flex; flex-wrap: wrap; gap: 4px 6px; max-width: 420px; }
+.adm-opt {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; cursor: pointer;
+  border: 1px solid var(--border-muted); border-radius: 2px;
+  font-family: 'DM Mono', monospace; font-size: 0.64rem; color: var(--text-muted);
+}
+.adm-opt[data-on] { border-color: var(--border-primary); color: var(--text-primary); }
+.adm-opt[data-disabled] { cursor: not-allowed; opacity: 0.7; }
+.adm-opt input { margin: 0; accent-color: var(--olive); }
+.adm-reset .adm-actions { align-items: center; }
+
+/* Barre d'enregistrement : collée en bas de l'écran tant qu'il reste des changements */
+.adm-savebar {
+  position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 14px; background: var(--bg-invert); color: var(--text-invert);
+  border: 2px solid var(--border-primary); border-radius: 3px; box-shadow: 4px 4px 0 var(--shadow-card);
+}
+.adm-savebar-text { margin-right: auto; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.04em; }
+.adm-savebar .adm-input { background: var(--bg-input); }
+
+/* ── Lot A2 : politique de confidentialité ─────────────────────── */
+.adm-pp-form { gap: 16px; }
+.adm-pp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.adm-pp-row .adm-field { min-width: 0; }
+.adm-textarea { width: 100%; box-sizing: border-box; resize: vertical; line-height: 1.5; font-size: 0.86rem; }
+.adm-pp-form .adm-field > .adm-input:not([type="date"]) { width: 100%; box-sizing: border-box; }
+.adm-pp-section {
+  margin: 0; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px;
+  border: 1.5px solid var(--border-muted); border-radius: 2px;
+}
+.adm-pp-section[data-warning] { border-color: var(--brick); border-style: dashed; }
+.adm-pp-section legend { padding: 0 6px; }
+.adm-pp-tools { flex-wrap: nowrap; gap: 6px; }
+.adm-check { display: inline-flex; align-items: center; gap: 8px; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text-primary); }
+.adm-check input { accent-color: var(--brick); }
+.adm-pp-preview { margin: 0; max-width: none; padding: 20px 24px; background: var(--bg-card); border: 2px solid var(--border-primary); border-radius: 2px; }
+
 /* ── Écrans étroits : la navigation passe au-dessus, en bandeau ─── */
 @media (max-width: 900px) {
   .adm-page { padding: 1.25rem 1rem 3rem; }
@@ -219,4 +278,15 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
   .adm-kv { grid-template-columns: 110px minmax(0, 1fr); }
   .adm-chart-body { grid-template-rows: 150px auto; }
   .adm-chart-x span[data-alt] { visibility: hidden; }        /* une date sur deux */
+  .adm-pp-row, .adm-pp-row--even { grid-template-columns: minmax(0, 1fr); }
+  .adm-savebar-text { width: 100%; }
 }
+
+/* Mêmes largeurs de colonnes d'une section à l'autre */
+.adm-set-table { table-layout: fixed; min-width: 760px; }
+.adm-set-table thead th:nth-child(1) { width: 24%; }
+.adm-set-table thead th:nth-child(2) { width: 230px; }
+.adm-set-table thead th:nth-child(3) { width: 200px; }
+/* Les zones de texte grandissent avec leur contenu (navigateurs récents ; sinon : `rows`) */
+.adm-textarea { field-sizing: content; min-height: 3lh; max-height: 60vh; }
+.adm-pp-row--even { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }

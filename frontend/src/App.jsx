@@ -11,6 +11,7 @@ import { InviteBanner } from './components/Notifications';
 import { ThemeProvider }    from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { AppConfigProvider } from './context/AppConfigContext';
 
 import Navbar         from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -154,19 +155,22 @@ function AppWithTutorial({ children }) {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <SettingsProvider>
-          {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
-          <ThemeProvider>
-            <AppWithTutorial>
-              <NotificationsProvider>
-                <Router />
-              </NotificationsProvider>
-            </AppWithTutorial>
-          </ThemeProvider>
-        </SettingsProvider>
-      </AuthProvider>
-    </LanguageProvider>
+    // Paramètres fixés par l'administrateur (lot A2) : lus par la langue, les réglages et le thème
+    <AppConfigProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
+            <ThemeProvider>
+              <AppWithTutorial>
+                <NotificationsProvider>
+                  <Router />
+                </NotificationsProvider>
+              </AppWithTutorial>
+            </ThemeProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </AppConfigProvider>
   );
 }

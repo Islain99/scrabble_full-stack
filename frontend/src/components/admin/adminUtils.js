@@ -1,7 +1,14 @@
 // src/components/admin/adminUtils.js
 // Petits utilitaires partagés par les écrans du dashboard admin (pas de JSX ici).
 
-export const errorOf = (err, t) => err?.response?.data?.detail || t('adm_error');
+export const errorOf = (err, t) => {
+  const detail = err?.response?.data?.detail;
+  // 422 de FastAPI : liste d'erreurs de validation → leurs messages
+  if (Array.isArray(detail)) {
+    return detail.map(d => String(d?.msg ?? d).replace(/^Value error, /, '')).join(' · ') || t('adm_error');
+  }
+  return (typeof detail === 'string' && detail) || t('adm_error');
+};
 
 const LOCALES = { fr: 'fr-CA', en: 'en-CA' };
 

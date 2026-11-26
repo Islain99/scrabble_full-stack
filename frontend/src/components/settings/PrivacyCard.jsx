@@ -9,8 +9,21 @@ import { useLanguage } from '../../context/LanguageContext';
 import { Card, MonoLabel, Spinner } from '../ui';
 import { Row, Toggle, SectionTitle } from './SettingsParts';
 import { getPrivacy, updatePrivacy } from '../../api/accountService';
+import { useAppConfig } from '../../context/AppConfigContext';
+import { choosable } from '../../utils/appConfig';
+import { Managed, RowList } from './Managed';
 
 const AUDIENCE = ['everyone', 'friends', 'nobody'];
+
+// Ordre d'affichage ; options : null pour un oui / non
+const ROWS = [
+  { key: 'profile',     options: AUDIENCE },
+  { key: 'stats',       options: AUDIENCE },
+  { key: 'presence',    options: ['friends', 'nobody'] },
+  { key: 'requests',    options: ['everyone', 'code'] },
+  { key: 'search',      options: null },
+  { key: 'leaderboard', options: null },
+];
 
 function Choice({ name, options, value, onChange, disabled, t }) {
   return (
@@ -28,6 +41,7 @@ function Choice({ name, options, value, onChange, disabled, t }) {
 export default function PrivacyCard() {
   const { t } = useLanguage();
   const { refreshUser } = useAuth();
+  const { policy, isHidden, isLocked } = useAppConfig();   // lot A2 : réglages fixés par l'admin
   const [privacy, setPrivacy] = useState(null);
   const [saving, setSaving] = useState(null);       // clé en cours d'enregistrement
   const [note, setNote] = useState(null);           // { tone, text }
@@ -66,37 +80,22 @@ export default function PrivacyCard() {
         <MonoLabel size="xs" style={{ lineHeight: 1.5 }}>{t('privacy_intro')}</MonoLabel>
 
         {!privacy ? (note ? null : <Spinner size={18} />) : (
-          <>
-            <Row label={t('privacy_profile')} desc={t('privacy_profile_desc')}>
-              <Choice name={t('privacy_profile')} options={AUDIENCE} value={privacy.profile}
-                onChange={v => change('profile', v)} disabled={saving === 'profile'} t={t} />
-            </Row>
-            <div className="pv-sep" />
-            <Row label={t('privacy_stats')} desc={t('privacy_stats_desc')}>
-              <Choice name={t('privacy_stats')} options={AUDIENCE} value={privacy.stats}
-                onChange={v => change('stats', v)} disabled={saving === 'stats'} t={t} />
-            </Row>
-            <div className="pv-sep" />
-            <Row label={t('privacy_presence')} desc={t('privacy_presence_desc')}>
-              <Choice name={t('privacy_presence')} options={['friends', 'nobody']} value={privacy.presence}
-                onChange={v => change('presence', v)} disabled={saving === 'presence'} t={t} />
-            </Row>
-            <div className="pv-sep" />
-            <Row label={t('privacy_requests')} desc={t('privacy_requests_desc')}>
-              <Choice name={t('privacy_requests')} options={['everyone', 'code']} value={privacy.requests}
-                onChange={v => change('requests', v)} disabled={saving === 'requests'} t={t} />
-            </Row>
-            <div className="pv-sep" />
-            <Row label={t('privacy_search')} desc={t('privacy_search_desc')}>
-              <Toggle value={privacy.search} onChange={v => change('search', v)}
-                label={t('privacy_search')} disabled={saving === 'search'} />
-            </Row>
-            <div className="pv-sep" />
-            <Row label={t('privacy_leaderboard')} desc={t('privacy_leaderboard_desc')}>
-              <Toggle value={privacy.leaderboard} onChange={v => change('leaderboard', v)}
-                label={t('privacy_leaderboard')} disabled={saving === 'leaderboard'} />
-            </Row>
-          </>
+          <RowList>
+            {ROWS.filter(r => !isHidden(`privacy.${r.key}`)).map(r => {
+              const label = t(`privacy_${r.key}`);
+              const control = r.options ? (
+                <Choice name={label} options={choosable(policy, `privacy.${r.key}`, r.options)} value={privacy[r.key]}
+                  onChange={v => change(r.key, v)} disabled={saving === r.key} t={t} />
+              ) : (
+                <Toggle value={privacy[r.key]} onChange={v => change(r.key, v)} label={label} disabled={saving === r.key} />
+              );
+              return (
+                <Row key={r.key} label={label} desc={t(`privacy_${r.key}_desc`)}>
+                  <Managed locked={isLocked(`privacy.${r.key}`)}>{control}</Managed>
+                </Row>
+              );
+            })}
+          </RowList>
         )}
 
         {note && <p role="status" className="st-note" data-tone={note.tone}>{note.text}</p>}

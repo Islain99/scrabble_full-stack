@@ -14,8 +14,8 @@ const ThemeIcons = { light: '☀️', dark: '🌙', system: '⚙️' };
 
 export default function Navbar() {
   const { user, isAuthenticated, logout, loading } = useAuth();
-  const { preference, setTheme, THEMES, resolvedTheme } = useTheme();
-  const { t, language, setLanguage }                    = useLanguage();
+  const { preference, setTheme, THEMES, resolvedTheme, PALETTES } = useTheme();
+  const { t, language, setLanguage, availableLanguages } = useLanguage();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const { unreadMessages } = useNotifications();   // lot 6 : non-lus de la messagerie
   const isMobile = useIsMobile();
@@ -42,10 +42,14 @@ export default function Navbar() {
     ...(user?.is_admin ? [{ label: t('nav_admin'), hash: '#/admin', authOnly: true }] : []),
   ];
 
+  // Lot A2 : seules les options que l'administrateur laisse au choix ; une seule → sélecteur masqué
   const LANGUAGES = [
     { value: 'fr', emoji: '🇫🇷' },
     { value: 'en', emoji: '🇬🇧' },
-  ];
+  ].filter(l => availableLanguages.includes(l.value));
+  const canPickLanguage = LANGUAGES.length > 1;
+  const canPickTheme = THEMES.length > 1;
+  const canPickPalette = PALETTES.length > 1;
 
   const handleLogout = async () => {
     await stopPresence();   // tant que le jeton est valide : « hors ligne » pour les amis
@@ -60,10 +64,11 @@ export default function Navbar() {
       <MobileNavbar
         links={NAV_LINKS.filter(l => !l.authOnly || isAuthenticated)}
         currentHash={currentHash}
-        languages={LANGUAGES}
+        languages={canPickLanguage ? LANGUAGES : []}
         language={language}
         setLanguage={setLanguage}
-        themes={THEMES}
+        themes={canPickTheme ? THEMES : []}
+        canPickPalette={canPickPalette}
         themeIcons={ThemeIcons}
         themeLabels={ThemeLabels}
         preference={preference}
@@ -133,7 +138,7 @@ export default function Navbar() {
         {isAuthenticated && <NotificationBell />}
 
         {/* ── Sélecteur de langue ────────────────────────── */}
-        <div className="app-nav-lang" style={{ display: 'flex', gap: '4px' }}>
+        {canPickLanguage && <div className="app-nav-lang" style={{ display: 'flex', gap: '4px' }}>
           {LANGUAGES.map(l => (
             <button
               key={l.value}
@@ -154,10 +159,10 @@ export default function Navbar() {
               {l.emoji}
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* ── Theme toggle ───────────────────────────────── */}
-        <div className="app-nav-theme" style={{ position: 'relative' }}>
+        {(canPickTheme || canPickPalette) && <div className="app-nav-theme" style={{ position: 'relative' }}>
           <button
             onClick={() => setShowThemeMenu(v => !v)}
             title={`${t('section_appearance')} : ${ThemeLabels[preference]}`}
@@ -213,7 +218,7 @@ export default function Navbar() {
                   {t('nav_appearance')}
                 </div>
 
-                {THEMES.map(theme => (
+                {(canPickTheme ? THEMES : []).map(theme => (
                   <button
                     key={theme}
                     onClick={() => { setTheme(theme); setShowThemeMenu(false); }}
@@ -253,7 +258,7 @@ export default function Navbar() {
                 ))}
 
                 {/* Palette de couleurs */}
-                <div style={{ borderTop: '1px solid var(--border-muted)', padding: '10px 14px 12px' }}>
+                {canPickPalette && <div style={{ borderTop: '1px solid var(--border-muted)', padding: '10px 14px 12px' }}>
                   <div style={{
                     fontFamily: "'DM Mono', monospace", fontSize: '0.58rem', letterSpacing: '0.12em',
                     textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px',
@@ -261,11 +266,11 @@ export default function Navbar() {
                     {t('nav_palette')}
                   </div>
                   <PalettePicker variant="compact" />
-                </div>
+                </div>}
               </div>
             </>
           )}
-        </div>
+        </div>}
 
         {/* ── Auth zone ──────────────────────────────────── */}
         {isAuthenticated ? (
@@ -360,7 +365,7 @@ export default function Navbar() {
 
 function MobileNavbar({
   links, currentHash, languages, language, setLanguage,
-  themes, themeIcons, themeLabels, preference, setTheme,
+  themes, themeIcons, themeLabels, preference, setTheme, canPickPalette,
   isAuthenticated, user, onLogout, t,
 }) {
   const [open, setOpen] = useState(false);
@@ -420,7 +425,7 @@ function MobileNavbar({
               ))}
             </div>
 
-            <div className="mnav-row" role="group" aria-label={t('nav_language')}>
+            {languages.length > 0 && <div className="mnav-row" role="group" aria-label={t('nav_language')}>
               <span className="mnav-row-label">{t('nav_language')}</span>
               {languages.map(l => (
                 <button
@@ -434,9 +439,9 @@ function MobileNavbar({
                   {l.value === 'fr' ? 'Français' : 'English'}
                 </button>
               ))}
-            </div>
+            </div>}
 
-            <div className="mnav-row" role="group" aria-label={t('nav_appearance')}>
+            {themes.length > 0 && <div className="mnav-row" role="group" aria-label={t('nav_appearance')}>
               <span className="mnav-row-label">{t('nav_appearance')}</span>
               {themes.map(theme => (
                 <button
@@ -450,12 +455,12 @@ function MobileNavbar({
                   {themeLabels[theme]}
                 </button>
               ))}
-            </div>
+            </div>}
 
-            <div className="mnav-row">
+            {canPickPalette && <div className="mnav-row">
               <span className="mnav-row-label">{t('nav_palette')}</span>
               <PalettePicker variant="compact" />
-            </div>
+            </div>}
 
             <div className="mnav-row">
               {isAuthenticated ? (

@@ -20,7 +20,7 @@ import asyncio
 import logging
 from typing import Iterable, Literal, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,8 +108,14 @@ async def get_privacy(current_user: User = Depends(get_current_user)):
 @router.put("/me/privacy", response_model=PrivacySettings, summary="Modifier mes réglages de confidentialité")
 async def update_privacy(body: PrivacyPatch, current_user: User = Depends(get_current_user),
                          db: AsyncSession = Depends(get_db)):
+    from app.appconfig.catalog import filter_patch
+    from app.appconfig.service import get_policy
     before = settings_of(current_user)
-    for key, value in body.model_dump(exclude_none=True).items():
+    # Lot A2 : réglage fixé par l'administrateur ou option retirée → refusé
+    patch, refused = filter_patch(body.model_dump(exclude_none=True), await get_policy(db), prefix="privacy.")
+    if refused:
+        raise HTTPException(status_code=403, detail="Ce réglage est fixé par l'administrateur.")
+    for key, value in patch.items():
         setattr(current_user, FIELDS[key], value)
     await db.flush()
     after = settings_of(current_user)
