@@ -6,13 +6,13 @@
 //
 // Adresse de contact du responsable : variable VITE_PRIVACY_CONTACT (Vercel).
 
-export const PRIVACY_UPDATED = '2026-10-31';
+export const PRIVACY_UPDATED = '2026-11-26';
 export const PRIVACY_CONTACT = import.meta.env.VITE_PRIVACY_CONTACT || '';
 
 export const privacy = {
   fr: {
     title: 'Politique de confidentialité',
-    updated: 'Dernière mise à jour : 31 octobre 2026',
+    updated: 'Dernière mise à jour : 26 novembre 2026',
     intro: "Cette page explique quels renseignements personnels l'application Scrabble recueille, pourquoi, "
       + "où ils sont conservés, qui peut les lire et comment vous pouvez les consulter, les télécharger ou les "
       + "supprimer. Elle suit la Loi sur la protection des renseignements personnels dans le secteur privé du "
@@ -60,6 +60,7 @@ export const privacy = {
           'Présence en ligne : vos amis par défaut, ou personne. Elle n\'est jamais visible des inconnus.',
           'Vous choisissez aussi si l\'on peut vous trouver par votre pseudo, vous demander en ami sans votre code ami, et si vous apparaissez dans les classements.',
           'Les membres d\'une conversation : ses messages. L\'administrateur : les messages signalés.',
+          "Les administrateurs du jeu : les données de votre compte et de votre profil (dont l'e-mail, le nom, le prénom et l'âge) et vos statistiques, pour gérer les comptes et modérer. Chaque action d'un administrateur est consignée dans un journal.",
           'Votre adresse e-mail, vos nom, prénom et âge ne sont jamais montrés aux autres joueurs.',
         ],
       },
@@ -120,7 +121,7 @@ export const privacy = {
 
   en: {
     title: 'Privacy policy',
-    updated: 'Last updated: October 31, 2026',
+    updated: 'Last updated: November 26, 2026',
     intro: 'This page explains what personal information the Scrabble app collects, why, where it is stored, '
       + 'who can read it, and how you can view, download or delete it. It follows Québec\'s Act respecting the '
       + 'protection of personal information in the private sector (Law 25).',
@@ -167,6 +168,7 @@ export const privacy = {
           'Online presence: your friends by default, or nobody. It is never visible to strangers.',
           'You also choose whether people can find you by username, send you friend requests without your friend code, and whether you appear in leaderboards.',
           'Members of a conversation: its messages. The administrator: reported messages.',
+          'Game administrators: your account and profile data (including email, name and age) and your statistics, to manage accounts and moderate. Every administrator action is recorded in a log.',
           'Your email address, name and age are never shown to other players.',
         ],
       },

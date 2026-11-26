@@ -33,6 +33,7 @@ from app.push.router import router as push_router
 from app.account.router import router as account_router
 from app.users.privacy import router as privacy_router
 from app.admin.router import router as admin_router
+from app.appconfig.router import router as config_router
 
 # NB : les migrations Alembic sont lancées par la commande de démarrage
 # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
@@ -92,10 +93,16 @@ async def lifespan(application: FastAPI):
                     from app.chat import models as _chat_models  # noqa — messagerie
                     from app.push import models as _push_models  # noqa — jetons des notifications push
                     from app.admin import models as _admin_models  # noqa — journal des administrateurs
+                    from app.appconfig import models as _config_models  # noqa — configuration globale (lot A2)
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
                 logger.info("Mode production — schéma géré par Alembic.")
+        # Politique des paramètres (lot A2) : chargée tout de suite dans le cache
+        if db.AsyncSessionLocal is not None:
+            from app.appconfig.service import get_policy
+            async with db.AsyncSessionLocal() as session:
+                await get_policy(session)
     except Exception as exc:
         logger.warning("DB non initialisée : %s", exc)
 
@@ -183,6 +190,7 @@ app.include_router(push_router,          prefix="/api/v2")
 app.include_router(account_router,       prefix="/api/v2")
 app.include_router(privacy_router,       prefix="/api/v2")
 app.include_router(admin_router,         prefix="/api/v2")
+app.include_router(config_router,        prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])

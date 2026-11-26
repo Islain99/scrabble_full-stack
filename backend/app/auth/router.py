@@ -175,6 +175,14 @@ def _promote_if_listed(user: User) -> None:
         logger.info("Utilisateur %s promu administrateur (ADMIN_EMAILS).", user.firebase_uid)
 
 
+async def _apply_privacy_defaults(db: AsyncSession, user: User) -> None:
+    """Lot A2 : un nouveau compte reçoit les défauts de confidentialité de l'administrateur."""
+    from app.appconfig.catalog import privacy_defaults
+    from app.appconfig.service import get_policy
+    for column, value in privacy_defaults(await get_policy(db)).items():
+        setattr(user, column, value)
+
+
 class LoginResponse(BaseModel):
     user: UserOut
     is_new_user: bool
@@ -221,6 +229,7 @@ async def register(
         is_admin=False,
     )
     _promote_if_listed(user)
+    await _apply_privacy_defaults(db, user)
     db.add(user)
     await db.flush()
     await db.refresh(user)
@@ -271,6 +280,7 @@ async def login(
         is_admin=False,
     )
     _promote_if_listed(user)
+    await _apply_privacy_defaults(db, user)
     db.add(user)
     await db.flush()
     await db.refresh(user)

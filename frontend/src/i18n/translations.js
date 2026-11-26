@@ -724,6 +724,10 @@ export const translations = {
     fr_code_only:              'Code ami requis',
     fr_code_only_hint:         'Ce joueur n\'accepte les demandes qu\'avec son code ami.',
 
+    // ── Lot A2 : réglages fixés par l'administrateur ──────────────
+    settings_locked:           'Fixé par l\'administrateur',
+    privacy_updated_on:        'Dernière mise à jour : {{date}}',
+
     ...admin.fr,
   },
 
@@ -1424,6 +1428,9 @@ export const translations = {
     privacy_always:            'Your username is always visible (games, messages). Your email, name and age are never shown to other players.',
     fr_code_only:              'Friend code needed',
     fr_code_only_hint:         'This player only accepts requests with their friend code.',
+
+    settings_locked:           'Set by the administrator',
+    privacy_updated_on:        'Last updated: {{date}}',
 
     ...admin.en,
   },

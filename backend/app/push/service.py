@@ -119,6 +119,10 @@ async def _deliver(uids: list[str], category: str, kind: str, params: dict,
         return 0
     pref_key = CATEGORY_PREF.get(category)
     async with factory() as session:
+        from app.appconfig.catalog import effective_preferences
+        from app.appconfig.service import get_policy
+        from app.db.models import DEFAULT_PREFERENCES
+        policy = await get_policy(session)          # lot A2 : avant de charger les jetons
         rows = (await session.execute(
             select(PushToken, User.firebase_uid, User.game_preferences)
             .join(User, User.id == PushToken.user_id)
@@ -126,7 +130,8 @@ async def _deliver(uids: list[str], category: str, kind: str, params: dict,
         )).all()
         messages = []
         for token, uid, prefs in rows:
-            if pref_key and (prefs or {}).get(pref_key) is False:
+            # Lot A2 : catégorie verrouillée ou masquée par l'administrateur → sa valeur
+            if pref_key and effective_preferences(prefs or {}, DEFAULT_PREFERENCES, policy).get(pref_key) is False:
                 continue
             p = {**params, **((per_uid or {}).get(uid) or {})}
             title, body = render(p.pop("_kind", kind), token.locale, p)

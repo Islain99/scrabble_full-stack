@@ -5,9 +5,11 @@
 //   #/admin/users           joueurs            #/admin/users/{id}   fiche d'un joueur
 //   #/admin/journal         journal des actions
 //
-// Rubriques des lots suivants (affichées « bientôt ») : paramètres et politique de
-// confidentialité (A2), abonnements et crédits (A3), messagerie, profil,
-// notifications et publications (A4).
+//   #/admin/settings        paramètres des joueurs (lot A2)
+//   #/admin/privacy         politique de confidentialité (lot A2)
+//
+// Rubriques des lots suivants (affichées « bientôt ») : abonnements et crédits (A3),
+// messagerie, profil, notifications et publications (A4).
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -17,14 +19,16 @@ import AdminOverview from '../components/admin/AdminOverview';
 import AdminUsers from '../components/admin/AdminUsers';
 import AdminUserDetail from '../components/admin/AdminUserDetail';
 import AdminJournal from '../components/admin/AdminJournal';
+import AdminSettings from '../components/admin/AdminSettings';
+import AdminPrivacy from '../components/admin/AdminPrivacy';
 import '../styles/admin.css';
 
 const SECTIONS = [
   { id: 'overview',      icon: '◧', ready: true },
   { id: 'users',         icon: '☺', ready: true },
   { id: 'journal',       icon: '≡', ready: true },
-  { id: 'settings',      icon: '⚙', lot: 'A2' },
-  { id: 'privacy',       icon: '§', lot: 'A2' },
+  { id: 'settings',      icon: '⚙', ready: true },
+  { id: 'privacy',       icon: '§', ready: true },
   { id: 'subscriptions', icon: '★', lot: 'A3' },
   { id: 'credits',       icon: '◎', lot: 'A3' },
   { id: 'messaging',     icon: '✉', lot: 'A4' },
@@ -76,6 +80,8 @@ export default function AdminPage() {
   let body;
   if (section === 'users') body = Number.isFinite(id) && id > 0 ? <AdminUserDetail key={id} userId={id} /> : <AdminUsers />;
   else if (section === 'journal') body = <AdminJournal />;
+  else if (section === 'settings') body = <AdminSettings />;
+  else if (section === 'privacy') body = <AdminPrivacy />;
   else if (section === 'overview') body = <AdminOverview />;
   else body = <Soon section={current} t={t} />;
 

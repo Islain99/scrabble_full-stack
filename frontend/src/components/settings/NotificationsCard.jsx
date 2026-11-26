@@ -11,6 +11,8 @@ import { Card, MonoLabel, RetroButton, Spinner } from '../ui';
 import { Row, Toggle, SectionTitle } from './SettingsParts';
 import { disablePush, enablePush, pushEnabledHere, pushSupport } from '../../utils/push';
 import { sendTestPush } from '../../api/accountService';
+import { useAppConfig } from '../../context/AppConfigContext';
+import { Managed } from './Managed';
 
 const CATEGORIES = [
   { key: 'pushInvites',  label: 'push_cat_invites',  desc: 'push_cat_invites_desc'  },
@@ -21,6 +23,7 @@ const CATEGORIES = [
 
 export default function NotificationsCard({ settings, update }) {
   const { t, language } = useLanguage();
+  const { isHidden, isLocked } = useAppConfig();      // lot A2 : catégories fixées par l'admin
   const [support, setSupport] = useState(() => pushSupport());
   const [enabled, setEnabled] = useState(() => pushEnabledHere());
   const [busy, setBusy] = useState(false);
@@ -90,9 +93,11 @@ export default function NotificationsCard({ settings, update }) {
         <div style={{ borderTop: '1px solid var(--border-muted)' }} />
 
         <MonoLabel size="xs" style={{ lineHeight: 1.5 }}>{t('push_categories_hint')}</MonoLabel>
-        {CATEGORIES.map(c => (
+        {CATEGORIES.filter(c => !isHidden(c.key)).map(c => (
           <Row key={c.key} label={t(c.label)} desc={t(c.desc)}>
-            <Toggle value={settings[c.key] !== false} onChange={v => update(c.key, v)} label={t(c.label)} />
+            <Managed locked={isLocked(c.key)}>
+              <Toggle value={settings[c.key] !== false} onChange={v => update(c.key, v)} label={t(c.label)} />
+            </Managed>
           </Row>
         ))}
 

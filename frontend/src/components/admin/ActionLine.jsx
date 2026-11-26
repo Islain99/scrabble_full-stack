@@ -8,6 +8,7 @@ function detailText(action, t) {
   const d = action.details || {};
   const parts = [];
   if (d.to) parts.push(t('adm_detail_rename', { from: d.from, to: d.to }));
+  if (Array.isArray(d.changed)) parts.push(t('adm_detail_changed', { count: d.changed.length }));
   if (d.minutes) parts.push(t('adm_detail_minutes', { count: d.minutes }));
   if (d.seconds != null && action.action === 'chat.slow_mode') parts.push(t('adm_detail_seconds', { count: d.seconds }));
   if (d.reason) parts.push(`« ${d.reason} »`);
@@ -16,7 +17,7 @@ function detailText(action, t) {
 
 export default function ActionLine({ action, showTarget = true }) {
   const { t, language } = useLanguage();
-  const key = `adm_act_${action.action.replace('.', '_')}`;
+  const key = `adm_act_${action.action.replaceAll('.', '_')}`;
   const label = t(key) === key ? action.action : t(key);
   const extra = detailText(action, t);
   return (

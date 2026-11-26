@@ -7,10 +7,12 @@
 //                        → debounce 800ms → sauvegarde sur le serveur si connecté
 //  4. Au logout           → nettoie le localStorage de l'utilisateur courant
 //
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { getPreferences, savePreferences } from '../api/authService';
+import { useAppConfigOptional } from './AppConfigContext';
+import { applyPolicy, canChoose, policyDefaults, readCachedPolicy } from '../utils/appConfig';
 
 const SettingsContext = createContext(null);
 
@@ -64,13 +66,16 @@ function storageKey(uid) {
   return uid ? `scrabble-settings-${uid}` : 'scrabble-settings-guest';
 }
 
+// Appareil sans réglages enregistrés : défauts de l'administrateur (lot A2)
+const freshDefaults = () => ({ ...DEFAULTS, ...policyDefaults(readCachedPolicy()) });
+
 function loadFromStorage(uid) {
   try {
     const raw = localStorage.getItem(storageKey(uid));
-    if (!raw) return { ...DEFAULTS };
+    if (!raw) return freshDefaults();
     return { ...DEFAULTS, ...JSON.parse(raw) };
   } catch {
-    return { ...DEFAULTS };
+    return freshDefaults();
   }
 }
 
@@ -90,7 +95,10 @@ function clearGuestStorage() {
 
 export function SettingsProvider({ children }) {
   const [currentUid, setCurrentUid] = useState(null);
-  const [settings, setSettings]     = useState(() => loadFromStorage(null));
+  const [rawSettings, setSettings]  = useState(() => loadFromStorage(null));
+  // Lot A2 : réglages verrouillés / masqués et options retirées par l'administrateur
+  const policy = useAppConfigOptional()?.policy ?? null;
+  const settings = useMemo(() => applyPolicy(policy, rawSettings), [policy, rawSettings]);
   const [syncing, setSyncing]        = useState(false);
   const [lastSynced, setLastSynced]  = useState(null);
   // uid dont les préférences serveur viennent d'être chargées (ThemeContext
@@ -137,8 +145,8 @@ export function SettingsProvider({ children }) {
 
   // ── Persistance locale à chaque changement ────────────────────
   useEffect(() => {
-    persistToStorage(currentUid, settings);
-  }, [settings, currentUid]);
+    persistToStorage(currentUid, rawSettings);
+  }, [rawSettings, currentUid]);
 
   // ── Sync serveur debounced ────────────────────────────────────
   // Les changements rapprochés sont cumulés : un seul envoi, rien de perdu
@@ -162,20 +170,29 @@ export function SettingsProvider({ children }) {
     }, 800);
   }, [currentUid]);
 
-  const update = useCallback((key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    syncToServer({ [key]: value });
-  }, [syncToServer]);
+  // Un réglage fixé par l'administrateur, ou une option retirée, n'est pas modifiable
+  const allowedPatch = useCallback((patch) => Object.fromEntries(
+    Object.entries(patch).filter(([k, v]) => canChoose(policy, k, v)),
+  ), [policy]);
 
-  const updateMany = useCallback((patch) => {
+  const update = useCallback((key, value) => {
+    const patch = allowedPatch({ [key]: value });
+    if (!(key in patch)) return;
     setSettings(prev => ({ ...prev, ...patch }));
     syncToServer(patch);
-  }, [syncToServer]);
+  }, [syncToServer, allowedPatch]);
+
+  const updateMany = useCallback((patch) => {
+    const allowed = allowedPatch(patch);
+    setSettings(prev => ({ ...prev, ...allowed }));
+    syncToServer(allowed);
+  }, [syncToServer, allowedPatch]);
 
   const reset = useCallback(() => {
-    setSettings({ ...DEFAULTS });
-    syncToServer(DEFAULTS);
-  }, [syncToServer]);
+    const defaults = allowedPatch({ ...DEFAULTS, ...policyDefaults(policy) });
+    setSettings(prev => ({ ...prev, ...defaults }));
+    syncToServer(defaults);
+  }, [syncToServer, allowedPatch, policy]);
 
   return (
     <SettingsContext.Provider value={{
@@ -193,4 +210,4 @@ export function SettingsProvider({ children }) {
       {children}
     </SettingsContext.Provider>
   );
-}
+}

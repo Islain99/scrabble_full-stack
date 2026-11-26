@@ -11,6 +11,9 @@ import NotificationsCard from '../components/settings/NotificationsCard';
 import AccountCard from '../components/settings/AccountCard';
 import PrivacyCard from '../components/settings/PrivacyCard';
 import PalettePicker from '../components/settings/PalettePicker';
+import { Managed, RowList } from '../components/settings/Managed';
+import { useAppConfig } from '../context/AppConfigContext';
+import { choosable } from '../utils/appConfig';
 
 // ── Composants internes ───────────────────────────────────────────
 
@@ -87,26 +90,31 @@ export default function SettingsPage() {
   } = useSettings();
 
   const { user } = useAuth();
-  const { preference, setTheme } = useTheme();
-  const { language, setLanguage, t } = useLanguage();
+  const { preference, setTheme, THEMES } = useTheme();
+  const { language, setLanguage, availableLanguages, t } = useLanguage();
+  const { policy, isHidden, isLocked } = useAppConfig();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // ── Options traduites ─────────────────────────────────────────
+  // Lot A2 : réglage masqué → ligne absente ; verrouillé → visible, grisé, « fixé »
+  const shown = (key) => !isHidden(key);
+
+  // ── Options traduites (seulement celles que l'administrateur propose) ──
 
   const themeOptions = [
     { value: 'light',  emoji: '☀️', label: t('theme_light')  },
     { value: 'dark',   emoji: '🌙', label: t('theme_dark')   },
     { value: 'system', emoji: '⚙️', label: t('theme_system') },
-  ];
+  ].filter(o => THEMES.includes(o.value));
 
-  const langOptions = LANGUAGES.map(l => ({
+  const langOptions = LANGUAGES.filter(l => availableLanguages.includes(l.value)).map(l => ({
     value: l.value,
     label: l.label,
     emoji: l.emoji,
   }));
 
   // Difficultés avec labels/descs traduits
-  const diffOptions = Object.entries(DIFFICULTY_META).map(([key, meta]) => ({
+  const allowedDiffs = choosable(policy, 'difficulty', Object.keys(DIFFICULTY_META));
+  const diffOptions = Object.entries(DIFFICULTY_META).filter(([key]) => allowedDiffs.includes(key)).map(([key, meta]) => ({
     key,
     emoji: meta.emoji,
     label: t(`diff_${key}_label`),
@@ -116,11 +124,33 @@ export default function SettingsPage() {
   // Durées de tour traduites
   const turnKeys = ['turn_unlimited', 'turn_1min', 'turn_2min', 'turn_3min', 'turn_5min'];
   const turnValues = [0, 60, 120, 180, 300];
+  const allowedTurns = choosable(policy, 'turnDuration', turnValues);
   const turnOptions = TURN_OPTIONS.map((o, i) => ({
     value: o.value,
     label: t(turnKeys[i]),
     short: i === 0 ? '∞' : `${turnValues[i] / 60} min`,
-  }));
+  })).filter(o => allowedTurns.includes(o.value));
+
+  // Interrupteurs des sections Affichage et Comportement
+  const toggleRow = (key, label) => shown(key) && (
+    <Row key={key} label={t(label)} desc={t(`${label}_desc`)}>
+      <Managed locked={isLocked(key)}>
+        <Toggle value={settings[key]} onChange={v => update(key, v)} label={t(label)} />
+      </Managed>
+    </Row>
+  );
+  const displayRows = [
+    toggleRow('showScorePreview', 'row_score_preview'),
+    toggleRow('showRemainingTiles', 'row_remaining_tiles'),
+    toggleRow('showBonusLabels', 'row_bonus_labels'),
+    toggleRow('animationsEnabled', 'row_animations'),
+  ].filter(Boolean);
+  const behaviorRows = [
+    toggleRow('autoSortRack', 'row_auto_sort'),
+    toggleRow('confirmValidation', 'row_confirm_validation'),
+  ].filter(Boolean);
+  const showAppearance = ['themeMode', 'colorPalette', 'language'].some(shown);
+  const showGame = ['difficulty', 'turnDuration'].some(shown);
 
   // ── Badge de synchronisation ──────────────────────────────────
 
@@ -148,168 +178,139 @@ export default function SettingsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           {/* ── Apparence ──────────────────────────────────── */}
-          <Card>
-            <Card.Header>
-              <SectionTitle emoji="🎨" label={t('section_appearance')} />
-            </Card.Header>
-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-              <Row label={t('row_theme')} desc={t('row_theme_desc')}>
-                <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
-              </Row>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <Row label={t('row_palette')} desc={t('row_palette_desc')} />
-                <PalettePicker />
-              </div>
-
-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
-
-              <Row label={t('row_language')} desc={t('row_language_desc')}>
-                <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
-              </Row>
-
-            </Card.Body>
-          </Card>
+          {showAppearance && (
+            <Card>
+              <Card.Header>
+                <SectionTitle emoji="🎨" label={t('section_appearance')} />
+              </Card.Header>
+              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <RowList>
+                  {shown('themeMode') && (
+                    <Row key="theme" label={t('row_theme')} desc={t('row_theme_desc')}>
+                      <Managed locked={isLocked('themeMode')}>
+                        <ChipGroup options={themeOptions} value={preference} onChange={setTheme} />
+                      </Managed>
+                    </Row>
+                  )}
+                  {shown('colorPalette') && (
+                    <div key="palette" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <Row label={t('row_palette')} desc={t('row_palette_desc')} />
+                      <Managed locked={isLocked('colorPalette')}>
+                        <PalettePicker />
+                      </Managed>
+                    </div>
+                  )}
+                  {shown('language') && (
+                    <Row key="language" label={t('row_language')} desc={t('row_language_desc')}>
+                      <Managed locked={isLocked('language')}>
+                        <ChipGroup options={langOptions} value={language} onChange={setLanguage} />
+                      </Managed>
+                    </Row>
+                  )}
+                </RowList>
+              </Card.Body>
+            </Card>
+          )}
 
           {/* ── Partie ─────────────────────────────────────── */}
-          <Card>
-            <Card.Header>
-              <SectionTitle emoji="🎮" label={t('section_game')} />
-            </Card.Header>
-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-              <Row label={t('row_difficulty')} desc={t('row_difficulty_desc')}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 'min(260px, 100%)' }}>
-                  {diffOptions.map(d => {
-                    const active = d.key === settings.difficulty;
-                    return (
-                      <button
-                        key={d.key}
-                        onClick={() => update('difficulty', d.key)}
-                        style={{
-                          display:      'flex',
-                          alignItems:   'center',
-                          gap:          '10px',
-                          padding:      '10px 14px',
-                          borderRadius: '2px',
-                          border:       `2px solid ${active ? 'var(--border-primary)' : 'var(--border-muted)'}`,
-                          background:   active ? 'var(--bg-invert)' : 'transparent',
-                          cursor:       'pointer',
-                          transition:   'all 0.15s',
-                          boxShadow:    active ? '3px 3px 0 var(--border-gold-dk)' : 'none',
-                          textAlign:    'left',
-                        }}
-                      >
-                        <span style={{ fontSize: '1.1rem' }}>{d.emoji}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontFamily: "'Playfair Display', serif",
-                            fontSize:   '0.9rem',
-                            fontWeight: 700,
-                            color:      active ? 'var(--text-invert)' : 'var(--text-primary)',
-                          }}>
-                            {d.label}
-                          </div>
-                          <MonoLabel
-                            size="xs"
-                            color={active ? 'var(--text-invert-muted)' : 'var(--text-muted)'}
-                            style={{ letterSpacing: '0.04em', marginTop: '2px' }}
-                          >
-                            {d.desc}
-                          </MonoLabel>
+          {showGame && (
+            <Card>
+              <Card.Header>
+                <SectionTitle emoji="🎮" label={t('section_game')} />
+              </Card.Header>
+              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <RowList>
+                  {shown('difficulty') && (
+                    <Row key="difficulty" label={t('row_difficulty')} desc={t('row_difficulty_desc')}>
+                      <Managed locked={isLocked('difficulty')}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 'min(260px, 100%)' }}>
+                          {diffOptions.map(d => {
+                            const active = d.key === settings.difficulty;
+                            return (
+                              <button
+                                key={d.key}
+                                onClick={() => update('difficulty', d.key)}
+                                style={{
+                                  display:      'flex',
+                                  alignItems:   'center',
+                                  gap:          '10px',
+                                  padding:      '10px 14px',
+                                  borderRadius: '2px',
+                                  border:       `2px solid ${active ? 'var(--border-primary)' : 'var(--border-muted)'}`,
+                                  background:   active ? 'var(--bg-invert)' : 'transparent',
+                                  cursor:       'pointer',
+                                  transition:   'all 0.15s',
+                                  boxShadow:    active ? '3px 3px 0 var(--border-gold-dk)' : 'none',
+                                  textAlign:    'left',
+                                }}
+                              >
+                                <span style={{ fontSize: '1.1rem' }}>{d.emoji}</span>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{
+                                    fontFamily: "'Playfair Display', serif",
+                                    fontSize:   '0.9rem',
+                                    fontWeight: 700,
+                                    color:      active ? 'var(--text-invert)' : 'var(--text-primary)',
+                                  }}>
+                                    {d.label}
+                                  </div>
+                                  <MonoLabel
+                                    size="xs"
+                                    color={active ? 'var(--text-invert-muted)' : 'var(--text-muted)'}
+                                    style={{ letterSpacing: '0.04em', marginTop: '2px' }}
+                                  >
+                                    {d.desc}
+                                  </MonoLabel>
+                                </div>
+                                {active && (
+                                  <span style={{ color: 'var(--gold)', fontSize: '1rem' }}>✓</span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
-                        {active && (
-                          <span style={{ color: 'var(--gold)', fontSize: '1rem' }}>✓</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Row>
-
-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
-
-              <Row label={t('row_turn_duration')} desc={t('row_turn_duration_desc')}>
-                <ChipGroup
-                  options={turnOptions}
-                  value={settings.turnDuration}
-                  onChange={v => update('turnDuration', v)}
-                />
-              </Row>
-
-            </Card.Body>
-          </Card>
+                      </Managed>
+                    </Row>
+                  )}
+                  {shown('turnDuration') && (
+                    <Row key="turn" label={t('row_turn_duration')} desc={t('row_turn_duration_desc')}>
+                      <Managed locked={isLocked('turnDuration')}>
+                        <ChipGroup
+                          options={turnOptions}
+                          value={settings.turnDuration}
+                          onChange={v => update('turnDuration', v)}
+                        />
+                      </Managed>
+                    </Row>
+                  )}
+                </RowList>
+              </Card.Body>
+            </Card>
+          )}
 
           {/* ── Affichage ──────────────────────────────────── */}
-          <Card>
-            <Card.Header>
-              <SectionTitle emoji="👁️" label={t('section_display')} />
-            </Card.Header>
-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-              <Row label={t('row_score_preview')} desc={t('row_score_preview_desc')}>
-                <Toggle
-                  value={settings.showScorePreview}
-                  onChange={v => update('showScorePreview', v)}
-                />
-              </Row>
-
-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
-
-              <Row label={t('row_remaining_tiles')} desc={t('row_remaining_tiles_desc')}>
-                <Toggle
-                  value={settings.showRemainingTiles}
-                  onChange={v => update('showRemainingTiles', v)}
-                />
-              </Row>
-
-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
-
-              <Row label={t('row_bonus_labels')} desc={t('row_bonus_labels_desc')}>
-                <Toggle
-                  value={settings.showBonusLabels}
-                  onChange={v => update('showBonusLabels', v)}
-                />
-              </Row>
-
-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
-
-              <Row label={t('row_animations')} desc={t('row_animations_desc')}>
-                <Toggle
-                  value={settings.animationsEnabled}
-                  onChange={v => update('animationsEnabled', v)}
-                />
-              </Row>
-
-            </Card.Body>
-          </Card>
+          {displayRows.length > 0 && (
+            <Card>
+              <Card.Header>
+                <SectionTitle emoji="👁️" label={t('section_display')} />
+              </Card.Header>
+              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <RowList>{displayRows}</RowList>
+              </Card.Body>
+            </Card>
+          )}
 
           {/* ── Comportement ───────────────────────────────── */}
-          <Card>
-            <Card.Header>
-              <SectionTitle emoji="⚙️" label={t('section_behavior')} />
-            </Card.Header>
-            <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-              <Row label={t('row_auto_sort')} desc={t('row_auto_sort_desc')}>
-                <Toggle
-                  value={settings.autoSortRack}
-                  onChange={v => update('autoSortRack', v)}
-                />
-              </Row>
-
-              <div style={{ borderTop: '1px solid var(--border-muted)' }} />
-
-              <Row label={t('row_confirm_validation')} desc={t('row_confirm_validation_desc')}>
-                <Toggle
-                  value={settings.confirmValidation}
-                  onChange={v => update('confirmValidation', v)}
-                />
-              </Row>
-
-            </Card.Body>
-          </Card>
+          {behaviorRows.length > 0 && (
+            <Card>
+              <Card.Header>
+                <SectionTitle emoji="⚙️" label={t('section_behavior')} />
+              </Card.Header>
+              <Card.Body style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <RowList>{behaviorRows}</RowList>
+              </Card.Body>
+            </Card>
+          )}
 
           {/* ── Notifications push (lot 7) ─────────────────── */}
           {user && <NotificationsCard settings={settings} update={update} />}

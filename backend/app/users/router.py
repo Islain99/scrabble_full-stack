@@ -11,6 +11,8 @@ from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.users.privacy import can_see, friend_ids_of
 from app.auth.router import UserOut
 
+import logging
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["Utilisateurs"])
 
 
@@ -401,12 +403,14 @@ async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db),
 # ── Préférences de jeu ─────────────────────────────────────────────
 
 @router.get("/me/preferences", response_model=PreferencesResponse)
-async def get_preferences(current_user: User = Depends(get_current_user)):
+async def get_preferences(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """
     Retourne les préférences de jeu de l'utilisateur connecté.
-    Les valeurs manquantes sont complétées par les défauts.
+    Les valeurs manquantes sont complétées par les défauts, puis la politique de
+    l'administrateur s'applique (réglages verrouillés ou masqués, options retirées).
     """
-    return PreferencesResponse(**current_user.get_preferences())
+    from app.appconfig.service import get_policy
+    return PreferencesResponse(**current_user.get_preferences(await get_policy(db)))
 
 
 @router.put("/me/preferences", response_model=PreferencesResponse)
@@ -420,13 +424,21 @@ async def update_preferences(
     Seuls les champs fournis dans le body sont modifiés.
     Les préférences sont fusionnées avec les valeurs existantes.
     """
+    from app.appconfig.catalog import filter_patch
+    from app.appconfig.service import get_policy
+    policy = await get_policy(db)
     patch = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # Lot A2 : un réglage verrouillé / masqué ou une option retirée n'est pas enregistré
+    # (ignoré sans erreur : un ancien client peut encore envoyer toutes ses valeurs)
+    patch, refused = filter_patch(patch, policy)
+    if refused:
+        logger.info("Préférences refusées par la politique (user %d) : %s", current_user.id, refused)
 
     if not patch:
         # Rien à modifier — retourner les préférences actuelles
-        return PreferencesResponse(**current_user.get_preferences())
+        return PreferencesResponse(**current_user.get_preferences(policy))
 
-    updated = current_user.set_preferences(patch)
+    updated = current_user.set_preferences(patch, policy)
 
     # Force SQLAlchemy à détecter la mutation du champ JSON
     from sqlalchemy.orm.attributes import flag_modified

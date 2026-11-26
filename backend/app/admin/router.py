@@ -7,6 +7,8 @@
 #   GET    /admin/users/{id}              fiche complète d'un joueur
 #   PATCH  /admin/users/{id}              activer / désactiver, rôle admin, pseudo
 #   GET    /admin/actions                 journal des actions des administrateurs
+#   GET/PUT/DELETE /admin/settings        politique des paramètres (lot A2)
+#   GET/PUT/DELETE /admin/privacy-policy  politique de confidentialité (lot A2)
 #
 # Les lots suivants ajouteront ici : paramètres globaux (A2), abonnements et
 # crédits (A3), messagerie, profil, notifications et publications (A4).
@@ -436,3 +438,118 @@ async def update_user(user_id: int, body: UserPatch, admin: User = Depends(requi
 async def list_actions(limit: int = Query(50, ge=1, le=200), before_id: Optional[int] = Query(None, ge=1),
                        _admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
     return await _actions(db, limit=limit, before_id=before_id)
+
+
+# ── Paramètres globaux (lot A2) ───────────────────────────────────
+
+from app.appconfig import service as config_service                          # noqa: E402
+from app.appconfig.catalog import SettingsPolicy, catalog_out, builtin_policy  # noqa: E402
+from app.appconfig.privacy_doc import PrivacyPolicyDoc                        # noqa: E402
+
+
+class SettingsAdminOut(BaseModel):
+    catalog: list[dict]
+    policy: dict
+    custom: bool
+    updated_at: Optional[datetime] = None
+    updated_by_name: Optional[str] = None
+    privacy_updates: dict[str, int] = {}       # comptes ramenés au défaut lors de l'enregistrement
+
+
+class SettingsAdminIn(SettingsPolicy):
+    note: Optional[str] = None
+
+
+async def _name_of(db: AsyncSession, user_id: Optional[int]) -> Optional[str]:
+    if not user_id:
+        return None
+    return (await db.execute(select(User.display_name).where(User.id == user_id))).scalar_one_or_none()
+
+
+async def _settings_out(db: AsyncSession, policy: SettingsPolicy, privacy_updates=None) -> SettingsAdminOut:
+    row = await db.get(config_service.AppConfig, config_service.SETTINGS_KEY)
+    return SettingsAdminOut(
+        catalog=catalog_out(),
+        policy={k: p.model_dump() for k, p in policy.settings.items()},
+        custom=row is not None,
+        updated_at=_as_utc(row.updated_at) if row else None,
+        updated_by_name=await _name_of(db, row.updated_by) if row else None,
+        privacy_updates=privacy_updates or {},
+    )
+
+
+def _changed_keys(before: SettingsPolicy, after: SettingsPolicy) -> list[str]:
+    return [k for k in after.settings if before.settings[k] != after.settings[k]]
+
+
+@router.get("/settings", response_model=SettingsAdminOut, summary="Politique des paramètres")
+async def get_settings_policy(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    config_service.invalidate()                  # toujours la version en base
+    return await _settings_out(db, await config_service.get_policy(db))
+
+
+@router.put("/settings", response_model=SettingsAdminOut, summary="Modifier la politique des paramètres")
+async def put_settings_policy(body: SettingsAdminIn, admin: User = Depends(require_admin),
+                              db: AsyncSession = Depends(get_db)):
+    config_service.invalidate()
+    before = await config_service.get_policy(db)
+    policy = SettingsPolicy(settings=body.settings)       # déjà complétée et validée
+    await config_service.save(db, config_service.SETTINGS_KEY,
+                              {"settings": {k: p.model_dump() for k, p in policy.settings.items()}}, admin.id)
+    updates = await config_service.enforce_privacy(db, policy)
+    changed = _changed_keys(before, policy)
+    log_action(db, admin, "config.settings", target_type="config",
+               details={"changed": changed, **({"privacy_updates": updates} if updates else {}),
+                        **({"reason": body.note.strip()[:200]} if body.note and body.note.strip() else {})})
+    await db.flush()
+    logger.info("Admin %d : politique des paramètres modifiée (%s)", admin.id, changed)
+    return await _settings_out(db, policy, updates)
+
+
+@router.delete("/settings", response_model=SettingsAdminOut, summary="Revenir aux paramètres d'origine")
+async def reset_settings_policy(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if await config_service.delete(db, config_service.SETTINGS_KEY):
+        log_action(db, admin, "config.settings_reset", target_type="config")
+        await db.flush()
+    return await _settings_out(db, builtin_policy())
+
+
+# ── Politique de confidentialité (lot A2) ─────────────────────────
+
+class PrivacyAdminOut(BaseModel):
+    custom: bool
+    document: Optional[dict] = None
+    updated_at: Optional[datetime] = None
+    updated_by_name: Optional[str] = None
+
+
+async def _privacy_out(db: AsyncSession) -> PrivacyAdminOut:
+    row = await db.get(config_service.AppConfig, config_service.PRIVACY_KEY)
+    if row is None:
+        return PrivacyAdminOut(custom=False)
+    return PrivacyAdminOut(custom=True, document={k: v for k, v in row.value.items() if k != "note"},
+                           updated_at=_as_utc(row.updated_at), updated_by_name=await _name_of(db, row.updated_by))
+
+
+@router.get("/privacy-policy", response_model=PrivacyAdminOut, summary="Politique de confidentialité (admin)")
+async def get_privacy_policy(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    return await _privacy_out(db)
+
+
+@router.put("/privacy-policy", response_model=PrivacyAdminOut, summary="Publier la politique de confidentialité")
+async def put_privacy_policy(body: PrivacyPolicyDoc, admin: User = Depends(require_admin),
+                             db: AsyncSession = Depends(get_db)):
+    await config_service.save(db, config_service.PRIVACY_KEY, body.model_dump(mode="json", exclude={"note"}), admin.id)
+    note = (body.note or "").strip()
+    log_action(db, admin, "config.privacy_policy", target_type="config",
+               details={"updated_on": body.updated_on.isoformat(), **({"reason": note[:200]} if note else {})})
+    await db.flush()
+    return await _privacy_out(db)
+
+
+@router.delete("/privacy-policy", response_model=PrivacyAdminOut, summary="Revenir au texte d'origine")
+async def reset_privacy_policy(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if await config_service.delete(db, config_service.PRIVACY_KEY):
+        log_action(db, admin, "config.privacy_policy_reset", target_type="config")
+        await db.flush()
+    return await _privacy_out(db)

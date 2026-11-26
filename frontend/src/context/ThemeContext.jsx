@@ -13,6 +13,8 @@
 //   choix local de l'appareil est envoyé au compte.
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useSettings } from './SettingsContext';
+import { useAppConfigOptional } from './AppConfigContext';
+import { canChoose, choosable, effectiveValue, isForced, readCachedPolicy, ruleOf } from '../utils/appConfig';
 
 const ThemeContext = createContext(null);
 
@@ -73,15 +75,25 @@ function applyTheme(preference, palette) {
 export function ThemeProvider({ children }) {
   const { settings, update, currentUid, serverLoadedFor } = useSettings();
 
-  const [preference, setPreference] = useState(() => {
+  // Choix de l'appareil ; sans choix enregistré : défaut de l'administrateur (lot A2)
+  const [chosenMode, setPreference] = useState(() => {
     const stored = readStored(STORAGE_KEY);
-    return THEMES.includes(stored) ? stored : 'system';
+    return THEMES.includes(stored) ? stored : (ruleOf(readCachedPolicy(), 'themeMode').default ?? 'system');
   });
 
-  const [palette, setPaletteState] = useState(() => {
+  const [chosenPalette, setPaletteState] = useState(() => {
     const stored = readStored(PALETTE_STORAGE_KEY);
-    return PALETTES.includes(stored) ? stored : DEFAULT_PALETTE;
+    return PALETTES.includes(stored) ? stored : (ruleOf(readCachedPolicy(), 'colorPalette').default ?? DEFAULT_PALETTE);
   });
+
+  // Lot A2 : mode / palette imposés ou options retirées par l'administrateur
+  const policy = useAppConfigOptional()?.policy ?? null;
+  const preference = effectiveValue(policy, 'themeMode', chosenMode, 'system');
+  const palette = effectiveValue(policy, 'colorPalette', chosenPalette, DEFAULT_PALETTE);
+  const themes = choosable(policy, 'themeMode', THEMES);
+  const palettes = choosable(policy, 'colorPalette', PALETTES);
+  const themeLocked = isForced(ruleOf(policy, 'themeMode'));
+  const paletteLocked = isForced(ruleOf(policy, 'colorPalette'));
 
   // Appliquer au montage et à chaque changement de mode ou de palette
   useEffect(() => {
@@ -101,18 +113,18 @@ export function ThemeProvider({ children }) {
   // (update ne contacte le serveur que si quelqu'un est connecté)
 
   const setTheme = useCallback((newTheme) => {
-    if (!THEMES.includes(newTheme)) return;
+    if (!THEMES.includes(newTheme) || !canChoose(policy, 'themeMode', newTheme)) return;
     writeStored(STORAGE_KEY, newTheme);
     setPreference(newTheme);
     update('themeMode', newTheme);
-  }, [update]);
+  }, [update, policy]);
 
   const setPalette = useCallback((newPalette) => {
-    if (!PALETTES.includes(newPalette)) return;
+    if (!PALETTES.includes(newPalette) || !canChoose(policy, 'colorPalette', newPalette)) return;
     writeStored(PALETTE_STORAGE_KEY, newPalette);
     setPaletteState(newPalette);
     update('colorPalette', newPalette);
-  }, [update]);
+  }, [update, policy]);
 
   // ── À la connexion : réconcilier avec les préférences du compte ────
   // Une seule fois par chargement serveur (serverLoadedFor change), pour ne
@@ -120,7 +132,7 @@ export function ThemeProvider({ children }) {
   // valeurs du moment sans relancer l'effet à chaque changement.
   const latest = useRef(null);
   useEffect(() => {
-    latest.current = { settings, preference, palette };
+    latest.current = { settings, preference: chosenMode, palette: chosenPalette };
   });
 
   useEffect(() => {
@@ -147,16 +159,17 @@ export function ThemeProvider({ children }) {
   }, [serverLoadedFor, currentUid, update]);
 
   const cycleTheme = useCallback(() => {
-    const next = THEMES[(THEMES.indexOf(preference) + 1) % THEMES.length];
+    const next = themes[(themes.indexOf(preference) + 1) % themes.length];
     setTheme(next);
-  }, [preference, setTheme]);
+  }, [preference, setTheme, themes]);
 
   const resolvedTheme = resolveTheme(preference);
 
   return (
     <ThemeContext.Provider value={{
-      preference, resolvedTheme, setTheme, cycleTheme, THEMES,
-      palette, setPalette, PALETTES,
+      // THEMES / PALETTES : ce que le joueur peut choisir (politique de l'administrateur)
+      preference, resolvedTheme, setTheme, cycleTheme, THEMES: themes, themeLocked,
+      palette, setPalette, PALETTES: palettes, paletteLocked, ALL_PALETTES: PALETTES,
     }}>
       {children}
     </ThemeContext.Provider>
