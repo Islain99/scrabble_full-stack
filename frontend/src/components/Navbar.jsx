@@ -19,7 +19,9 @@ export default function Navbar() {
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const { unreadMessages } = useNotifications();   // lot 6 : non-lus de la messagerie
   const isMobile = useIsMobile();
-  const currentHash = (window.location.hash || '#/').split('?')[0];
+  const rawHash = (window.location.hash || '#/').split('?')[0];
+  // Toutes les pages du dashboard (#/admin/…) allument le lien « Admin »
+  const currentHash = rawHash.startsWith('#/admin/') ? '#/admin' : rawHash;
 
   // Labels traduits (recalculés à chaque render, donc réactifs au changement de langue)
   const ThemeLabels = {
@@ -36,6 +38,8 @@ export default function Navbar() {
     { label: t('nav_leaderboard'), hash: '#/leaderboard' },
     { label: t('nav_profile'),   hash: '#/profile', authOnly: true },
     { label: t('nav_settings'),  hash: '#/settings'  },
+    // Dashboard administrateur : visible des seuls administrateurs
+    ...(user?.is_admin ? [{ label: t('nav_admin'), hash: '#/admin', authOnly: true }] : []),
   ];
 
   const LANGUAGES = [

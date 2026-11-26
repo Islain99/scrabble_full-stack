@@ -30,6 +30,8 @@ const MultiplayerPage = lazy(() => import('./pages/MultiplayerPage'));
 const FriendsPage     = lazy(() => import('./pages/FriendsPage'));
 const MessagesPage    = lazy(() => import('./pages/MessagesPage'));
 const PrivacyPage     = lazy(() => import('./pages/PrivacyPage'));
+// Dashboard administrateur : jamais téléchargé par les joueurs ordinaires
+const AdminPage       = lazy(() => import('./pages/AdminPage'));
 
 import './index.css';
 import './styles/mobile.css';
@@ -106,6 +108,11 @@ function Router() {
     if (route === '#/friends') return (
       <ProtectedRoute>
         <FriendsPage />
+      </ProtectedRoute>
+    );
+    if (route === '#/admin' || route.startsWith('#/admin/')) return (
+      <ProtectedRoute>
+        <AdminPage />
       </ProtectedRoute>
     );
     if (route === '#/messages') return (

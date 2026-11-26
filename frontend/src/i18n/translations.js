@@ -22,6 +22,8 @@
 //   register_*   → RegisterPage
 //   auth_*       → partagé Login + Register
 
+import { admin } from './admin.js';   // dashboard administrateur (adm_*)
+
 export const translations = {
 
   // ════════════════════════════════════════════════════════════════
@@ -721,6 +723,8 @@ export const translations = {
     privacy_always:            'Votre pseudo reste toujours visible (parties, messages). Votre e-mail, vos nom, prénom et âge ne sont jamais montrés aux autres joueurs.',
     fr_code_only:              'Code ami requis',
     fr_code_only_hint:         'Ce joueur n\'accepte les demandes qu\'avec son code ami.',
+
+    ...admin.fr,
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -1420,6 +1424,8 @@ export const translations = {
     privacy_always:            'Your username is always visible (games, messages). Your email, name and age are never shown to other players.',
     fr_code_only:              'Friend code needed',
     fr_code_only_hint:         'This player only accepts requests with their friend code.',
+
+    ...admin.en,
   },
 };
 

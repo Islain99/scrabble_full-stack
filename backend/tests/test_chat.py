@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.admin.models import AdminAction
+
 from app.auth.dependencies import get_current_user
 from app.chat import realtime
 from app.chat import router as chat_router
@@ -35,7 +37,7 @@ async def sqlite_db():
     engine = create_async_engine("sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     async with engine.begin() as conn:
         for model in (User, GameHistory, MultiplayerGame, Friendship, FriendGroup, FriendGroupMember, UserBlock,
-                      GameInvitation, Conversation, ConversationMember, Message, MessageReport):
+                      GameInvitation, Conversation, ConversationMember, Message, MessageReport, AdminAction):
             await conn.run_sync(model.__table__.create)
     previous = db.AsyncSessionLocal
     db.AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
