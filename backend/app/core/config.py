@@ -14,10 +14,17 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     FIREBASE_SERVICE_ACCOUNT_PATH: str = "./firebase-service-account.json"
     FIREBASE_SERVICE_ACCOUNT_JSON: str = ""
+    # Dashboard admin : e-mails promus administrateurs à la connexion (séparés par des virgules).
+    # Sert à nommer le premier administrateur ; retirer un e-mail ne rétrograde personne.
+    ADMIN_EMAILS: str = ""
 
     @property
     def origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def admin_emails(self) -> set[str]:
+        return {e.strip().lower() for e in self.ADMIN_EMAILS.split(",") if e.strip()}
 
     @property
     def is_production(self) -> bool:

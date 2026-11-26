@@ -167,6 +167,14 @@ def _privacy_of(user) -> dict:
     return settings_of(user).model_dump()
 
 
+def _promote_if_listed(user: User) -> None:
+    """Dashboard admin : l'e-mail figure dans ADMIN_EMAILS → administrateur."""
+    from app.core.config import get_settings
+    if not user.is_admin and (user.email or "").lower() in get_settings().admin_emails:
+        user.is_admin = True
+        logger.info("Utilisateur %s promu administrateur (ADMIN_EMAILS).", user.firebase_uid)
+
+
 class LoginResponse(BaseModel):
     user: UserOut
     is_new_user: bool
@@ -196,6 +204,7 @@ async def register(
     existing = result.scalar_one_or_none()
     if existing:
         existing.last_login_at = datetime.now(timezone.utc)
+        _promote_if_listed(existing)
         return LoginResponse(user=UserOut.from_user(existing), is_new_user=False)
 
     result = await db.execute(select(User).where(User.email == email))
@@ -209,7 +218,9 @@ async def register(
         avatar_url=avatar_url,
         auth_provider=provider,
         is_verified=email_verified,
+        is_admin=False,
     )
+    _promote_if_listed(user)
     db.add(user)
     await db.flush()
     await db.refresh(user)
@@ -239,6 +250,7 @@ async def login(
 
     if user:
         user.last_login_at = datetime.now(timezone.utc)
+        _promote_if_listed(user)
         return LoginResponse(user=UserOut.from_user(user), is_new_user=False)
 
     result = await db.execute(select(User).where(User.email == email))
@@ -256,7 +268,9 @@ async def login(
         avatar_url=avatar_url,
         auth_provider=provider,
         is_verified=email_verified,
+        is_admin=False,
     )
+    _promote_if_listed(user)
     db.add(user)
     await db.flush()
     await db.refresh(user)

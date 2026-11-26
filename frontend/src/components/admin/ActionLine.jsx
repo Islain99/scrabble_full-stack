@@ -1,0 +1,34 @@
+// src/components/admin/ActionLine.jsx
+// Une ligne du journal des administrateurs : « Admin a désactivé Bruno — triche ».
+import React from 'react';
+import { useLanguage } from '../../context/LanguageContext';
+import { formatDate } from './adminUtils';
+
+function detailText(action, t) {
+  const d = action.details || {};
+  const parts = [];
+  if (d.to) parts.push(t('adm_detail_rename', { from: d.from, to: d.to }));
+  if (d.minutes) parts.push(t('adm_detail_minutes', { count: d.minutes }));
+  if (d.seconds != null && action.action === 'chat.slow_mode') parts.push(t('adm_detail_seconds', { count: d.seconds }));
+  if (d.reason) parts.push(`« ${d.reason} »`);
+  return parts.join(' · ');
+}
+
+export default function ActionLine({ action, showTarget = true }) {
+  const { t, language } = useLanguage();
+  const key = `adm_act_${action.action.replace('.', '_')}`;
+  const label = t(key) === key ? action.action : t(key);
+  const extra = detailText(action, t);
+  return (
+    <li className="adm-log-row">
+      <time className="adm-muted" dateTime={action.created_at}>{formatDate(action.created_at, language)}</time>
+      <span>
+        <strong>{action.admin_name || t('adm_deleted_admin')}</strong>{' '}{label}
+        {showTarget && action.target_type === 'user' && action.target_id && (
+          <> · <a className="adm-link" href={`#/admin/users/${action.target_id}`}>{action.target_name || `#${action.target_id}`}</a></>
+        )}
+        {extra && <span className="adm-muted"> — {extra}</span>}
+      </span>
+    </li>
+  );
+}

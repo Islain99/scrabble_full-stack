@@ -35,6 +35,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admin.deps import log_action
 from app.auth.dependencies import get_current_user
 from app.chat import realtime
 from app.chat.models import Conversation, ConversationKind, ConversationMember, Message, MessageReport
@@ -801,6 +802,10 @@ async def resolve_report(report_id: int, body: Optional[ResolveIn] = None, curre
     msg = await db.get(Message, rep.message_id)
     if body and body.action == "delete" and msg is not None:
         await _delete_message(db, msg, current_user)
+    # Journal du dashboard admin
+    log_action(db, current_user, "report.delete" if body and body.action == "delete" else "report.dismiss",
+               target_type="user", target_id=msg.author_id if msg else None,
+               details={"report_id": rep.id, "message_id": rep.message_id})
     # Tous les signalements du même message sont traités ensemble
     for other in (await db.execute(select(MessageReport).where(
             MessageReport.message_id == rep.message_id, MessageReport.resolved_at.is_(None)))).scalars().all():
@@ -816,6 +821,8 @@ async def mute_user(user_id: int, body: AdminMuteIn, current_user: User = Depend
     if user is None:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     user.chat_muted_until = _utcnow() + timedelta(minutes=body.minutes) if body.minutes else None
+    log_action(db, current_user, "user.mute" if body.minutes else "user.unmute", target_type="user",
+               target_id=user.id, details={"minutes": body.minutes} if body.minutes else None)
     await db.flush()
     logger.info("Admin %d : user %d muet %d min", current_user.id, user_id, body.minutes)
 
@@ -825,6 +832,8 @@ async def set_slow_mode(body: SlowModeIn, current_user: User = Depends(get_curre
     _require_admin(current_user)
     glob = await get_global(db)
     glob.slow_mode_s = body.seconds
+    log_action(db, current_user, "chat.slow_mode", target_type="conversation", target_id=glob.id,
+               details={"seconds": body.seconds})
     await db.flush()
     try:
         await asyncio.to_thread(realtime._update, f"/chat/{GLOBAL_KEY}", {"slow_mode_s": body.seconds})

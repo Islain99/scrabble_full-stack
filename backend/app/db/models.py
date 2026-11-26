@@ -45,8 +45,9 @@ class User(Base):
     auth_provider: Mapped[str] = mapped_column(String(32), default="email")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    last_login_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Indexés (0013) : le dashboard admin filtre par inscription et dernière connexion
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    last_login_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
     # Préférences de jeu — stockées en JSON, fusionnées avec DEFAULT_PREFERENCES
     game_preferences: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)

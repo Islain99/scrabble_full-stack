@@ -1,0 +1,222 @@
+/* src/styles/admin.css
+ *
+ * Dashboard administrateur (lot A1) : mise en page, chiffres clés, histogramme,
+ * tableaux, fiche joueur, journal. Chargé seulement avec AdminPage.
+ */
+
+.adm-page { max-width: 1240px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+/* ── Mise en page : navigation à gauche, contenu à droite ──────── */
+.adm-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 28px; align-items: start; }
+.adm-nav {
+  position: sticky; top: 76px; display: flex; flex-direction: column; gap: 2px;
+  padding: 8px; background: var(--bg-card); border: 2px solid var(--border-primary);
+  border-radius: 3px; box-shadow: 4px 4px 0 var(--shadow-card);
+}
+.adm-nav-link {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 2px;
+  font-family: 'DM Mono', monospace; font-size: 0.74rem; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-primary); text-decoration: none;
+}
+.adm-nav-link:hover { background: var(--bg-page-alt); }
+.adm-nav-link[aria-current="page"] { background: var(--bg-invert); color: var(--text-invert); }
+.adm-nav-link[data-soon] { color: var(--text-muted); }
+.adm-nav-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.adm-nav-icon { width: 1.2em; text-align: center; font-size: 0.95rem; }
+.adm-nav-soon {
+  margin-left: auto; font-size: 0.55rem; padding: 1px 4px; border-radius: 2px;
+  border: 1px solid var(--border-muted); color: var(--text-muted);
+}
+.adm-content { min-width: 0; }
+.adm-section-title {
+  margin: 0 0 16px; font-family: 'Playfair Display', Georgia, serif; font-size: 1.5rem; font-weight: 900;
+  color: var(--text-primary);
+}
+
+/* ── Blocs communs ─────────────────────────────────────────────── */
+.adm-stack { display: flex; flex-direction: column; gap: 22px; }
+.adm-h2 { margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 1.6rem; font-weight: 900; color: var(--text-primary); }
+.adm-h3 {
+  margin: 0 0 10px; font-family: 'DM Mono', monospace; font-size: 0.68rem; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.adm-panel {
+  padding: 16px 18px; background: var(--bg-card); border: 2px solid var(--border-primary);
+  border-radius: 2px; box-shadow: 4px 4px 0 var(--shadow-card);
+}
+.adm-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.adm-muted { color: var(--text-muted); }
+.adm-empty, .adm-hint {
+  margin: 0; font-family: 'DM Mono', monospace; font-size: 0.72rem; line-height: 1.5; color: var(--text-muted);
+}
+.adm-loading { display: flex; justify-content: center; padding: 48px 0; }
+.adm-link {
+  padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; color: var(--tobacco); text-decoration: underline; text-underline-offset: 2px;
+}
+.adm-link:hover { color: var(--text-primary); }
+.adm-back {
+  align-self: flex-start; padding: 0; border: none; background: none; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.06em; color: var(--text-muted);
+}
+.adm-back:hover { color: var(--text-primary); }
+
+/* ── Barre d'outils (périodes, filtres) ────────────────────────── */
+.adm-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.adm-toolbar-label { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-right: 4px; }
+.adm-toolbar-note { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 0.66rem; color: var(--text-muted); }
+.s-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.s-chip:disabled:hover { background: transparent; color: var(--text-muted); border-color: var(--border-muted); }
+
+/* ── Chiffres clés ─────────────────────────────────────────────── */
+.adm-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.adm-kpi {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-align: left;
+  background: var(--bg-card); border: 2px solid var(--border-primary); border-radius: 2px;
+  box-shadow: 3px 3px 0 var(--shadow-card); font: inherit; color: inherit;
+}
+button.adm-kpi { cursor: pointer; }
+button.adm-kpi:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--border-primary); }
+button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.adm-kpi[data-tone="warn"]  { border-color: var(--tobacco); }
+.adm-kpi[data-tone="alert"] { border-color: var(--brick); }
+.adm-kpi-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.adm-kpi-value { font-family: 'Playfair Display', Georgia, serif; font-size: 1.75rem; font-weight: 900; line-height: 1.1; color: var(--text-primary); overflow-wrap: anywhere; }
+.adm-kpi-hint { font-family: 'DM Mono', monospace; font-size: 0.66rem; color: var(--text-muted); }
+.adm-kpis--sm .adm-kpi { box-shadow: none; border-width: 1.5px; border-color: var(--border-muted); }
+.adm-kpis--sm .adm-kpi-value { font-size: 1.35rem; }
+
+/* ── Histogramme ───────────────────────────────────────────────── */
+.adm-chart {
+  margin: 0; padding: 14px 16px 10px; background: var(--bg-card);
+  border: 2px solid var(--border-primary); border-radius: 2px; box-shadow: 4px 4px 0 var(--shadow-card);
+}
+.adm-chart-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.adm-chart-title { font-family: 'Playfair Display', Georgia, serif; font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+.adm-chart-total { font-family: 'DM Mono', monospace; font-size: 0.66rem; color: var(--text-muted); margin-right: auto; }
+.adm-chart-body { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: 180px auto; column-gap: 8px; }
+.adm-chart-y {
+  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
+  font-family: 'DM Mono', monospace; font-size: 0.6rem; color: var(--text-muted);
+  transform: translateY(-0.35em); height: calc(100% + 0.7em);
+}
+.adm-chart-plot { position: relative; border-bottom: 1.5px solid var(--border-primary); }
+.adm-chart-grid { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border-muted); opacity: 0.6; }
+.adm-chart-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
+.adm-chart-slot { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; outline: none; cursor: default; }
+.adm-chart-slot[data-active] { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+.adm-chart-bar { width: 100%; max-width: 28px; margin: 0 auto; background: var(--olive); border-radius: 4px 4px 0 0; }
+.adm-chart-slot[data-active] .adm-chart-bar { background: var(--olive-dk); }
+.adm-chart-slot:focus-visible { box-shadow: inset 0 0 0 2px var(--gold); }
+.adm-chart-tip {
+  position: absolute; z-index: 2; pointer-events: none; white-space: nowrap;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 9px;
+  background: var(--bg-invert); color: var(--text-invert); border-radius: 2px;
+  font-family: 'DM Mono', monospace; font-size: 0.66rem;
+}
+.adm-chart-tip[data-side="right"] { left: 50%; }
+.adm-chart-tip[data-side="left"]  { right: 50%; }
+.adm-chart-tip strong { font-size: 0.85rem; }
+.adm-chart-x {
+  grid-column: 2; display: flex; gap: 2px; padding-top: 6px;
+  font-family: 'DM Mono', monospace; font-size: 0.58rem; color: var(--text-muted);
+}
+.adm-chart-x span { flex: 1; min-width: 0; display: flex; justify-content: center; white-space: nowrap; }
+.adm-chart-x span:last-child { justify-content: flex-end; }   /* « aujourd'hui » ne déborde pas à droite */
+.adm-chart-table { max-height: 320px; overflow-y: auto; }
+
+/* ── Barres horizontales (difficultés) et meilleurs joueurs ────── */
+.adm-hbars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.adm-hbars li { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.adm-hbar-label { font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.85rem; color: var(--text-primary); }
+.adm-hbar-track { height: 12px; }
+.adm-hbar { display: block; height: 100%; min-width: 3px; background: var(--olive); border-radius: 0 4px 4px 0; }
+.adm-hbar-value { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted); }
+.adm-top { margin: 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 6px; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.9rem; }
+.adm-top li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.adm-top-meta { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted); }
+
+/* ── Formulaires ───────────────────────────────────────────────── */
+.adm-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.adm-field { display: flex; flex-direction: column; gap: 5px; }
+.adm-field--grow { flex: 1; min-width: 220px; }
+.adm-field-label { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.adm-input {
+  background: var(--bg-input); color: var(--text-primary); border: 2px solid var(--border-primary);
+  border-radius: 2px; padding: 8px 12px; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.9rem;
+}
+.adm-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 15%, transparent); }
+
+/* ── Tableaux ──────────────────────────────────────────────────── */
+.adm-table-wrap { overflow-x: auto; border: 2px solid var(--border-primary); border-radius: 2px; background: var(--bg-card); }
+.adm-table { width: 100%; border-collapse: collapse; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.85rem; color: var(--text-primary); }
+.adm-table th {
+  position: sticky; top: 0; text-align: left; padding: 8px 12px; white-space: nowrap;
+  background: var(--bg-invert); color: var(--text-invert);
+  font-family: 'DM Mono', monospace; font-size: 0.6rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.adm-table td { padding: 8px 12px; border-top: 1px solid var(--border-muted); vertical-align: middle; }
+.adm-table .num { text-align: right; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.adm-table td.adm-muted { font-family: 'DM Mono', monospace; font-size: 0.72rem; white-space: nowrap; }
+.adm-table--rows tbody tr { cursor: pointer; }
+.adm-table--rows tbody tr:hover { background: var(--bg-page-alt); }
+.adm-table tr[data-off] td { opacity: 0.6; }
+.adm-user { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.adm-user:hover .adm-user-name { text-decoration: underline; }
+.adm-user-name { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; }
+.adm-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.adm-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1.5px solid var(--border-primary); }
+.adm-avatar--ph {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-invert); color: var(--text-invert); font-family: 'Playfair Display', Georgia, serif; font-weight: 900; font-size: 0.8rem;
+}
+.adm-avatar--lg { width: 64px; height: 64px; font-size: 1.6rem; border-width: 2px; }
+.adm-pager { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.adm-pager .adm-toolbar-note { margin: 0; }
+
+/* ── Fiche joueur ──────────────────────────────────────────────── */
+.adm-profile-head { display: flex; align-items: center; gap: 16px; }
+.adm-profile-head .adm-badges { margin: 6px 0 0; gap: 6px; align-items: center; }
+.adm-kvs { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.adm-kv { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; }
+.adm-kv dt { font-family: 'DM Mono', monospace; font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); padding-top: 2px; }
+.adm-kv dd { margin: 0; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.88rem; color: var(--text-primary); overflow-wrap: anywhere; }
+.adm-bio { margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--border-muted); font-family: 'Libre Baskerville', Georgia, serif; font-style: italic; font-size: 0.85rem; color: var(--text-secondary); }
+.adm-action-groups { display: flex; flex-direction: column; gap: 16px; }
+.adm-action-group { display: flex; flex-direction: column; gap: 8px; }
+.adm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.adm-confirm {
+  display: flex; flex-direction: column; gap: 12px; padding: 14px;
+  border: 2px dashed var(--brick); border-radius: 2px; background: color-mix(in srgb, var(--brick) 5%, transparent);
+}
+
+/* ── Journal ───────────────────────────────────────────────────── */
+.adm-log { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; }
+.adm-log-row {
+  display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; padding: 7px 0;
+  border-top: 1px solid var(--border-muted); font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.85rem; color: var(--text-primary);
+}
+.adm-log-row:first-child { border-top: none; }
+.adm-log-row time { font-family: 'DM Mono', monospace; font-size: 0.68rem; padding-top: 2px; }
+
+/* ── Rubriques à venir ─────────────────────────────────────────── */
+.adm-soon {
+  display: flex; flex-direction: column; gap: 10px; max-width: 60ch; padding: 28px;
+  border: 2px dashed var(--border-muted); border-radius: 3px;
+}
+.adm-soon-title { margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 1.3rem; font-weight: 900; color: var(--text-primary); }
+
+/* ── Écrans étroits : la navigation passe au-dessus, en bandeau ─── */
+@media (max-width: 900px) {
+  .adm-page { padding: 1.25rem 1rem 3rem; }
+  .adm-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .adm-nav { position: static; flex-direction: row; overflow-x: auto; box-shadow: none; padding: 6px; }
+  .adm-nav-link { flex-shrink: 0; white-space: nowrap; }
+  .adm-nav-soon { display: none; }
+  .adm-two { grid-template-columns: minmax(0, 1fr); }
+  .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-log-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .adm-kv { grid-template-columns: 110px minmax(0, 1fr); }
+  .adm-chart-body { grid-template-rows: 150px auto; }
+  .adm-chart-x span[data-alt] { visibility: hidden; }        /* une date sur deux */
+}

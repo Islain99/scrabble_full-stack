@@ -32,6 +32,7 @@ from app.chat.router import router as chat_router
 from app.push.router import router as push_router
 from app.account.router import router as account_router
 from app.users.privacy import router as privacy_router
+from app.admin.router import router as admin_router
 
 # NB : les migrations Alembic sont lancées par la commande de démarrage
 # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
@@ -90,6 +91,7 @@ async def lifespan(application: FastAPI):
                     from app.notifications import models as _notif_models  # noqa — invitations à jouer
                     from app.chat import models as _chat_models  # noqa — messagerie
                     from app.push import models as _push_models  # noqa — jetons des notifications push
+                    from app.admin import models as _admin_models  # noqa — journal des administrateurs
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -180,6 +182,7 @@ app.include_router(chat_router,          prefix="/api/v2")
 app.include_router(push_router,          prefix="/api/v2")
 app.include_router(account_router,       prefix="/api/v2")
 app.include_router(privacy_router,       prefix="/api/v2")
+app.include_router(admin_router,         prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])
@@ -213,4 +216,4 @@ async def health():
 
 @app.get("/", tags=["Système"])
 async def root():
-    return {"message": "Scrabble API v2.1 — Firebase Auth + PostgreSQL"}
+    return {"message": "Scrabble API v2.1 — Firebase Auth + PostgreSQL"}

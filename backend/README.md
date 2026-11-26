@@ -71,7 +71,13 @@ APP_ENV               = production
 ALLOWED_ORIGINS       = https://ton-frontend.vercel.app,http://localhost:5173
 
 FIREBASE_SERVICE_ACCOUNT_JSON = {"type":"service_account","project_id":"..."}
+ADMIN_EMAILS          = ton-email@exemple.com   (facultatif : premier administrateur)
 ```
+
+`ADMIN_EMAILS` : les comptes dont l'e-mail figure dans la liste deviennent
+administrateurs à leur prochaine connexion (dashboard `#/admin`). Ensuite, les
+administrateurs se gèrent depuis le dashboard ; retirer un e-mail de la liste ne
+rétrograde personne.
 
 Pour `FIREBASE_SERVICE_ACCOUNT_JSON` : ouvre le fichier JSON téléchargé,
 **copie tout le contenu sur une seule ligne** et colle-le dans Railway.
