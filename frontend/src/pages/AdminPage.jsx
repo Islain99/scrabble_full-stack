@@ -10,9 +10,9 @@
 //
 //   #/admin/subscriptions   niveaux d'abonnement (lot A3)
 //   #/admin/credits         règles des crédits et grand livre (lot A3)
-//
-// Rubriques du lot suivant (affichées « bientôt ») : messagerie, profil,
-// notifications et publications (A4).
+//   #/admin/messaging       signalements, sourdines, règles de la messagerie (lot A4)
+//   #/admin/profile         champs du profil exigés et montrés (lot A4)
+//   #/admin/publications    annonces : bandeau et notifications (lot A4)
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +26,9 @@ import AdminSettings from '../components/admin/AdminSettings';
 import AdminPrivacy from '../components/admin/AdminPrivacy';
 import AdminSubscriptions from '../components/admin/AdminSubscriptions';
 import AdminCredits from '../components/admin/AdminCredits';
+import AdminMessaging from '../components/admin/AdminMessaging';
+import AdminProfileFields from '../components/admin/AdminProfileFields';
+import AdminPublications from '../components/admin/AdminPublications';
 import '../styles/admin.css';
 
 const SECTIONS = [
@@ -36,9 +39,9 @@ const SECTIONS = [
   { id: 'privacy',       icon: '§', ready: true },
   { id: 'subscriptions', icon: '★', ready: true },
   { id: 'credits',       icon: '◎', ready: true },
-  { id: 'messaging',     icon: '✉', lot: 'A4' },
-  { id: 'profile',       icon: '▤', lot: 'A4' },
-  { id: 'publications',  icon: '✦', lot: 'A4' },
+  { id: 'messaging',     icon: '✉', ready: true },
+  { id: 'profile',       icon: '▤', ready: true },
+  { id: 'publications',  icon: '✦', ready: true },
 ];
 
 function parseRoute() {
@@ -55,16 +58,6 @@ function useAdminRoute() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   return route;
-}
-
-function Soon({ section, t }) {
-  return (
-    <div className="adm-soon">
-      <p className="adm-soon-title">{t(`adm_nav_${section.id}`)}</p>
-      <p className="acc-text">{t(`adm_soon_${section.id}`)}</p>
-      <p className="adm-hint">{t('adm_soon_lot', { lot: section.lot })}</p>
-    </div>
-  );
 }
 
 export default function AdminPage() {
@@ -89,8 +82,11 @@ export default function AdminPage() {
   else if (section === 'privacy') body = <AdminPrivacy />;
   else if (section === 'subscriptions') body = <AdminSubscriptions />;
   else if (section === 'credits') body = <AdminCredits />;
+  else if (section === 'messaging') body = <AdminMessaging />;
+  else if (section === 'profile') body = <AdminProfileFields />;
+  else if (section === 'publications') body = <AdminPublications />;
   else if (section === 'overview') body = <AdminOverview />;
-  else body = <Soon section={current} t={t} />;
+  else body = <AdminOverview />;
 
   return (
     <main className="adm-page">

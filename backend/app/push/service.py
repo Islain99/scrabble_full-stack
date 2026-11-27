@@ -34,6 +34,7 @@ CATEGORY_PREF = {
     "friends":  "pushFriends",
     "messages": "pushMessages",
     "turn":     "pushTurn",
+    "news":     "pushNews",         # lot A4 : annonces de l'administrateur
     "system":   None,               # notification de test : toujours envoyée
 }
 

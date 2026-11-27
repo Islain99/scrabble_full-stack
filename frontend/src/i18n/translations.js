@@ -24,6 +24,7 @@
 
 import { admin } from './admin.js';   // dashboard administrateur (adm_*)
 import { economy } from './economy.js';   // crédits, abonnements, indices (lot A3)
+import { a4 } from './a4.js';   // messagerie, profil, annonces (lot A4)
 
 export const translations = {
 
@@ -732,6 +733,7 @@ export const translations = {
 
     ...admin.fr,
     ...economy.fr,
+    ...a4.fr,
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -1438,6 +1440,7 @@ export const translations = {
 
     ...admin.en,
     ...economy.en,
+    ...a4.en,
   },
 };
 

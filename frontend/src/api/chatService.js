@@ -4,6 +4,8 @@
 import { api } from './axiosInstance';
 
 export const listConversations = async () => (await api.get('/chat/conversations')).data;
+/** Lot A4 : règles fixées par l'admin { global_enabled, rules_fr, rules_en, max_length, links }. */
+export const getChatSettings = async () => (await api.get('/chat/settings')).data;
 export const openPrivate = async (userId) => (await api.post('/chat/conversations/private', { user_id: userId })).data;
 export const createGroup = async (name, memberIds) =>
   (await api.post('/chat/conversations/group', { name, member_ids: memberIds })).data;

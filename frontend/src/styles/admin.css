@@ -326,3 +326,46 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 /* Les zones de texte grandissent avec leur contenu (navigateurs récents ; sinon : `rows`) */
 .adm-textarea { field-sizing: content; min-height: 3lh; max-height: 60vh; }
 .adm-pp-row--even { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+
+/* ── Lot A4 : messagerie ───────────────────────────────────────── */
+.adm-reports { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.adm-report { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-muted); }
+.adm-report:first-child { padding-top: 0; border-top: none; }
+.adm-report-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.adm-quote {
+  margin: 0; padding: 8px 12px; border-left: 3px solid var(--brick); background: var(--bg-card);
+  font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.88rem; color: var(--text-primary);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.adm-details summary { cursor: pointer; }
+.adm-details[open] summary { margin-bottom: 6px; }
+
+/* ── Lot A4 : profil ───────────────────────────────────────────── */
+.adm-set-name { font-family: 'Playfair Display', Georgia, serif; }
+.adm-pf-table { min-width: 680px; }
+.adm-pf-table thead th:nth-child(1) { width: 26%; }
+.adm-pf-table thead th:nth-child(2) { width: 300px; }
+.adm-pf-table thead th:nth-child(3) { width: 150px; }
+.adm-pf-table tr[data-mode="locked"] th[scope="row"]::after { content: ' *'; color: var(--brick); }
+
+/* ── Lot A4 : annonces ─────────────────────────────────────────── */
+.adm-anns { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+.adm-ann { display: flex; flex-direction: column; gap: 12px; border-top: 6px solid var(--border-muted); }
+.adm-ann[data-state="live"] { border-top-color: var(--olive); }
+.adm-ann[data-state="scheduled"] { border-top-color: var(--gold, var(--brick)); }
+.adm-ann[data-state="draft"] { border-top-style: dashed; }
+.adm-ann[data-state="archived"], .adm-ann[data-state="ended"] { opacity: 0.75; }
+.adm-ann-head { display: flex; align-items: flex-start; gap: 10px; }
+.adm-ann-icon { font-size: 1.3rem; line-height: 1; padding-top: 2px; }
+.adm-ann-state {
+  padding: 2px 6px; border-radius: 2px; border: 1.5px solid var(--border-primary); white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-primary);
+}
+.adm-ann[data-state="live"] .adm-ann-state { background: var(--olive); border-color: var(--olive); color: var(--text-invert); }
+.adm-ann-body { margin: 0; white-space: pre-wrap; }
+.adm-ann-form .adm-input:not(.adm-input--sm) { box-sizing: border-box; width: 100%; }
+.adm-ann-form .adm-filters { align-items: flex-end; }
+@media (max-width: 640px) {
+  .adm-anns { grid-template-columns: minmax(0, 1fr); }
+  .adm-pp-row--even { grid-template-columns: minmax(0, 1fr); }
+}

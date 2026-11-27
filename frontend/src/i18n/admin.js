@@ -13,7 +13,6 @@ export const admin = {
     adm_forbidden:            'Cette page est réservée aux administrateurs.',
     adm_error:                'Une erreur est survenue. Réessayez.',
     adm_soon:                 'Bientôt',
-    adm_soon_lot:             'Prévu au lot {{lot}} du dashboard.',
 
     // Navigation
     adm_nav_overview:         'Vue d\'ensemble',
@@ -25,10 +24,7 @@ export const admin = {
     adm_nav_credits:          'Crédits',
     adm_nav_messaging:        'Messagerie',
     adm_nav_profile:          'Profil',
-    adm_nav_publications:     'Notifications',
-    adm_soon_messaging:       'Signalements, sourdines, mode lent, mots interdits et règles du salon universel.',
-    adm_soon_profile:         'Choisir les champs du profil exigés à l\'inscription et ceux affichés aux autres joueurs.',
-    adm_soon_publications:    'Envoyer des notifications et publier des annonces aux joueurs (tous, ou par niveau d\'abonnement).',
+    adm_nav_publications:     'Publications',
 
     // Vue d'ensemble
     adm_period:               'Période',
@@ -373,7 +369,6 @@ export const admin = {
     adm_forbidden:            'This page is for administrators only.',
     adm_error:                'Something went wrong. Please try again.',
     adm_soon:                 'Soon',
-    adm_soon_lot:             'Planned for dashboard batch {{lot}}.',
 
     adm_nav_overview:         'Overview',
     adm_nav_users:            'Players',
@@ -384,10 +379,7 @@ export const admin = {
     adm_nav_credits:          'Credits',
     adm_nav_messaging:        'Messaging',
     adm_nav_profile:          'Profile',
-    adm_nav_publications:     'Notifications',
-    adm_soon_messaging:       'Reports, mutes, slow mode, banned words and rules of the global chat.',
-    adm_soon_profile:         'Choose which profile fields are required at sign-up and which are shown to other players.',
-    adm_soon_publications:    'Send notifications and post announcements to players (everyone, or by subscription tier).',
+    adm_nav_publications:     'Announcements',
 
     adm_period:               'Period',
     adm_period_days:          '{{count}} days',

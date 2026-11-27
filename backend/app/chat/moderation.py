@@ -30,12 +30,39 @@ _WORD_RE = re.compile(r"[\w']+", re.UNICODE)
 _BLOCKED = set(BLOCKED_WORDS)
 
 
-def mask_profanity(text: str) -> str:
+def banned_set(builtin: bool = True, extra: tuple[str, ...] | list[str] = ()) -> set[str]:
+    """Mots interdits (repliés sans accents) : liste d'origine et/ou ajouts de l'admin (lot A4)."""
+    words = set(_BLOCKED) if builtin else set()
+    words.update(_fold(w) for w in extra)
+    return words
+
+
+def _phrases(words: set[str]) -> list[str]:
+    return [w for w in words if " " in w]
+
+
+def contains_banned(text: str, words: set[str]) -> bool:
+    folded = _fold(text)
+    if any(_fold(m.group(0)) in words for m in _WORD_RE.finditer(text)):
+        return True
+    return any(re.search(rf"(?<!\w){re.escape(p)}(?!\w)", folded) for p in _phrases(words))
+
+
+def mask_profanity(text: str, words: set[str] | None = None) -> str:
     """Remplace chaque mot de la liste par des astérisques de même longueur."""
+    words = _BLOCKED if words is None else words
+
     def replace(match: re.Match) -> str:
         word = match.group(0)
-        return "*" * len(word) if _fold(word) in _BLOCKED else word
-    return _WORD_RE.sub(replace, text)
+        return "*" * len(word) if _fold(word) in words else word
+    out = _WORD_RE.sub(replace, text)
+    # Expressions de plusieurs mots (ajoutées par l'admin) : masquées en bloc
+    for phrase in _phrases(words):
+        folded = _fold(out)
+        for m in reversed(list(re.finditer(rf"(?<!\w){re.escape(phrase)}(?!\w)", folded))):
+            if len(folded) == len(out):                       # positions fiables (pas de lettre décomposée)
+                out = out[:m.start()] + "*" * (m.end() - m.start()) + out[m.end():]
+    return out
 
 
 def contains_link(text: str) -> bool:

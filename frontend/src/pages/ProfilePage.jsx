@@ -5,6 +5,7 @@ import { useAuth }    from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { getHistory } from '../api/authService';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getProfileRules } from '../api/configService';
 import { Card, PageHeader, MonoLabel, RetroButton, Spinner, Badge } from '../components/ui';
 
 // ── Pays (liste statique, pas besoin de traduction) ───────────────
@@ -108,6 +109,11 @@ function StatCard({ label, value, icon }) {
   );
 }
 
+// Champs du profil d'origine (lot A4 : l'administrateur peut les changer)
+const DEFAULT_COLLECT = {
+  first_name: 'required', last_name: 'required', age: 'required', country: 'required', bio: 'optional', avatar_url: 'optional',
+};
+
 // ── Page principale ───────────────────────────────────────────────
 
 export default function ProfilePage() {
@@ -125,6 +131,17 @@ export default function ProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarPreview, setAvatarPreview]     = useState(null);
   const fileInputRef = useRef(null);
+
+  // Lot A4 : champs exigés, facultatifs ou non demandés (réglés par l'administrateur)
+  const [profileRules, setProfileRules] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    getProfileRules().then(r => { if (!cancelled) setProfileRules(r); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const collect = (name) => profileRules?.fields?.[name]?.collect ?? DEFAULT_COLLECT[name];
+  const asked = (name) => collect(name) !== 'off';
+  const star = (name) => (collect(name) === 'required' ? ' *' : '');
 
   const [form, setForm] = useState({
     displayName: '', firstName: '', lastName: '',
@@ -202,6 +219,14 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
+  const FIELD_LABELS = {
+    first_name: t('field_firstname'), last_name: t('field_lastname'), age: t('field_age'),
+    country: t('field_country'), bio: t('field_bio'), avatar_url: t('field_avatar'),
+  };
+  const missing = Object.keys(FIELD_LABELS).filter(n => collect(n) === 'required' && (user[n] == null || user[n] === ''));
+  const publicFields = [t('field_username'), ...['country', 'bio', 'avatar_url']
+    .filter(n => asked(n) && (profileRules?.fields?.[n]?.public ?? true)).map(n => FIELD_LABELS[n])];
+
   const winRate = user.games_played > 0
     ? Math.round((user.games_won / user.games_played) * 100)
     : 0;
@@ -240,6 +265,7 @@ export default function ProfilePage() {
           <span style={{ fontSize: '1.1rem' }}>⚠️</span>
           <MonoLabel style={{ flex: 1 }}>
             {t('profile_incomplete_banner')}
+            {missing.length > 0 && ` ${t('profile_missing', { list: missing.map(n => FIELD_LABELS[n]).join(', ') })}`}
           </MonoLabel>
           <RetroButton
             variant="tobacco"
@@ -261,7 +287,7 @@ export default function ProfilePage() {
             {/* Avatar */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <div
-                onClick={() => editing && !uploadingAvatar && fileInputRef.current?.click()}
+                onClick={() => editing && asked('avatar_url') && !uploadingAvatar && fileInputRef.current?.click()}
                 style={{
                   width:          '90px',
                   height:         '90px',
@@ -272,7 +298,7 @@ export default function ProfilePage() {
                   display:        'flex',
                   alignItems:     'center',
                   justifyContent: 'center',
-                  cursor:         editing ? 'pointer' : 'default',
+                  cursor:         editing && asked('avatar_url') ? 'pointer' : 'default',
                   position:       'relative',
                 }}
               >
@@ -295,7 +321,7 @@ export default function ProfilePage() {
                   </span>
                 )}
               </div>
-              {editing && (
+              {editing && asked('avatar_url') && (
                 <MonoLabel size="xs" style={{ cursor: 'pointer', color: 'var(--tobacco)' }}
                   onClick={() => fileInputRef.current?.click()}>
                   {t('profile_change_avatar')}
@@ -398,35 +424,38 @@ export default function ProfilePage() {
             {!editing ? (
               // Lecture seule
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 32px' }}>
-                <Field label={t('field_firstname')}  value={user.first_name  || '—'} />
-                <Field label={t('field_lastname')}   value={user.last_name   || '—'} />
+                {asked('first_name') && <Field label={t('field_firstname')}  value={user.first_name  || '—'} />}
+                {asked('last_name') && <Field label={t('field_lastname')}   value={user.last_name   || '—'} />}
                 <Field label={t('field_username')}   value={user.display_name} />
-                <Field label={t('field_age')}        value={user.age ? `${user.age} ${t('field_age_unit')}` : '—'} />
-                <Field label={t('field_country')}    value={user.country    || '—'} />
+                {asked('age') && <Field label={t('field_age')}        value={user.age ? `${user.age} ${t('field_age_unit')}` : '—'} />}
+                {asked('country') && <Field label={t('field_country')}    value={user.country    || '—'} />}
                 <Field label={t('field_email')}      value={user.email} />
-                <Field label={t('field_bio')} wide   value={user.bio || '—'} />
+                {asked('bio') && <Field label={t('field_bio')} wide   value={user.bio || '—'} />}
+                <Field label={t('profile_public_fields')} wide value={publicFields.join(', ')} />
               </div>
             ) : (
               // Formulaire d'édition
               <form onSubmit={handleSave}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 24px' }}>
-                  <FormField label={t('field_firstname')}>
+                  {asked('first_name') && <FormField label={t('field_firstname') + star('first_name')}>
                     <input
                       style={inputStyle}
                       value={form.firstName}
+                      required={collect('first_name') === 'required'}
                       onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
                       placeholder={t('field_firstname')}
                     />
-                  </FormField>
-                  <FormField label={t('field_lastname')}>
+                  </FormField>}
+                  {asked('last_name') && <FormField label={t('field_lastname') + star('last_name')}>
                     <input
                       style={inputStyle}
                       value={form.lastName}
+                      required={collect('last_name') === 'required'}
                       onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
                       placeholder={t('field_lastname')}
                     />
-                  </FormField>
-                  <FormField label={t('field_username')}>
+                  </FormField>}
+                  <FormField label={`${t('field_username')} *`}>
                     <input
                       style={inputStyle}
                       value={form.displayName}
@@ -435,21 +464,23 @@ export default function ProfilePage() {
                       required
                     />
                   </FormField>
-                  <FormField label={t('field_age')}>
+                  {asked('age') && <FormField label={t('field_age') + star('age')}>
                     <input
                       style={inputStyle}
                       type="number"
-                      min="5"
+                      min={profileRules?.min_age ?? 5}
                       max="120"
                       value={form.age}
+                      required={collect('age') === 'required'}
                       onChange={e => setForm(f => ({ ...f, age: e.target.value }))}
                       placeholder="—"
                     />
-                  </FormField>
-                  <FormField label={t('field_country')} wide>
+                  </FormField>}
+                  {asked('country') && <FormField label={t('field_country') + star('country')} wide>
                     <select
                       style={inputStyle}
                       value={form.country}
+                      required={collect('country') === 'required'}
                       onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
                     >
                       <option value="">{t('field_country_placeholder')}</option>
@@ -457,16 +488,20 @@ export default function ProfilePage() {
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
-                  </FormField>
-                  <FormField label={t('field_bio')} wide>
+                  </FormField>}
+                  {asked('bio') && <FormField label={t('field_bio') + star('bio')} wide>
                     <textarea
                       style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
                       value={form.bio}
+                      required={collect('bio') === 'required'}
                       onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
                       placeholder={t('field_bio_placeholder')}
                       maxLength={280}
                     />
-                  </FormField>
+                  </FormField>}
+                  <p style={{ gridColumn: '1 / -1', margin: 0, fontFamily: "'DM Mono', monospace", fontSize: '0.64rem', color: 'var(--text-muted)' }}>
+                    {t('profile_required_note')} · {t('profile_public_fields')} : {publicFields.join(', ')}
+                  </p>
                 </div>
 
                 <div style={{

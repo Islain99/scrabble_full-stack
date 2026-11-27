@@ -670,3 +670,53 @@
   font-family: 'DM Mono', monospace; font-size: 0.72rem; font-weight: 500; font-variant-numeric: tabular-nums;
 }
 .nav-credits:hover, .nav-credits[aria-current="page"] { background: var(--bg-invert); color: var(--text-invert); }
+
+/* Lot A4 : règles du salon universel, lecture seule, badge de l'auteur */
+.ch-author { display: inline-flex; align-items: center; gap: 5px; }
+.ch-rules {
+  margin: 0; padding: 6px 14px; border-bottom: 1px solid var(--border-muted); background: var(--bg-page-alt);
+  font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.82rem; color: var(--text-primary);
+}
+.ch-rules summary {
+  cursor: pointer; font-family: 'DM Mono', monospace; font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
+}
+.ch-rules p { margin: 6px 0 4px; white-space: pre-line; line-height: 1.5; }
+.ch-readonly {
+  font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--text-muted); text-align: center;
+}
+
+/* ── Lot A4 : bandeau des annonces ─────────────────────────────── */
+.ann-bar {
+  --ann-color: var(--tobacco);
+  border-bottom: 2px solid var(--border-primary);
+  background: color-mix(in srgb, var(--ann-color) 14%, var(--bg-page));
+}
+.ann-bar[data-kind="event"]       { --ann-color: var(--olive); }
+.ann-bar[data-kind="update"]      { --ann-color: var(--gold); }
+.ann-bar[data-kind="maintenance"] { --ann-color: var(--brick); }
+.ann-bar[data-kind="promo"]       { --ann-color: var(--gold); }
+.ann-inner {
+  max-width: 1240px; margin: 0 auto; padding: 8px 1.5rem;
+  display: flex; align-items: center; gap: 12px;
+  border-left: 5px solid var(--ann-color);
+}
+.ann-icon { font-size: 1.1rem; }
+.ann-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.ann-title { font-family: 'Playfair Display', Georgia, serif; font-size: 0.98rem; color: var(--text-primary); }
+.ann-body { flex-basis: 100%; margin: 2px 0 0; white-space: pre-line; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); }
+.ann-more, .ann-btn {
+  padding: 2px 6px; border: none; background: none; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted);
+}
+.ann-more { text-decoration: underline; text-underline-offset: 2px; }
+.ann-btn:hover, .ann-more:hover { color: var(--text-primary); }
+.ann-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.ann-link {
+  padding: 4px 10px; border: 1.5px solid var(--border-primary); border-radius: 2px; text-decoration: none; white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-primary);
+}
+.ann-link:hover { background: var(--bg-invert); color: var(--text-invert); }
+.ann-btn:focus-visible, .ann-more:focus-visible, .ann-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+@media (max-width: 720px) {
+  .ann-inner { padding: 8px 12px; align-items: flex-start; }
+}

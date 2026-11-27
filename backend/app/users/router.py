@@ -87,12 +87,17 @@ class UpdateProfileRequest(BaseModel):
         return v or None
 
 
-# Profil complet : les champs demandés par la bannière « Complétez votre profil »
+# Profil complet : les champs demandés par la bannière « Complétez votre profil ».
+# Depuis le lot A4, l'administrateur choisit les champs exigés (app/appconfig/profile.py) ;
+# cette liste est celle d'origine.
 PROFILE_REQUIRED = ("display_name", "first_name", "last_name", "age", "country")
 
 
-def is_profile_complete(user: User) -> bool:
-    return all(getattr(user, f, None) not in (None, "") for f in PROFILE_REQUIRED)
+def is_profile_complete(user: User, rules=None) -> bool:
+    if rules is None:
+        return all(getattr(user, f, None) not in (None, "") for f in PROFILE_REQUIRED)
+    from app.appconfig.profile import is_complete
+    return is_complete(user, rules)
 
 
 class GameHistoryOut(BaseModel):
@@ -144,6 +149,7 @@ class PreferencesResponse(BaseModel):
     pushInvites:        bool = True
     pushFriends:        bool = True
     pushMessages:       bool = True
+    pushNews:           bool = True
     pushTurn:           bool = True
     # Apparence — None = jamais choisi sur un appareil connecté :
     # le client garde alors son choix local et l'envoie au serveur.
@@ -179,6 +185,7 @@ class PreferencesPatchRequest(BaseModel):
     pushInvites:        bool | None = None
     pushFriends:        bool | None = None
     pushMessages:       bool | None = None
+    pushNews:           bool | None = None
     pushTurn:           bool | None = None
     themeMode:          str | None = None
     colorPalette:       str | None = None
@@ -254,12 +261,19 @@ async def update_profile(
     Met à jour le profil : pseudo, prénom, nom, âge, pays, présentation, photo.
     Le profil est « complet » dès que pseudo, prénom, nom, âge et pays sont remplis.
     """
+    from app.appconfig.profile import get_profile_rules
+    rules = await get_profile_rules(db)
     changes = payload.model_dump(exclude_unset=True)
     if "display_name" in changes and changes["display_name"] is None:
         changes.pop("display_name")                 # le pseudo ne s'efface pas
+    # Lot A4 : champ que l'administrateur ne demande plus → ignoré
+    for field in rules.off():
+        changes.pop(field, None)
+    if changes.get("age") is not None and changes["age"] < rules.min_age:
+        raise HTTPException(status_code=422, detail=f"L'âge minimal est de {rules.min_age} ans.")
     for field, value in changes.items():
         setattr(current_user, field, value)
-    current_user.profile_complete = is_profile_complete(current_user)
+    current_user.profile_complete = is_profile_complete(current_user, rules)
 
     await db.flush()
     await db.refresh(current_user)
@@ -424,6 +438,12 @@ async def get_public_profile(user_id: int, db: AsyncSession = Depends(get_db),
         hidden.append("stats")
         for k in STATS_PART:
             data[k] = None
+    # Lot A4 : champs que l'administrateur ne montre pas aux autres (bio, pays, photo)
+    if not is_self:
+        from app.appconfig.profile import get_profile_rules
+        for field in sorted((await get_profile_rules(db)).hidden_public()):
+            data[field] = None
+            hidden.append(field)
     return PublicProfileOut.model_validate({**data, "hidden": hidden})
 
 

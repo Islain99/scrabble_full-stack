@@ -14,6 +14,9 @@
 #   POST   /admin/users/{id}/credits      créditer / débiter (motif obligatoire)
 #   GET    /admin/users/{id}/transactions, /admin/transactions   grand livre
 #   GET/PUT/DELETE /admin/economy         règles des crédits (gains, indices, palettes premium)
+#   GET/PUT/DELETE /admin/chat            règles de la messagerie (lot A4)
+#   GET/PUT/DELETE /admin/profile-fields  champs du profil exigés / montrés (lot A4)
+#   /admin/announcements                  publications : brouillon, publier, retirer (lot A4)
 #
 # Les lots suivants ajouteront ici : paramètres globaux (A2), abonnements et
 # crédits (A3), messagerie, profil, notifications et publications (A4).
@@ -25,7 +28,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -925,3 +928,385 @@ async def reset_economy(admin: User = Depends(require_admin), db: AsyncSession =
         log_action(db, admin, "config.economy_reset", target_type="config")
         await db.flush()
     return await _economy_out(db)
+
+
+# ── Messagerie (lot A4) ───────────────────────────────────────────
+
+from app.chat.models import Conversation, ConversationKind                   # noqa: E402
+from app.chat.settings import CHAT_KEY, ChatRules, get_chat_rules            # noqa: E402
+
+
+class ChatAdminOut(BaseModel):
+    rules: dict
+    builtin_words: list[str]
+    custom: bool
+    updated_at: Optional[datetime] = None
+    updated_by_name: Optional[str] = None
+    slow_mode_s: int = 0
+    stats: dict
+    muted: list[dict]
+
+
+class ChatAdminIn(ChatRules):
+    note: Optional[str] = None
+
+
+async def _chat_out(db: AsyncSession) -> ChatAdminOut:
+    from app.chat.moderation import BLOCKED_WORDS
+    config_service.invalidate()
+    rules = await get_chat_rules(db)
+    row = await db.get(config_service.AppConfig, CHAT_KEY)
+    glob = (await db.execute(select(Conversation).where(Conversation.kind == ConversationKind.GLOBAL))).scalars().first()
+    now = _utcnow()
+    day = now - timedelta(days=1)
+    week = now - timedelta(days=7)
+    muted = (await db.execute(
+        select(User.id, User.display_name, User.chat_muted_until).where(User.chat_muted_until > now)
+        .order_by(User.chat_muted_until.desc()).limit(50)
+    )).all()
+    stats = {
+        "messages_24h": await _count(db, select(func.count(Message.id)).where(Message.created_at >= day)),
+        "messages_7d": await _count(db, select(func.count(Message.id)).where(Message.created_at >= week)),
+        "global_7d": await _count(db, select(func.count(Message.id)).where(
+            Message.created_at >= week, Message.conversation_id == (glob.id if glob else -1))),
+        "authors_7d": await _count(db, select(func.count(func.distinct(Message.author_id))).where(Message.created_at >= week)),
+        "reports_pending": await _count(db, select(func.count(MessageReport.id)).where(MessageReport.resolved_at.is_(None))),
+    }
+    return ChatAdminOut(
+        rules=rules.model_dump(), builtin_words=list(BLOCKED_WORDS), custom=row is not None,
+        updated_at=_as_utc(row.updated_at) if row else None,
+        updated_by_name=await _name_of(db, row.updated_by) if row else None,
+        slow_mode_s=glob.slow_mode_s if glob else 0, stats=stats,
+        muted=[{"id": i, "display_name": n, "until": _as_utc(u)} for i, n, u in muted],
+    )
+
+
+@router.get("/chat", response_model=ChatAdminOut, summary="Règles et chiffres de la messagerie")
+async def get_chat_admin(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    return await _chat_out(db)
+
+
+@router.put("/chat", response_model=ChatAdminOut, summary="Modifier les règles de la messagerie")
+async def put_chat_admin(body: ChatAdminIn, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    config_service.invalidate()
+    before = (await get_chat_rules(db)).model_dump()
+    rules = ChatRules(**body.model_dump(exclude={"note"}))
+    await config_service.save(db, CHAT_KEY, rules.model_dump(), admin.id)
+    after = rules.model_dump()
+    details = {"changed": [k for k in after if after[k] != before[k]]}
+    if body.note and body.note.strip():
+        details["reason"] = body.note.strip()[:200]
+    log_action(db, admin, "config.chat", target_type="config", details=details)
+    await db.flush()
+    return await _chat_out(db)
+
+
+@router.delete("/chat", response_model=ChatAdminOut, summary="Revenir aux règles d'origine de la messagerie")
+async def reset_chat_admin(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if await config_service.delete(db, CHAT_KEY):
+        log_action(db, admin, "config.chat_reset", target_type="config")
+        await db.flush()
+    return await _chat_out(db)
+
+
+# ── Champs du profil (lot A4) ─────────────────────────────────────
+
+from app.appconfig.profile import FIELDS as PROFILE_FIELDS, PROFILE_KEY, ProfileRules, get_profile_rules  # noqa: E402
+
+
+class ProfileAdminOut(BaseModel):
+    rules: dict
+    fields: list[dict]                 # catalogue : nom, public possible, collecte d'origine
+    custom: bool
+    updated_at: Optional[datetime] = None
+    updated_by_name: Optional[str] = None
+    stats: dict
+    recomputed: dict = {}
+
+
+class ProfileAdminIn(ProfileRules):
+    note: Optional[str] = None
+
+
+async def _recompute_complete(db: AsyncSession, rules: ProfileRules) -> dict:
+    """Statut « profil complet » de tous les comptes selon les nouveaux champs exigés."""
+    from app.appconfig.profile import is_complete
+    became, lost = 0, 0
+    for user in (await db.execute(select(User))).scalars():
+        now_complete = is_complete(user, rules)
+        if now_complete != bool(user.profile_complete):
+            became += now_complete
+            lost += not now_complete
+            user.profile_complete = now_complete
+    await db.flush()
+    return {"became_complete": became, "became_incomplete": lost}
+
+
+async def _profile_out(db: AsyncSession, recomputed: Optional[dict] = None) -> ProfileAdminOut:
+    config_service.invalidate()
+    rules = await get_profile_rules(db)
+    row = await db.get(config_service.AppConfig, PROFILE_KEY)
+    total = await _count(db, select(func.count(User.id)))
+    filled = {}
+    for name in PROFILE_FIELDS:
+        column = getattr(User, name)
+        cond = column.is_not(None) if name == "age" else and_(column.is_not(None), column != "")
+        filled[name] = await _count(db, select(func.count(User.id)).where(cond))
+    return ProfileAdminOut(
+        rules=rules.model_dump(),
+        fields=[{"name": n, "origin": c, "can_be_public": p is not None} for n, (c, p) in PROFILE_FIELDS.items()],
+        custom=row is not None,
+        updated_at=_as_utc(row.updated_at) if row else None,
+        updated_by_name=await _name_of(db, row.updated_by) if row else None,
+        stats={"total": total, "complete": await _count(db, select(func.count(User.id)).where(User.profile_complete.is_(True))),
+               "filled": filled},
+        recomputed=recomputed or {},
+    )
+
+
+@router.get("/profile-fields", response_model=ProfileAdminOut, summary="Champs du profil")
+async def get_profile_admin(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    return await _profile_out(db)
+
+
+@router.put("/profile-fields", response_model=ProfileAdminOut, summary="Modifier les champs du profil")
+async def put_profile_admin(body: ProfileAdminIn, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    config_service.invalidate()
+    before = (await get_profile_rules(db)).model_dump()
+    rules = ProfileRules(**body.model_dump(exclude={"note"}))
+    await config_service.save(db, PROFILE_KEY, rules.model_dump(), admin.id)
+    recomputed = await _recompute_complete(db, rules)
+    after = rules.model_dump()
+    changed = [n for n in after["fields"] if after["fields"][n] != before["fields"][n]]
+    if after["min_age"] != before["min_age"]:
+        changed.append("min_age")
+    details = {"changed": changed, **{k: v for k, v in recomputed.items() if v}}
+    if body.note and body.note.strip():
+        details["reason"] = body.note.strip()[:200]
+    log_action(db, admin, "config.profile", target_type="config", details=details)
+    await db.flush()
+    return await _profile_out(db, recomputed)
+
+
+@router.delete("/profile-fields", response_model=ProfileAdminOut, summary="Revenir aux champs d'origine")
+async def reset_profile_admin(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    from app.appconfig.profile import builtin_profile_rules
+    recomputed = {}
+    if await config_service.delete(db, PROFILE_KEY):
+        recomputed = await _recompute_complete(db, builtin_profile_rules())
+        log_action(db, admin, "config.profile_reset", target_type="config")
+        await db.flush()
+    return await _profile_out(db, recomputed)
+
+
+# ── Publications (lot A4) ─────────────────────────────────────────
+
+from app.announcements import service as ann_service                          # noqa: E402
+from app.announcements.models import Announcement, AnnouncementStatus         # noqa: E402
+
+ANN_KINDS = ("info", "event", "update", "maintenance", "promo")
+
+
+class AnnouncementIn(BaseModel):
+    title_fr: str
+    title_en: str
+    body_fr: str = ""
+    body_en: str = ""
+    kind: Literal["info", "event", "update", "maintenance", "promo"] = "info"
+    link: Optional[str] = None
+    audience_tiers: Optional[list[int]] = None      # None = tout le monde
+    show_banner: bool = True
+    notify: bool = False
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+
+    @field_validator("title_fr", "title_en")
+    @classmethod
+    def _title(cls, v: str) -> str:
+        v = " ".join((v or "").split())
+        if not 1 <= len(v) <= 120:
+            raise ValueError("Titre de 1 à 120 caractères (français et anglais).")
+        return v
+
+    @field_validator("body_fr", "body_en")
+    @classmethod
+    def _body(cls, v: str) -> str:
+        v = "".join(ch for ch in (v or "") if ch == "\n" or ch.isprintable()).strip()
+        if len(v) > 2000:
+            raise ValueError("Texte de 2000 caractères au plus.")
+        return v
+
+    @field_validator("link")
+    @classmethod
+    def _link(cls, v: Optional[str]) -> Optional[str]:
+        v = (v or "").strip()
+        if not v:
+            return None
+        if len(v) > 300 or " " in v or not (v.startswith("#/") or v.startswith("https://")):
+            raise ValueError("Lien : une page du jeu (#/…) ou une adresse https://.")
+        return v
+
+    @field_validator("audience_tiers")
+    @classmethod
+    def _aud(cls, v: Optional[list[int]]) -> Optional[list[int]]:
+        if v is None:
+            return None
+        v = sorted(set(v))
+        if not v:
+            raise ValueError("Choisissez au moins un niveau, ou « tout le monde ».")
+        return v
+
+    @model_validator(mode="after")
+    def _check(self) -> "AnnouncementIn":
+        if not (self.show_banner or self.notify):
+            raise ValueError("Choisissez au moins une diffusion : bandeau ou notification.")
+        if self.starts_at and self.ends_at and _as_utc(self.ends_at) <= _as_utc(self.starts_at):
+            raise ValueError("La date de fin doit suivre la date de début.")
+        return self
+
+
+class AnnouncementAdminOut(BaseModel):
+    id: int
+    title_fr: str
+    title_en: str
+    body_fr: str
+    body_en: str
+    kind: str
+    link: Optional[str]
+    audience_tiers: Optional[list[int]]
+    show_banner: bool
+    notify: bool
+    status: str
+    live: bool
+    starts_at: Optional[datetime]
+    ends_at: Optional[datetime]
+    published_at: Optional[datetime]
+    notified_count: int
+    created_by_name: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class AnnouncementsPage(BaseModel):
+    items: list[AnnouncementAdminOut]
+    devices: dict[str, int]          # appareils inscrits aux notifications push, par plateforme
+    news_opt_out: int                # joueurs qui ont coupé les notifications « Annonces »
+
+
+async def _ann_out(db: AsyncSession, rows: list[Announcement]) -> list[AnnouncementAdminOut]:
+    ids = {a.created_by for a in rows if a.created_by}
+    names = dict((await db.execute(select(User.id, User.display_name).where(User.id.in_(ids)))).all()) if ids else {}
+    return [AnnouncementAdminOut(
+        id=a.id, title_fr=a.title_fr, title_en=a.title_en, body_fr=a.body_fr or "", body_en=a.body_en or "",
+        kind=a.kind, link=a.link, audience_tiers=a.audience_tiers, show_banner=a.show_banner, notify=a.notify,
+        status=a.status, live=ann_service.is_live(a), starts_at=_as_utc(a.starts_at), ends_at=_as_utc(a.ends_at),
+        published_at=_as_utc(a.published_at), notified_count=a.notified_count or 0,
+        created_by_name=names.get(a.created_by), created_at=_as_utc(a.created_at), updated_at=_as_utc(a.updated_at),
+    ) for a in rows]
+
+
+async def _ann_or_404(db: AsyncSession, ann_id: int) -> Announcement:
+    ann = await db.get(Announcement, ann_id)
+    if ann is None:
+        raise HTTPException(status_code=404, detail="Annonce introuvable.")
+    return ann
+
+
+async def _check_tiers(db: AsyncSession, tiers: Optional[list[int]]) -> None:
+    if tiers is None:
+        return
+    known = set((await db.execute(select(SubscriptionTier.id).where(SubscriptionTier.id.in_(tiers)))).scalars())
+    if known != set(tiers):
+        raise HTTPException(status_code=422, detail="Niveau d'abonnement inconnu dans le public.")
+
+
+@router.get("/announcements", response_model=AnnouncementsPage, summary="Publications")
+async def list_announcements(status: Optional[Literal["draft", "published", "archived"]] = None,
+                             _admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    query = select(Announcement)
+    if status:
+        query = query.where(Announcement.status == status)
+    rows = (await db.execute(query.order_by(Announcement.id.desc()).limit(100))).scalars().all()
+    devices, opt_out = {}, 0
+    try:
+        from app.push.models import PushToken
+        async with db.begin_nested():
+            devices = {p: int(n) for p, n in (await db.execute(
+                select(PushToken.platform, func.count()).group_by(PushToken.platform))).all()}
+    except Exception:
+        devices = {}
+    for prefs in (await db.execute(select(User.game_preferences).where(User.game_preferences.is_not(None)))).scalars():
+        if (prefs or {}).get("pushNews") is False:
+            opt_out += 1
+    return AnnouncementsPage(items=await _ann_out(db, rows), devices=devices, news_opt_out=opt_out)
+
+
+@router.post("/announcements", response_model=AnnouncementAdminOut, status_code=201, summary="Créer une annonce (brouillon)")
+async def create_announcement(body: AnnouncementIn, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    await _check_tiers(db, body.audience_tiers)
+    ann = Announcement(**body.model_dump(), status=AnnouncementStatus.DRAFT, created_by=admin.id)
+    db.add(ann)
+    await db.flush()
+    log_action(db, admin, "announcement.create", target_type="announcement", target_id=ann.id,
+               details={"title": ann.title_fr})
+    await db.flush()
+    await db.refresh(ann)
+    return (await _ann_out(db, [ann]))[0]
+
+
+@router.patch("/announcements/{ann_id}", response_model=AnnouncementAdminOut, summary="Modifier une annonce")
+async def update_announcement(ann_id: int, body: AnnouncementIn, admin: User = Depends(require_admin),
+                              db: AsyncSession = Depends(get_db)):
+    ann = await _ann_or_404(db, ann_id)
+    if ann.status == AnnouncementStatus.ARCHIVED:
+        raise HTTPException(status_code=400, detail="Une annonce archivée ne se modifie plus.")
+    await _check_tiers(db, body.audience_tiers)
+    for field, value in body.model_dump().items():
+        setattr(ann, field, value)
+    log_action(db, admin, "announcement.update", target_type="announcement", target_id=ann.id,
+               details={"title": ann.title_fr})
+    await db.flush()
+    await db.refresh(ann)
+    return (await _ann_out(db, [ann]))[0]
+
+
+@router.post("/announcements/{ann_id}/publish", response_model=AnnouncementAdminOut, summary="Publier une annonce")
+async def publish_announcement(ann_id: int, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    ann = await _ann_or_404(db, ann_id)
+    if ann.status == AnnouncementStatus.ARCHIVED:
+        raise HTTPException(status_code=400, detail="Une annonce archivée ne se republie pas : dupliquez-la.")
+    ends = _as_utc(ann.ends_at)
+    if ends is not None and ends <= _utcnow():
+        raise HTTPException(status_code=400, detail="La date de fin est déjà passée.")
+    ann.status = AnnouncementStatus.PUBLISHED
+    ann.published_at = ann.published_at or _utcnow()
+    # Notification envoyée une seule fois, à la première publication
+    if ann.notify and not ann.notified_count:
+        ann.notified_count = await ann_service.notify_all(db, ann)
+    log_action(db, admin, "announcement.publish", target_type="announcement", target_id=ann.id,
+               details={"title": ann.title_fr, "notified": ann.notified_count})
+    await db.flush()
+    await db.refresh(ann)
+    return (await _ann_out(db, [ann]))[0]
+
+
+@router.post("/announcements/{ann_id}/archive", response_model=AnnouncementAdminOut, summary="Retirer une annonce")
+async def archive_announcement(ann_id: int, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    ann = await _ann_or_404(db, ann_id)
+    ann.status = AnnouncementStatus.ARCHIVED
+    await ann_service.withdraw(db, ann)
+    log_action(db, admin, "announcement.archive", target_type="announcement", target_id=ann.id,
+               details={"title": ann.title_fr})
+    await db.flush()
+    await db.refresh(ann)
+    return (await _ann_out(db, [ann]))[0]
+
+
+@router.delete("/announcements/{ann_id}", status_code=204, summary="Supprimer une annonce")
+async def delete_announcement(ann_id: int, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    ann = await _ann_or_404(db, ann_id)
+    await ann_service.withdraw(db, ann)
+    log_action(db, admin, "announcement.delete", target_type="announcement", target_id=ann.id,
+               details={"title": ann.title_fr})
+    await db.delete(ann)
+    await db.flush()

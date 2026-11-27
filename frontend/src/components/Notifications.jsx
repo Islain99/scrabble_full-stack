@@ -19,7 +19,7 @@ function inviteRules(n, t) {
 }
 
 function NotificationItem({ n, compact = false }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const nc = useNotifications();
   const btn = compact ? { padding: '6px 10px', fontSize: '0.7rem' } : undefined;
 
@@ -44,6 +44,28 @@ function NotificationItem({ n, compact = false }) {
         <div className="nt-actions">
           <RetroButton variant="primary" style={btn} onClick={() => nc.acceptFriend(n)}>{t('fr_accept')}</RetroButton>
           <RetroButton variant="default" style={btn} onClick={() => nc.declineFriend(n)}>{t('fr_decline')}</RetroButton>
+        </div>
+      </div>
+    );
+  }
+  if (n.type === 'announcement') {
+    // Lot A4 : annonce de l'administrateur (titre et texte dans les deux langues)
+    const title = (language === 'en' ? n.title_en : n.title_fr) || n.title_fr;
+    const body = language === 'en' ? n.body_en : n.body_fr;
+    const open = () => {
+      nc.dismiss(n);
+      if (n.link?.startsWith('#/')) window.location.assign(n.link);
+      else if (n.link) window.open(n.link, '_blank', 'noopener,noreferrer');
+    };
+    return (
+      <div className="nt-item nt-item--info nt-item--ann" data-kind={n.kind}>
+        <div className="nt-text">
+          <strong>📣 {title}</strong>
+          {body && <span className="nt-sub">{body}</span>}
+        </div>
+        <div className="nt-actions">
+          {n.link && <RetroButton variant="primary" style={btn} onClick={open}>{t('ann_open')}</RetroButton>}
+          <button type="button" className="fr-icon-btn" aria-label={t('mh_close')} onClick={() => nc.dismiss(n)}>✕</button>
         </div>
       </div>
     );

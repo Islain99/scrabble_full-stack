@@ -67,3 +67,27 @@ export const getEconomyAdmin = async () => (await api.get('/admin/economy')).dat
 export const saveEconomyRules = async (rules, note) =>
   (await api.put('/admin/economy', { ...rules, ...(note ? { note } : {}) })).data;
 export const resetEconomyRules = async () => (await api.delete('/admin/economy')).data;
+
+// ── Lot A4 : messagerie, profil, publications ────────────────────
+
+/** { rules, builtin_words, custom, updated_at, updated_by_name, slow_mode_s, stats, muted } */
+export const getChatAdmin = async () => (await api.get('/admin/chat')).data;
+export const saveChatRules = async (rules, note) => (await api.put('/admin/chat', { ...rules, ...(note ? { note } : {}) })).data;
+export const resetChatRules = async () => (await api.delete('/admin/chat')).data;
+// Signalements et mode lent : routes de la messagerie (lot 6)
+export { listReports, resolveReport, setSlowMode } from './chatService';
+
+/** { rules, fields, custom, updated_at, updated_by_name, stats, recomputed } */
+export const getProfileFields = async () => (await api.get('/admin/profile-fields')).data;
+export const saveProfileFields = async (rules, note) =>
+  (await api.put('/admin/profile-fields', { ...rules, ...(note ? { note } : {}) })).data;
+export const resetProfileFields = async () => (await api.delete('/admin/profile-fields')).data;
+
+/** { items, devices, news_opt_out } ; status : draft | published | archived */
+export const listAnnouncementsAdmin = async (status = null) =>
+  (await api.get('/admin/announcements', { params: status ? { status } : {} })).data;
+export const createAnnouncement = async (ann) => (await api.post('/admin/announcements', ann)).data;
+export const updateAnnouncement = async (id, ann) => (await api.patch(`/admin/announcements/${id}`, ann)).data;
+export const publishAnnouncement = async (id) => (await api.post(`/admin/announcements/${id}/publish`)).data;
+export const archiveAnnouncement = async (id) => (await api.post(`/admin/announcements/${id}/archive`)).data;
+export const deleteAnnouncement = async (id) => { await api.delete(`/admin/announcements/${id}`); };

@@ -16,6 +16,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "game_lost":       ("Partie terminée", "{name} l'emporte {them}–{me}."),
         "game_draw":       ("Égalité", "Match nul contre {name}, {me}–{them}."),
         "test":            ("Notifications activées", "Vous recevrez ici vos invitations et messages."),
+        "announcement":    ("{title}", "{body}"),
     },
     "en": {
         "game_invite":     ("Game invitation", "{name} invites you to a game of Scrabble."),
@@ -28,6 +29,7 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
         "game_lost":       ("Game over", "{name} wins {them}–{me}."),
         "game_draw":       ("Draw", "Draw against {name}, {me}–{them}."),
         "test":            ("Notifications on", "Your invitations and messages will show up here."),
+        "announcement":    ("{title}", "{body}"),
     },
 }
 
@@ -40,5 +42,8 @@ class _Safe(dict):
 def render(kind: str, locale: str, params: dict) -> tuple[str, str]:
     table = TEXTS.get(locale) or TEXTS["fr"]
     title, body = table.get(kind) or TEXTS["fr"][kind]
-    values = _Safe({k: ("" if v is None else str(v)) for k, v in params.items()})
+    # Lot A4 : un paramètre « clé_fr » / « clé_en » remplace « clé » dans la langue de l'appareil
+    lang = (locale or "fr")[:2]
+    localized = {k[:-3]: v for k, v in params.items() if k.endswith(f"_{lang}")}
+    values = _Safe({k: ("" if v is None else str(v)) for k, v in {**params, **localized}.items()})
     return title.format_map(values)[:120], body.format_map(values)[:240]

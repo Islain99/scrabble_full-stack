@@ -15,6 +15,7 @@ import { AppConfigProvider } from './context/AppConfigContext';
 import { EconomyProvider } from './context/EconomyContext';
 
 import Navbar         from './components/Navbar';
+import AnnouncementBar from './components/AnnouncementBar';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // La page de jeu est l'accueil : chargée tout de suite.
@@ -141,6 +142,8 @@ function Router() {
       <PresenceKeeper />
       <PushClickListener />
       <Navbar />
+      {/* Lot A4 : annonces de l'administrateur */}
+      <AnnouncementBar />
       <InviteBanner />
       <Suspense fallback={<PageLoader />}>
         {renderPage()}
