@@ -14,6 +14,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useSettings } from './SettingsContext';
 import { useAppConfigOptional } from './AppConfigContext';
+import { useEconomyOptional } from './EconomyContext';
 import { canChoose, choosable, effectiveValue, isForced, readCachedPolicy, ruleOf } from '../utils/appConfig';
 
 const ThemeContext = createContext(null);
@@ -72,6 +73,8 @@ function applyTheme(preference, palette) {
   }
 }
 
+const NO_LOCK = new Set();
+
 export function ThemeProvider({ children }) {
   const { settings, update, currentUid, serverLoadedFor } = useSettings();
 
@@ -89,7 +92,14 @@ export function ThemeProvider({ children }) {
   // Lot A2 : mode / palette imposés ou options retirées par l'administrateur
   const policy = useAppConfigOptional()?.policy ?? null;
   const preference = effectiveValue(policy, 'themeMode', chosenMode, 'system');
-  const palette = effectiveValue(policy, 'colorPalette', chosenPalette, DEFAULT_PALETTE);
+  // Lot A3 : palettes premium pas encore débloquées (toutes, pour un invité)
+  const lockedPalettes = useEconomyOptional()?.lockedPalettes ?? NO_LOCK;
+  const policyPalette = ruleOf(policy, 'colorPalette').default ?? null;
+  let palette = effectiveValue(policy, 'colorPalette', chosenPalette, DEFAULT_PALETTE);
+  if (lockedPalettes.has(palette) && palette !== policyPalette) {
+    // Palette premium non débloquée → défaut de l'admin, sinon la première gratuite
+    palette = [policyPalette, DEFAULT_PALETTE, ...PALETTES].find(p => p && !lockedPalettes.has(p)) ?? DEFAULT_PALETTE;
+  }
   const themes = choosable(policy, 'themeMode', THEMES);
   const palettes = choosable(policy, 'colorPalette', PALETTES);
   const themeLocked = isForced(ruleOf(policy, 'themeMode'));
@@ -119,12 +129,14 @@ export function ThemeProvider({ children }) {
     update('themeMode', newTheme);
   }, [update, policy]);
 
-  const setPalette = useCallback((newPalette) => {
+  // justUnlocked : palette premium que le joueur vient de débloquer (contexte pas encore à jour)
+  const setPalette = useCallback((newPalette, { justUnlocked = false } = {}) => {
     if (!PALETTES.includes(newPalette) || !canChoose(policy, 'colorPalette', newPalette)) return;
+    if (!justUnlocked && lockedPalettes.has(newPalette) && newPalette !== policyPalette) return;   // à débloquer d'abord
     writeStored(PALETTE_STORAGE_KEY, newPalette);
     setPaletteState(newPalette);
     update('colorPalette', newPalette);
-  }, [update, policy]);
+  }, [update, policy, lockedPalettes, policyPalette]);
 
   // ── À la connexion : réconcilier avec les préférences du compte ────
   // Une seule fois par chargement serveur (serverLoadedFor change), pour ne
@@ -169,7 +181,7 @@ export function ThemeProvider({ children }) {
     <ThemeContext.Provider value={{
       // THEMES / PALETTES : ce que le joueur peut choisir (politique de l'administrateur)
       preference, resolvedTheme, setTheme, cycleTheme, THEMES: themes, themeLocked,
-      palette, setPalette, PALETTES: palettes, paletteLocked, ALL_PALETTES: PALETTES,
+      palette, setPalette, PALETTES: palettes, paletteLocked, ALL_PALETTES: PALETTES, lockedPalettes,
     }}>
       {children}
     </ThemeContext.Provider>

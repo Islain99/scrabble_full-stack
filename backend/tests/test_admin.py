@@ -6,6 +6,8 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+
+from app.economy.models import CreditTransaction, SubscriptionTier, UserUnlock
 from fastapi import Depends
 
 from app.admin.models import AdminAction
@@ -29,7 +31,7 @@ async def sqlite_db():
 
     engine = create_async_engine("sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     async with engine.begin() as conn:
-        for model in (User, GameHistory, MultiplayerGame, Conversation, ConversationMember, Message,
+        for model in (SubscriptionTier, User, CreditTransaction, UserUnlock, GameHistory, MultiplayerGame, Conversation, ConversationMember, Message,
                       MessageReport, AdminAction):
             await conn.run_sync(model.__table__.create)
     previous = db.AsyncSessionLocal

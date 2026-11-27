@@ -9,6 +9,11 @@
 #   GET    /admin/actions                 journal des actions des administrateurs
 #   GET/PUT/DELETE /admin/settings        politique des paramètres (lot A2)
 #   GET/PUT/DELETE /admin/privacy-policy  politique de confidentialité (lot A2)
+#   GET/POST/PATCH/DELETE /admin/tiers    niveaux d'abonnement (lot A3)
+#   PUT    /admin/users/{id}/tier         attribuer un niveau, avec ou sans date de fin
+#   POST   /admin/users/{id}/credits      créditer / débiter (motif obligatoire)
+#   GET    /admin/users/{id}/transactions, /admin/transactions   grand livre
+#   GET/PUT/DELETE /admin/economy         règles des crédits (gains, indices, palettes premium)
 #
 # Les lots suivants ajouteront ici : paramètres globaux (A2), abonnements et
 # crédits (A3), messagerie, profil, notifications et publications (A4).
@@ -21,7 +26,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
-from sqlalchemy import and_, func, or_, select, true
+from sqlalchemy import and_, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.deps import log_action, require_admin
@@ -30,6 +35,7 @@ from app.chat.models import Message, MessageReport
 from app.db.database import get_db
 from app.db.models import GameHistory, User
 from app.multiplayer.models import MultiplayerGame, RoomStatus
+from app.economy import service as economy_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Administration"])
@@ -185,6 +191,11 @@ class UserRow(BaseModel):
     chat_muted_until: Optional[datetime]
     created_at: datetime
     last_login_at: datetime
+    # Lot A3 : niveau en vigueur (None = défaut), attribution brute, crédits
+    tier_id: Optional[int] = None
+    assigned_tier_id: Optional[int] = None
+    tier_expires_at: Optional[datetime] = None
+    credits: int = 0
 
     @classmethod
     def of(cls, u: User) -> "UserRow":
@@ -195,6 +206,8 @@ class UserRow(BaseModel):
             games_played=u.games_played or 0, mp_games=u.mp_games or 0, mp_rating=u.mp_rating or 1200,
             chat_muted_until=_as_utc(u.chat_muted_until),
             created_at=_as_utc(u.created_at), last_login_at=_as_utc(u.last_login_at),
+            tier_id=u.effective_tier_id(), assigned_tier_id=u.tier_id,
+            tier_expires_at=_as_utc(u.tier_expires_at), credits=u.credits or 0,
         )
 
 
@@ -211,6 +224,7 @@ SORTS = {
     "games":   User.games_played.desc(),
     "rating":  User.mp_rating.desc(),
     "name":    func.lower(User.display_name).asc(),
+    "credits": User.credits.desc(),
 }
 
 
@@ -218,7 +232,8 @@ SORTS = {
 async def list_users(
     q: str = Query("", max_length=64, description="Pseudo, e-mail ou code ami"),
     status: Literal["all", "active", "disabled", "admin", "muted"] = "all",
-    sort: Literal["created", "login", "games", "rating", "name"] = "created",
+    sort: Literal["created", "login", "games", "rating", "name", "credits"] = "created",
+    tier: str = Query("all", pattern=r"^(all|default|\d+)$", description="Niveau : all, default ou id"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=5, le=100),
     _admin: User = Depends(require_admin),
@@ -241,6 +256,12 @@ async def list_users(
         conditions.append(User.is_admin.is_(True))
     elif status == "muted":
         conditions.append(User.chat_muted_until > _utcnow())
+    # Lot A3 : niveau en vigueur (un abonnement expiré compte comme le niveau par défaut)
+    active_tier = or_(User.tier_expires_at.is_(None), User.tier_expires_at > _utcnow())
+    if tier == "default":
+        conditions.append(or_(User.tier_id.is_(None), ~active_tier))
+    elif tier != "all":
+        conditions.append(and_(User.tier_id == int(tier), active_tier))
 
     where = and_(*conditions) if conditions else true()
     total = await _count(db, select(func.count(User.id)).where(where))
@@ -290,6 +311,7 @@ class UserDetail(UserRow):
     reports_pending: int
     recent_games: list[RecentGame]
     actions: list[ActionOut]
+    unlocked_palettes: list[str] = []
 
 
 async def _user_or_404(db: AsyncSession, user_id: int) -> User:
@@ -351,6 +373,7 @@ async def _detail(db: AsyncSession, user: User) -> UserDetail:
             rating_delta=g.rating_delta, created_at=_as_utc(g.created_at),
         ) for g in games],
         actions=await _actions(db, AdminAction.target_type == "user", AdminAction.target_id == user.id, limit=20),
+        unlocked_palettes=sorted(await economy_service.owned(db, user.id)),
     )
 
 
@@ -553,3 +576,352 @@ async def reset_privacy_policy(admin: User = Depends(require_admin), db: AsyncSe
         log_action(db, admin, "config.privacy_policy_reset", target_type="config")
         await db.flush()
     return await _privacy_out(db)
+
+
+# ── Abonnements (lot A3) ──────────────────────────────────────────
+
+import re                                                                      # noqa: E402
+from app.economy.models import CreditTransaction, SubscriptionTier, UserUnlock  # noqa: E402
+from app.economy.router import TierOut, TransactionOut                        # noqa: E402
+from app.economy.rules import ALL_KINDS, EconomyRules, builtin_rules           # noqa: E402
+
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
+COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+class TierAdminOut(TierOut):
+    users: int                     # abonnés en vigueur (pour le niveau par défaut : tous les autres)
+
+
+class TierIn(BaseModel):
+    slug: Optional[str] = None
+    name_fr: Optional[str] = None
+    name_en: Optional[str] = None
+    description_fr: Optional[str] = None
+    description_en: Optional[str] = None
+    color: Optional[str] = None
+    badge: Optional[str] = None
+    sort_order: Optional[int] = None
+    is_default: Optional[bool] = None
+
+    @field_validator("slug")
+    @classmethod
+    def _slug(cls, v):
+        if v is not None and not SLUG_RE.match(v):
+            raise ValueError("Identifiant : 2 à 32 caractères, minuscules, chiffres et tirets.")
+        return v
+
+    @field_validator("name_fr", "name_en")
+    @classmethod
+    def _name(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        if not 1 <= len(v) <= 40:
+            raise ValueError("Le nom fait de 1 à 40 caractères.")
+        return v
+
+    @field_validator("description_fr", "description_en")
+    @classmethod
+    def _desc(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 300:
+            raise ValueError("La description fait 300 caractères au plus.")
+        return v
+
+    @field_validator("color")
+    @classmethod
+    def _color(cls, v):
+        if v is not None and not COLOR_RE.match(v):
+            raise ValueError("Couleur au format #rrggbb.")
+        return v.lower() if v else v
+
+    @field_validator("badge")
+    @classmethod
+    def _badge(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) > 8:
+            raise ValueError("Le badge fait 8 caractères au plus (un emoji ou un sigle).")
+        return v
+
+    @field_validator("sort_order")
+    @classmethod
+    def _order(cls, v):
+        if v is not None and not -1000 <= v <= 1000:
+            raise ValueError("Ordre entre -1000 et 1000.")
+        return v
+
+
+def _active_tier_condition(now: datetime):
+    return or_(User.tier_expires_at.is_(None), User.tier_expires_at > now)
+
+
+async def _tiers_out(db: AsyncSession) -> list[TierAdminOut]:
+    now = _utcnow()
+    counts = dict((await db.execute(
+        select(User.tier_id, func.count(User.id)).where(User.tier_id.is_not(None), _active_tier_condition(now))
+        .group_by(User.tier_id)
+    )).all())
+    total = await _count(db, select(func.count(User.id)))
+    out = []
+    for t in await economy_service.tiers(db):
+        n = total - sum(counts.values()) if t.is_default else counts.get(t.id, 0)
+        out.append(TierAdminOut(**TierOut.of(t).model_dump(), users=n))
+    return out
+
+
+async def _tier_or_404(db: AsyncSession, tier_id: int) -> SubscriptionTier:
+    tier = await db.get(SubscriptionTier, tier_id)
+    if tier is None:
+        raise HTTPException(status_code=404, detail="Niveau introuvable.")
+    return tier
+
+
+async def _set_default(db: AsyncSession, tier: SubscriptionTier) -> None:
+    for other in await economy_service.tiers(db):
+        other.is_default = other.id == tier.id
+    # Le niveau par défaut ne s'attribue pas : ses « abonnés » redeviennent sans niveau
+    await db.execute(update(User).where(User.tier_id == tier.id).values(tier_id=None, tier_expires_at=None))
+
+
+@router.get("/tiers", response_model=list[TierAdminOut], summary="Niveaux d'abonnement")
+async def admin_tiers(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    return await _tiers_out(db)
+
+
+@router.post("/tiers", response_model=list[TierAdminOut], status_code=201, summary="Créer un niveau")
+async def create_tier(body: TierIn, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if not body.slug or not body.name_fr or not body.name_en:
+        raise HTTPException(status_code=422, detail="Identifiant, nom français et nom anglais sont requis.")
+    if (await db.execute(select(SubscriptionTier.id).where(SubscriptionTier.slug == body.slug))).first():
+        raise HTTPException(status_code=409, detail="Cet identifiant est déjà pris.")
+    existing = await economy_service.tiers(db)
+    tier = SubscriptionTier(**body.model_dump(exclude_none=True, exclude={"is_default"}))
+    db.add(tier)
+    await db.flush()
+    # Le premier niveau créé devient le niveau par défaut
+    if body.is_default or not any(t.is_default for t in existing):
+        await _set_default(db, tier)
+    log_action(db, admin, "tier.create", target_type="tier", target_id=tier.id, details={"slug": tier.slug})
+    await db.flush()
+    return await _tiers_out(db)
+
+
+@router.patch("/tiers/{tier_id}", response_model=list[TierAdminOut], summary="Modifier un niveau")
+async def update_tier(tier_id: int, body: TierIn, admin: User = Depends(require_admin),
+                      db: AsyncSession = Depends(get_db)):
+    tier = await _tier_or_404(db, tier_id)
+    changes = body.model_dump(exclude_none=True)
+    if "slug" in changes and changes["slug"] != tier.slug:
+        if (await db.execute(select(SubscriptionTier.id).where(SubscriptionTier.slug == changes["slug"]))).first():
+            raise HTTPException(status_code=409, detail="Cet identifiant est déjà pris.")
+    if changes.get("is_default") is False and tier.is_default:
+        raise HTTPException(status_code=400, detail="Choisissez un autre niveau par défaut plutôt.")
+    make_default = changes.pop("is_default", None)
+    for field, value in changes.items():
+        setattr(tier, field, value)
+    if make_default and not tier.is_default:
+        await _set_default(db, tier)
+        changes["is_default"] = True
+    if changes:
+        log_action(db, admin, "tier.update", target_type="tier", target_id=tier.id,
+                   details={"slug": tier.slug, "changed": sorted(changes)})
+    await db.flush()
+    return await _tiers_out(db)
+
+
+@router.delete("/tiers/{tier_id}", response_model=list[TierAdminOut], summary="Supprimer un niveau")
+async def delete_tier(tier_id: int, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    tier = await _tier_or_404(db, tier_id)
+    if tier.is_default:
+        raise HTTPException(status_code=400, detail="Le niveau par défaut ne se supprime pas.")
+    moved = (await db.execute(
+        update(User).where(User.tier_id == tier.id).values(tier_id=None, tier_expires_at=None)
+    )).rowcount or 0
+    log_action(db, admin, "tier.delete", target_type="tier", target_id=tier.id,
+               details={"slug": tier.slug, "users": moved})
+    await db.delete(tier)
+    await db.flush()
+    return await _tiers_out(db)
+
+
+class TierAssignIn(BaseModel):
+    tier_id: Optional[int] = None              # None = niveau par défaut
+    expires_at: Optional[datetime] = None      # None = sans date de fin
+    reason: Optional[str] = None
+
+
+@router.put("/users/{user_id}/tier", response_model=UserDetail, summary="Attribuer un niveau d'abonnement")
+async def assign_tier(user_id: int, body: TierAssignIn, admin: User = Depends(require_admin),
+                      db: AsyncSession = Depends(get_db)):
+    user = await _user_or_404(db, user_id)
+    tier = await _tier_or_404(db, body.tier_id) if body.tier_id is not None else None
+    if tier is not None and tier.is_default:
+        tier = None                                         # le défaut = pas d'abonnement
+    expires = _as_utc(body.expires_at) if tier else None
+    if expires is not None and expires <= _utcnow():
+        raise HTTPException(status_code=422, detail="La date de fin doit être dans le futur.")
+    before = {"tier": user.tier_id, "expires_at": user.tier_expires_at.isoformat() if user.tier_expires_at else None}
+    user.tier_id = tier.id if tier else None
+    user.tier_expires_at = expires
+    details = {"tier": tier.slug if tier else None, "expires_at": expires.isoformat() if expires else None,
+               "from_tier_id": before["tier"]}
+    if body.reason and body.reason.strip():
+        details["reason"] = body.reason.strip()[:200]
+    log_action(db, admin, "user.tier", target_type="user", target_id=user.id, details=details)
+    await db.flush()
+    return await _detail(db, user)
+
+
+# ── Crédits (lot A3) ──────────────────────────────────────────────
+
+class CreditAdjustIn(BaseModel):
+    amount: int
+    reason: str
+
+    @field_validator("amount")
+    @classmethod
+    def _amount(cls, v):
+        if v == 0 or abs(v) > 1_000_000:
+            raise ValueError("Montant non nul, entre -1 000 000 et 1 000 000.")
+        return v
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, v):
+        v = (v or "").strip()
+        if not 3 <= len(v) <= 200:
+            raise ValueError("Indiquez un motif (3 à 200 caractères).")
+        return v
+
+
+@router.post("/users/{user_id}/credits", response_model=UserDetail, summary="Créditer ou débiter un joueur")
+async def adjust_credits(user_id: int, body: CreditAdjustIn, admin: User = Depends(require_admin),
+                         db: AsyncSession = Depends(get_db)):
+    user = await _user_or_404(db, user_id)
+    kind = "admin_grant" if body.amount > 0 else "admin_debit"
+    try:
+        tx = await economy_service.apply(db, user, body.amount, kind, note=body.reason, admin_id=admin.id)
+    except economy_service.InsufficientCredits as exc:
+        raise HTTPException(status_code=400, detail=f"Débit impossible : le joueur n'a que {exc.balance} crédits.")
+    log_action(db, admin, "user.credits", target_type="user", target_id=user.id,
+               details={"amount": body.amount, "balance_after": tx.balance_after, "reason": body.reason})
+    await db.flush()
+    return await _detail(db, user)
+
+
+class AdminTransactionOut(TransactionOut):
+    user_id: int
+    user_name: Optional[str] = None
+    admin_name: Optional[str] = None
+
+
+async def _transactions(db: AsyncSession, *where, limit: int = 50, before_id: Optional[int] = None):
+    conditions = list(where)
+    if before_id:
+        conditions.append(CreditTransaction.id < before_id)
+    rows = (await db.execute(
+        select(CreditTransaction).where(*conditions).order_by(CreditTransaction.id.desc()).limit(limit)
+    )).scalars().all()
+    ids = {r.user_id for r in rows} | {r.admin_id for r in rows if r.admin_id}
+    names = dict((await db.execute(select(User.id, User.display_name).where(User.id.in_(ids)))).all()) if ids else {}
+    return [AdminTransactionOut(**TransactionOut.of(r).model_dump(), user_id=r.user_id,
+                                user_name=names.get(r.user_id), admin_name=names.get(r.admin_id)) for r in rows]
+
+
+@router.get("/users/{user_id}/transactions", response_model=list[AdminTransactionOut],
+            summary="Mouvements de crédits d'un joueur")
+async def user_transactions(user_id: int, limit: int = Query(30, ge=1, le=200),
+                            before_id: Optional[int] = Query(None, ge=1),
+                            _admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    await _user_or_404(db, user_id)
+    return await _transactions(db, CreditTransaction.user_id == user_id, limit=limit, before_id=before_id)
+
+
+@router.get("/transactions", response_model=list[AdminTransactionOut], summary="Grand livre des crédits")
+async def all_transactions(kind: Optional[str] = Query(None), limit: int = Query(50, ge=1, le=200),
+                           before_id: Optional[int] = Query(None, ge=1),
+                           _admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if kind and kind not in ALL_KINDS:
+        raise HTTPException(status_code=422, detail="Type de mouvement inconnu.")
+    where = [CreditTransaction.kind == kind] if kind else []
+    return await _transactions(db, *where, limit=limit, before_id=before_id)
+
+
+class EconomyAdminOut(BaseModel):
+    rules: dict
+    custom: bool
+    updated_at: Optional[datetime] = None
+    updated_by_name: Optional[str] = None
+    stats: dict
+    kept_unlocks: int = 0          # palettes devenues premium, gardées par ceux qui les utilisaient
+
+
+class EconomyAdminIn(EconomyRules):
+    note: Optional[str] = None
+
+
+async def _economy_out(db: AsyncSession, kept: int = 0) -> EconomyAdminOut:
+    config_service.invalidate()
+    rules = await economy_service.get_rules(db)
+    row = await db.get(config_service.AppConfig, economy_service.ECONOMY_KEY)
+    since = economy_service.period_start(30)
+    by_kind = dict((await db.execute(
+        select(CreditTransaction.kind, func.coalesce(func.sum(CreditTransaction.amount), 0))
+        .where(CreditTransaction.created_at >= since).group_by(CreditTransaction.kind)
+    )).all())
+    hints = await _count(db, select(func.count(CreditTransaction.id)).where(
+        CreditTransaction.kind == "hint", CreditTransaction.created_at >= since))
+    unlocks = dict((await db.execute(
+        select(UserUnlock.item_key, func.count()).where(UserUnlock.item_type == "palette").group_by(UserUnlock.item_key)
+    )).all())
+    stats = {
+        "circulation": int((await db.execute(select(func.coalesce(func.sum(User.credits), 0)))).scalar_one() or 0),
+        "holders": await _count(db, select(func.count(User.id)).where(User.credits > 0)),
+        "earned_30d": {k: int(v) for k, v in by_kind.items() if v > 0},
+        "spent_30d": {k: -int(v) for k, v in by_kind.items() if v < 0},
+        "hints_30d": hints,
+        "palette_unlocks": {k: int(v) for k, v in unlocks.items()},
+    }
+    return EconomyAdminOut(
+        rules=rules.model_dump(), custom=row is not None,
+        updated_at=_as_utc(row.updated_at) if row else None,
+        updated_by_name=await _name_of(db, row.updated_by) if row else None,
+        stats=stats, kept_unlocks=kept,
+    )
+
+
+@router.get("/economy", response_model=EconomyAdminOut, summary="Règles et chiffres des crédits")
+async def get_economy(_admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    return await _economy_out(db)
+
+
+@router.put("/economy", response_model=EconomyAdminOut, summary="Modifier les règles des crédits")
+async def put_economy(body: EconomyAdminIn, admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    config_service.invalidate()
+    before = await economy_service.get_rules(db)
+    rules = EconomyRules(**body.model_dump(exclude={"note"}))
+    await config_service.save(db, economy_service.ECONOMY_KEY, rules.model_dump(), admin.id)
+    kept = await economy_service.keep_current_palettes(
+        db, set(rules.premium_palettes) - set(before.premium_palettes))
+    old, new = before.model_dump(), rules.model_dump()
+    details = {"changed": [k for k in new if new[k] != old[k]]}
+    if kept:
+        details["kept_unlocks"] = kept
+    if body.note and body.note.strip():
+        details["reason"] = body.note.strip()[:200]
+    log_action(db, admin, "config.economy", target_type="config", details=details)
+    await db.flush()
+    return await _economy_out(db, kept)
+
+
+@router.delete("/economy", response_model=EconomyAdminOut, summary="Revenir aux règles d'origine")
+async def reset_economy(admin: User = Depends(require_admin), db: AsyncSession = Depends(get_db)):
+    if await config_service.delete(db, economy_service.ECONOMY_KEY):
+        log_action(db, admin, "config.economy_reset", target_type="config")
+        await db.flush()
+    return await _economy_out(db)

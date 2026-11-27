@@ -23,6 +23,7 @@
 //   auth_*       → partagé Login + Register
 
 import { admin } from './admin.js';   // dashboard administrateur (adm_*)
+import { economy } from './economy.js';   // crédits, abonnements, indices (lot A3)
 
 export const translations = {
 
@@ -34,6 +35,7 @@ export const translations = {
     nav_leaderboard: 'Classement',
     nav_profile:     'Profil',
     nav_settings:    'Paramètres',
+    nav_system:      'Système',
     nav_login:       'Connexion',
     nav_register:    'Inscription',
     nav_logout:      'Déconnexion',
@@ -729,6 +731,7 @@ export const translations = {
     privacy_updated_on:        'Dernière mise à jour : {{date}}',
 
     ...admin.fr,
+    ...economy.fr,
   },
 
   // ════════════════════════════════════════════════════════════════
@@ -739,6 +742,7 @@ export const translations = {
     nav_leaderboard: 'Leaderboard',
     nav_profile:     'Profile',
     nav_settings:    'Settings',
+    nav_system:      'System',
     nav_login:       'Log in',
     nav_register:    'Sign up',
     nav_logout:      'Log out',
@@ -1433,6 +1437,7 @@ export const translations = {
     privacy_updated_on:        'Last updated: {{date}}',
 
     ...admin.en,
+    ...economy.en,
   },
 };
 

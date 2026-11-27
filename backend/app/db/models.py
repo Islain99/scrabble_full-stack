@@ -94,6 +94,27 @@ class User(Base):
     privacy_search:      Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     privacy_leaderboard: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
+    # ── Abonnement et crédits (dashboard admin, lot A3) ───────────
+    # Niveau attribué par un administrateur ; NULL ou expiré = niveau par défaut
+    tier_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subscription_tiers.id", ondelete="SET NULL"), nullable=True, index=True)
+    tier_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Solde de crédits (monnaie virtuelle) ; chaque mouvement est dans credit_transactions
+    credits: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # Dernier jour (UTC) où le bonus de connexion quotidienne a été versé
+    last_daily_credit_on: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    def effective_tier_id(self, now: datetime | None = None) -> int | None:
+        """Niveau en vigueur ; None = niveau par défaut (aucun, ou abonnement expiré)."""
+        if self.tier_id is None:
+            return None
+        exp = self.tier_expires_at
+        if exp is not None:
+            exp = exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
+            if exp <= (now or datetime.now(timezone.utc)):
+                return None
+        return self.tier_id
+
     game_histories: Mapped[list["GameHistory"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -186,3 +207,6 @@ class GameHistory(Base):
     __table_args__ = (
         Index("ix_game_histories_user_created", "user_id", "created_at"),
     )
+
+# Lot A3 : tables référencées par users (tier_id) — enregistrées dans les métadonnées
+from app.economy import models as _economy_models  # noqa: E402,F401

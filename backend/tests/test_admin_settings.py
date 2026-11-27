@@ -5,6 +5,8 @@
 # nouveaux comptes) et politique de confidentialité modifiable.
 #
 import pytest
+
+from app.economy.models import CreditTransaction, SubscriptionTier, UserUnlock
 from fastapi import Depends
 from sqlalchemy import select
 
@@ -27,7 +29,7 @@ async def sqlite_db():
 
     engine = create_async_engine("sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     async with engine.begin() as conn:
-        for model in (User, AdminAction, AppConfig):
+        for model in (SubscriptionTier, User, CreditTransaction, UserUnlock, AdminAction, AppConfig):
             await conn.run_sync(model.__table__.create)
     previous = db.AsyncSessionLocal
     db.AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)

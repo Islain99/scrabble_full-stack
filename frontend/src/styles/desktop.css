@@ -662,3 +662,11 @@
   background: var(--bg-page); border: 2px solid var(--border-primary); border-radius: 50%; color: var(--text-primary); }
 .gc-drawer .ch-head { padding-right: 56px; }
 @media (max-width: 640px) { .gc-drawer { width: 100vw; border-left: none; box-shadow: none; } }
+
+/* Lot A3 : solde de crédits dans la barre */
+.nav-credits {
+  display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px;
+  border: 1.5px solid var(--border-gold); color: var(--text-primary); text-decoration: none; white-space: nowrap;
+  font-family: 'DM Mono', monospace; font-size: 0.72rem; font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.nav-credits:hover, .nav-credits[aria-current="page"] { background: var(--bg-invert); color: var(--text-invert); }

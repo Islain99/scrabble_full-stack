@@ -1,5 +1,6 @@
 // src/pages/LeaderboardPage.jsx
 import React, { useState, useEffect } from 'react';
+import TierBadge from '../components/TierBadge';
 import { useAuth }        from '../context/AuthContext';
 import { useLanguage }    from '../context/LanguageContext';
 import { getLeaderboard } from '../api/authService';
@@ -70,6 +71,7 @@ const MobileRow = ({ entry, isMe, sortBy, columns, t }) => {
         <div className="lb-mrow-name">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
             <span className="lb-mrow-name-text" style={{ color: ink }}>{entry.display_name}</span>
+            <TierBadge tierId={entry.tier_id} />
             {isMe && <Badge variant="gold">{t('lb_you')}</Badge>}
           </div>
           {entry.best_word && (
@@ -332,6 +334,7 @@ export default function LeaderboardPage() {
                         }}>
                           {entry.display_name}
                         </span>
+                        <TierBadge tierId={entry.tier_id} />
                         {isMe && <Badge variant="gold">{t('lb_you')}</Badge>}
                       </div>
                       {entry.best_word && (

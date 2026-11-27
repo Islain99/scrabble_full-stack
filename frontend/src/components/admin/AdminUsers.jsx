@@ -4,19 +4,28 @@
 
 import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
-import { listUsers } from '../../api/adminService';
+import { getAdminTiers, listUsers } from '../../api/adminService';
+import TierBadge from '../TierBadge';
 import { Spinner } from '../ui';
 import UserBadges from './UserBadges';
 import { errorOf, formatNumber, formatRelative, goAdmin } from './adminUtils';
 
 const STATUSES = ['all', 'active', 'disabled', 'admin', 'muted'];
-const SORTS = ['created', 'login', 'games', 'rating', 'name'];
+const SORTS = ['created', 'login', 'games', 'rating', 'name', 'credits'];
 const PAGE_SIZE = 25;
 
-const initialStatus = () => {
+const hashParam = (name) => {
   const query = (window.location.hash || '').split('?')[1];
-  const s = query ? new URLSearchParams(query).get('status') : null;
+  return query ? new URLSearchParams(query).get(name) : null;
+};
+const initialStatus = () => {
+  const s = hashParam('status');
   return STATUSES.includes(s) ? s : 'all';
+};
+// Lot A3 : niveau d'abonnement (all | default | id), lien depuis la rubrique Abonnements
+const initialTier = () => {
+  const v = hashParam('tier');
+  return v === 'default' || /^\d+$/.test(v ?? '') ? v : 'all';
 };
 
 export default function AdminUsers() {
@@ -24,6 +33,8 @@ export default function AdminUsers() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');          // valeur « posée » après la pause de frappe
   const [status, setStatus] = useState(initialStatus);
+  const [tier, setTier] = useState(initialTier);
+  const [tiers, setTiers] = useState([]);
   const [sort, setSort] = useState('created');
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
@@ -36,16 +47,22 @@ export default function AdminUsers() {
     return () => clearTimeout(id);
   }, [search]);
 
-  const requestKey = JSON.stringify([query, status, sort, page]);
+  useEffect(() => {
+    let cancelled = false;
+    getAdminTiers().then(list => { if (!cancelled) setTiers(list); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const requestKey = JSON.stringify([query, status, sort, page, tier]);
   const loading = loadedKey !== requestKey;
   useEffect(() => {
     let cancelled = false;
-    listUsers({ q: query, status, sort, page, page_size: PAGE_SIZE })
+    listUsers({ q: query, status, sort, page, page_size: PAGE_SIZE, tier })
       .then(d => { if (!cancelled) { setData(d); setError(null); } })
       .catch(err => { if (!cancelled) setError(errorOf(err, t)); })
-      .finally(() => { if (!cancelled) setLoadedKey(JSON.stringify([query, status, sort, page])); });
+      .finally(() => { if (!cancelled) setLoadedKey(JSON.stringify([query, status, sort, page, tier])); });
     return () => { cancelled = true; };
-  }, [query, status, sort, page, t]);
+  }, [query, status, sort, page, tier, t]);
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
   const n = (v) => formatNumber(v, language);
@@ -57,6 +74,17 @@ export default function AdminUsers() {
           <span className="adm-field-label">{t('adm_users_search')}</span>
           <input type="search" className="adm-input" value={search} onChange={e => setSearch(e.target.value)}
                  placeholder={t('adm_users_search_ph')} maxLength={64} />
+        </label>
+        <label className="adm-field">
+          <span className="adm-field-label">{t('adm_users_tier')}</span>
+          <select className="adm-input" value={tier} onChange={e => { setTier(e.target.value); setPage(1); }}>
+            <option value="all">{t('adm_users_tier_all')}</option>
+            {tiers.map(x => (
+              <option key={x.id} value={x.is_default ? 'default' : String(x.id)}>
+                {language === 'en' ? x.name_en : x.name_fr} ({formatNumber(x.users, language)})
+              </option>
+            ))}
+          </select>
         </label>
         <label className="adm-field">
           <span className="adm-field-label">{t('adm_users_sort')}</span>
@@ -88,6 +116,7 @@ export default function AdminUsers() {
                 <th>{t('adm_col_email')}</th>
                 <th className="num">{t('adm_col_games')}</th>
                 <th className="num">Elo</th>
+                <th className="num">{t('adm_col_credits')}</th>
                 <th>{t('adm_col_signup')}</th>
                 <th>{t('adm_col_last_login')}</th>
               </tr>
@@ -102,11 +131,15 @@ export default function AdminUsers() {
                         <span className="adm-avatar adm-avatar--ph" aria-hidden="true">{u.display_name[0]?.toUpperCase()}</span>}
                       <span className="adm-user-name">{u.display_name}</span>
                     </a>
-                    <span className="adm-badges"><UserBadges user={u} t={t} /></span>
+                    <span className="adm-badges">
+                      <UserBadges user={u} t={t} />
+                      <TierBadge tier={tiers.find(x => (u.tier_id == null ? x.is_default : x.id === u.tier_id))} />
+                    </span>
                   </td>
                   <td className="adm-muted">{u.email}</td>
                   <td className="num">{n(u.games_played + u.mp_games)}</td>
                   <td className="num">{u.mp_games ? u.mp_rating : '—'}</td>
+                  <td className="num">{n(u.credits)}</td>
                   <td className="adm-muted">{formatRelative(u.created_at, language)}</td>
                   <td className="adm-muted">{formatRelative(u.last_login_at, language)}</td>
                 </tr>

@@ -28,6 +28,8 @@ import { lastPlayedCells } from '../utils/gameState';
 import { setPresenceActivity } from '../utils/presence';
 import { GAME_LANGUAGES, languageTag, languageName } from '../utils/gameLanguage';
 import { useAppConfig } from '../context/AppConfigContext';
+import { useEconomy } from '../context/EconomyContext';
+import { getHint } from '../api/economyService';
 import { choosable } from '../utils/appConfig';
 
 // ── ScorePreview ──────────────────────────────────────────────────
@@ -186,6 +188,46 @@ export default function GamePage() {
     addToast,
   });
   const isMobile = useIsMobile();
+
+  // ── Indice (lot A3) ───────────────────────────────────────────
+  const economy = useEconomy();
+  const hintRules = economy.rules;
+  const hintAvailable = isAuthenticated && hintRules?.enabled !== false;
+  const hintPrice = hintRules?.hint_price ?? 0;
+  const [hintBusy, setHintBusy] = React.useState(false);
+  const hintLabel = hintPrice ? t('hint_btn_price', { price: hintPrice }) : t('hint_btn_free');
+  const handleHint = async () => {
+    if (!game.gameId || hintBusy) return;
+    setHintBusy(true);
+    try {
+      const res = await getHint(game.gameId, game.activePlayerId);
+      economy.setCredits(res.credits);
+      if (!res.hint) {
+        addToast(t('hint_none'), 'info');
+        return;
+      }
+      const placed = game.applySuggestion(res.hint.placements);
+      const cost = res.charged ? t('hint_cost', { price: res.charged }) : '';
+      const left = res.hints_left == null ? '' : t('hint_left', { count: res.hints_left });
+      addToast(
+        `${t(placed ? 'hint_placed' : 'hint_found', { word: res.hint.word, score: res.hint.score })}${cost}${left}`,
+        'success',
+      );
+    } catch (err) {
+      addToast(err?.response?.data?.detail || t('hint_error'), 'error');
+    } finally {
+      setHintBusy(false);
+    }
+  };
+
+  // Fin de partie : le solde a pu changer (victoire) → portefeuille relu
+  const soloFinished = game.gameState?.status === 'FINISHED';
+  const { refreshWallet } = economy;
+  React.useEffect(() => {
+    if (!soloFinished || !isAuthenticated) return undefined;
+    const id = setTimeout(refreshWallet, 2500);
+    return () => clearTimeout(id);
+  }, [soloFinished, isAuthenticated, refreshWallet]);
 
   // Présence (lot 4) : « en partie » pour les amis tant qu'une partie est en cours
   const soloPlaying = game.gameState?.status === 'ACTIVE';
@@ -502,6 +544,8 @@ export default function GamePage() {
                       label={t('mg_more')}
                       items={[
                         { icon: '☰', label: t('mh_open'), onSelect: () => setShowHistory(true) },
+                        ...(hintAvailable && placed === 0 && !busy && !hintBusy
+                          ? [{ icon: '💡', label: hintLabel, onSelect: handleHint }] : []),
                         { icon: '✕', label: t('game_abandon'), danger: true, onSelect: () => game.setShowAbandonModal(true) },
                       ]}
                     />
@@ -653,6 +697,20 @@ export default function GamePage() {
             >
               ⇅ {t('game_shuffle')}
             </RetroButton>
+
+            {/* Indice (lot A3) */}
+            {hintAvailable && (
+              <RetroButton
+                variant="default"
+                fullWidth
+                style={{ gridColumn: '1 / -1' }}
+                disabled={hintBusy || game.placements.length > 0 || game.isAITurn || game.isSwapMode}
+                onClick={handleHint}
+                title={t('hint_title')}
+              >
+                💡 {hintBusy ? t('hint_busy') : hintLabel}
+              </RetroButton>
+            )}
 
             {/* Mode échange */}
             <div className={game.isSwapMode ? 'dg-swap dg-swap--open' : 'dg-swap'}>

@@ -14,6 +14,7 @@
 //           Le panneau d'échange passe l'index à toggleTileForSwap via onTileClick(tile, idx).
 //
 import React, { useState, useCallback, useEffect } from 'react';
+import { useEconomy } from '../context/EconomyContext';
 import { useAuth }     from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast }    from '../hooks/useToast';
@@ -316,6 +317,14 @@ function PlayingScreen({ mp, roomId = null, onRematch, rematchBusy = false, addT
     return () => { cancelled = true; };
   }, [finished, opponentId]);
   const opponentIsFriend = alreadyFriend?.id === opponentId ? alreadyFriend.value : null;
+
+  // Lot A3 : fin de partie → crédits gagnés, portefeuille relu
+  const { refreshWallet } = useEconomy();
+  useEffect(() => {
+    if (!finished) return undefined;
+    const id = setTimeout(refreshWallet, 2500);
+    return () => clearTimeout(id);
+  }, [finished, refreshWallet]);
 
   // Présence (lot 4) : « en partie » pour les amis tant que la partie dure
   const inGame = !!gameState && gameState.status !== 'FINISHED';
