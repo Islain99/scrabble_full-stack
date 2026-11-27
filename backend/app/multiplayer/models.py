@@ -9,7 +9,7 @@ import enum
 from datetime import datetime
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -127,8 +127,7 @@ class CreateRoomResponse(BaseModel):
     host_name:  str
     settings:   Optional[RoomSettings] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RoomStateResponse(BaseModel):
@@ -155,8 +154,7 @@ class RoomStateResponse(BaseModel):
     turn_deadline:   Optional[datetime] = None
     server_now:      Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PlayMoveRequest(BaseModel):
