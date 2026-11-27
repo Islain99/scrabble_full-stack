@@ -8,8 +8,11 @@
 //   #/admin/settings        paramètres des joueurs (lot A2)
 //   #/admin/privacy         politique de confidentialité (lot A2)
 //
-// Rubriques des lots suivants (affichées « bientôt ») : abonnements et crédits (A3),
-// messagerie, profil, notifications et publications (A4).
+//   #/admin/subscriptions   niveaux d'abonnement (lot A3)
+//   #/admin/credits         règles des crédits et grand livre (lot A3)
+//
+// Rubriques du lot suivant (affichées « bientôt ») : messagerie, profil,
+// notifications et publications (A4).
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +24,8 @@ import AdminUserDetail from '../components/admin/AdminUserDetail';
 import AdminJournal from '../components/admin/AdminJournal';
 import AdminSettings from '../components/admin/AdminSettings';
 import AdminPrivacy from '../components/admin/AdminPrivacy';
+import AdminSubscriptions from '../components/admin/AdminSubscriptions';
+import AdminCredits from '../components/admin/AdminCredits';
 import '../styles/admin.css';
 
 const SECTIONS = [
@@ -29,8 +34,8 @@ const SECTIONS = [
   { id: 'journal',       icon: '≡', ready: true },
   { id: 'settings',      icon: '⚙', ready: true },
   { id: 'privacy',       icon: '§', ready: true },
-  { id: 'subscriptions', icon: '★', lot: 'A3' },
-  { id: 'credits',       icon: '◎', lot: 'A3' },
+  { id: 'subscriptions', icon: '★', ready: true },
+  { id: 'credits',       icon: '◎', ready: true },
   { id: 'messaging',     icon: '✉', lot: 'A4' },
   { id: 'profile',       icon: '▤', lot: 'A4' },
   { id: 'publications',  icon: '✦', lot: 'A4' },
@@ -82,6 +87,8 @@ export default function AdminPage() {
   else if (section === 'journal') body = <AdminJournal />;
   else if (section === 'settings') body = <AdminSettings />;
   else if (section === 'privacy') body = <AdminPrivacy />;
+  else if (section === 'subscriptions') body = <AdminSubscriptions />;
+  else if (section === 'credits') body = <AdminCredits />;
   else if (section === 'overview') body = <AdminOverview />;
   else body = <Soon section={current} t={t} />;
 

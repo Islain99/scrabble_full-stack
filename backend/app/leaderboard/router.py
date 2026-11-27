@@ -67,6 +67,8 @@ class LeaderboardEntry(BaseModel):
     rating: int | None = None
     peak_rating: int | None = None
     games_drawn: int | None = None
+    # Lot A3 : niveau d'abonnement en vigueur (badge) ; None = défaut
+    tier_id: int | None = None
 
 
 class LeaderboardResponse(BaseModel):
@@ -98,6 +100,7 @@ def _solo_entry(rank: int, u: User) -> LeaderboardEntry:
         games_played=u.games_played, games_won=u.games_won, win_rate=u.win_rate,
         best_score=u.best_score, average_score=u.average_score,
         best_word=u.best_word, best_word_score=u.best_word_score,
+        tier_id=u.effective_tier_id(),
     )
 
 
@@ -110,6 +113,7 @@ def _multi_entry(rank: int, u: User) -> LeaderboardEntry:
         average_score=round((u.mp_total_score or 0) / games, 2) if games else 0.0,
         best_word=None, best_word_score=0,
         rating=u.mp_rating, peak_rating=u.mp_peak_rating, games_drawn=u.mp_draws or 0,
+        tier_id=u.effective_tier_id(),
     )
 
 

@@ -8,6 +8,8 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+
+from app.economy.models import CreditTransaction, SubscriptionTier, UserUnlock
 from sqlalchemy import event, select
 
 from app.account import service as account_service
@@ -31,7 +33,7 @@ pytestmark = pytest.mark.anyio
 
 API = "/api/v2"
 OLD = datetime.now(timezone.utc) - timedelta(days=10)
-MODELS = (User, GameHistory, MultiplayerGame, Friendship, FriendGroup, FriendGroupMember, UserBlock,
+MODELS = (SubscriptionTier, User, CreditTransaction, UserUnlock, GameHistory, MultiplayerGame, Friendship, FriendGroup, FriendGroupMember, UserBlock,
           GameInvitation, Conversation, ConversationMember, Message, MessageReport, PushToken)
 
 

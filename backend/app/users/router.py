@@ -334,8 +334,33 @@ async def save_game(
     )
 
     await db.flush()
+    await _credit_solo_win(db, current_user, payload.game_id)
     await db.refresh(game)
     return game
+
+
+async def _credit_solo_win(db: AsyncSession, user: User, game_id: str) -> None:
+    """
+    Lot A3 : crédits d'une victoire en solo. Le résultat envoyé par le client ne
+    suffit pas : on vérifie la partie gardée par le serveur (terminée, gagnée par
+    le joueur humain) et on prend la difficulté qu'elle avait vraiment.
+    """
+    from app.economy import service as economy
+    from app.solo.models import SoloGame
+    try:
+        async with db.begin_nested():
+            row = await db.get(SoloGame, game_id)
+            state = (row.state or {}) if row else {}
+            if row is None or str(state.get("status")) != "FINISHED":
+                return
+            humans = [p for p in state.get("players", []) if not p.get("is_ai")]
+            if len(humans) != 1 or state.get("winner_id") != humans[0].get("id"):
+                return
+            rules = await economy.get_rules(db)
+            await economy.earn_for_game(db, user, "solo_win", game_id,
+                                        rules.solo_win.get(row.difficulty, 0), rules)
+    except Exception as exc:
+        logger.warning("Crédits de victoire solo non versés (user %d, %s) : %s", user.id, game_id, exc)
 
 
 class PublicProfileOut(BaseModel):
@@ -366,6 +391,8 @@ class PublicProfileOut(BaseModel):
     mp_best_score: int | None = None
     mp_win_rate: float | None = None
     created_at: datetime
+    # Lot A3 : niveau d'abonnement en vigueur (badge à côté du pseudo) ; None = défaut
+    tier_id: int | None = None
     hidden: list[str] = []
 
 
@@ -410,7 +437,22 @@ async def get_preferences(current_user: User = Depends(get_current_user), db: As
     l'administrateur s'applique (réglages verrouillés ou masqués, options retirées).
     """
     from app.appconfig.service import get_policy
-    return PreferencesResponse(**current_user.get_preferences(await get_policy(db)))
+    policy = await get_policy(db)
+    prefs = current_user.get_preferences(policy)
+    return PreferencesResponse(**await _without_locked_palette(db, current_user, prefs, policy))
+
+
+async def _without_locked_palette(db: AsyncSession, user: User, prefs: dict, policy) -> dict:
+    """
+    Lot A3 : palette premium que le joueur n'a pas débloquée → défaut de
+    l'administrateur (None : le client garde celle de l'appareil, s'il y a droit).
+    """
+    from app.economy.service import locked_palettes
+    palette = prefs.get("colorPalette")
+    default = policy.settings["colorPalette"].default
+    if palette and palette != default and palette in await locked_palettes(db, user):
+        prefs = {**prefs, "colorPalette": default}
+    return prefs
 
 
 @router.put("/me/preferences", response_model=PreferencesResponse)
@@ -431,14 +473,20 @@ async def update_preferences(
     # Lot A2 : un réglage verrouillé / masqué ou une option retirée n'est pas enregistré
     # (ignoré sans erreur : un ancien client peut encore envoyer toutes ses valeurs)
     patch, refused = filter_patch(patch, policy)
+    # Lot A3 : palette premium pas encore débloquée → refusée
+    from app.economy.service import locked_palettes
+    if patch.get("colorPalette") and patch["colorPalette"] != policy.settings["colorPalette"].default \
+            and patch["colorPalette"] in await locked_palettes(db, current_user):
+        refused.append("colorPalette")
+        patch.pop("colorPalette")
     if refused:
         logger.info("Préférences refusées par la politique (user %d) : %s", current_user.id, refused)
 
     if not patch:
         # Rien à modifier — retourner les préférences actuelles
-        return PreferencesResponse(**current_user.get_preferences(policy))
+        return PreferencesResponse(**await _without_locked_palette(db, current_user, current_user.get_preferences(policy), policy))
 
-    updated = current_user.set_preferences(patch, policy)
+    updated = await _without_locked_palette(db, current_user, current_user.set_preferences(patch, policy), policy)
 
     # Force SQLAlchemy à détecter la mutation du champ JSON
     from sqlalchemy.orm.attributes import flag_modified

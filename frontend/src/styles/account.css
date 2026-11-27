@@ -113,3 +113,39 @@
   font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.06em;
   color: var(--text-muted); white-space: nowrap;
 }
+
+/* ── Lot A3 : page Crédits ─────────────────────────────────────── */
+.st-note[data-tone="warn"] { border-color: var(--tobacco); background: color-mix(in srgb, var(--tobacco) 10%, transparent); }
+.cr-page { display: flex; flex-direction: column; gap: 20px; }
+.cr-loading { display: flex; justify-content: center; padding: 60px 0; }
+.cr-top, .cr-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.cr-balance { display: flex; flex-direction: column; gap: 6px; }
+.cr-label, .cr-h {
+  font-family: 'DM Mono', monospace; font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
+}
+.cr-h { color: inherit; }
+.cr-big { font-family: 'Playfair Display', Georgia, serif; font-size: 2.4rem; font-weight: 900; line-height: 1.1; color: var(--text-primary); }
+.cr-tier { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cr-tier-name { font-family: 'Playfair Display', Georgia, serif; font-size: 1.6rem; font-weight: 900; }
+.cr-hint { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--text-muted); }
+.cr-note { margin: 12px 0 0; font-family: 'DM Mono', monospace; font-size: 0.68rem; line-height: 1.5; color: var(--text-muted); }
+.cr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cr-earn {
+  display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+  border-top: 1px solid var(--border-muted); font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.88rem; color: var(--text-primary);
+}
+.cr-earn:first-child { border-top: none; }
+.cr-amount { font-family: 'DM Mono', monospace; font-size: 0.8rem; font-weight: 500; white-space: nowrap; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.cr-amount[data-sign="+"] { color: var(--olive); }
+.cr-amount[data-sign="-"] { color: var(--brick); }
+.cr-history { list-style: none; margin: 0 0 12px; padding: 0; }
+.cr-history li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; padding: 8px 0;
+  border-top: 1px solid var(--border-muted); font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.88rem; color: var(--text-primary);
+}
+.cr-history li:first-child { border-top: none; }
+.cr-hist-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cr-hist-date { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+  .cr-top, .cr-two { grid-template-columns: minmax(0, 1fr); }
+}

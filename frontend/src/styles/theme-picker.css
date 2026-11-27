@@ -91,3 +91,28 @@
   transform: rotate(-45deg);
 }
 .pp-swatch-inner span { flex: 1; }
+
+/* ── Lot A3 : palettes premium ─────────────────────────────────── */
+.pp-wrap { display: flex; flex-direction: column; gap: 10px; }
+.pp-card[data-locked] .pp-scope { filter: saturate(0.55); opacity: 0.8; }
+.pp-price {
+  margin-left: auto; padding: 1px 6px; border-radius: 2px; white-space: nowrap;
+  border: 1px solid var(--border-gold); color: var(--text-primary);
+  font-family: 'DM Mono', monospace; font-size: 0.6rem; font-weight: 500; letter-spacing: 0.04em;
+}
+.pp-swatch { position: relative; }
+.pp-swatch[data-locked] .pp-swatch-inner { opacity: 0.55; }
+.pp-lock {
+  position: absolute; right: -4px; bottom: -4px; font-size: 0.6rem; line-height: 1;
+  background: var(--bg-card); border-radius: 50%; padding: 1px;
+}
+.pp-offer {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 2px dashed var(--border-gold); border-radius: 2px; background: var(--bg-card);
+}
+.pp-offer-text { margin: 0; flex: 1 1 240px; font-family: 'Libre Baskerville', Georgia, serif; font-size: 0.85rem; color: var(--text-primary); }
+.pp-offer-text[data-tone="error"] { color: var(--brick); }
+.pp-offer-actions { display: flex; gap: 6px; }
+.pp-link { color: var(--tobacco); text-decoration: underline; text-underline-offset: 2px; }
+.pp-link:hover { color: var(--text-primary); }
+.pp-price[data-owned] { border-color: var(--olive); }

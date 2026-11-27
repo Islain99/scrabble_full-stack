@@ -221,6 +221,26 @@ STAT_FIELDS = (
 )
 
 
+async def _economy_export(db: AsyncSession, user: User) -> dict:
+    from app.economy.models import CreditTransaction, SubscriptionTier, UserUnlock
+    tier_id = user.effective_tier_id()
+    tier = await db.get(SubscriptionTier, tier_id) if tier_id else None
+    txs = (await db.execute(select(CreditTransaction).where(CreditTransaction.user_id == user.id)
+                            .order_by(CreditTransaction.id))).scalars().all()
+    unlocks = (await db.execute(select(UserUnlock).where(UserUnlock.user_id == user.id))).scalars().all()
+    return {
+        "subscription": {"tier": tier.slug if tier else None,
+                         "expires_at": _iso(user.tier_expires_at) if tier else None},
+        "credits": {
+            "balance": user.credits or 0,
+            "transactions": [{"amount": t.amount, "balance_after": t.balance_after, "kind": t.kind,
+                              "ref": t.ref, "note": t.note, "at": _iso(t.created_at)} for t in txs],
+            "unlocked": [{"type": u.item_type, "key": u.item_key, "via": u.via, "at": _iso(u.created_at)}
+                         for u in unlocks],
+        },
+    }
+
+
 async def export_user(db: AsyncSession, user: User) -> dict:
     """Toutes les données personnelles du joueur, lisibles (JSON)."""
     me = user.id
@@ -274,6 +294,8 @@ async def export_user(db: AsyncSession, user: User) -> dict:
         "statistics": {k: getattr(user, k, None) for k in STAT_FIELDS},
         "preferences": user.get_preferences(),
         "privacy": _privacy(user),
+        # Lot A3 : abonnement, crédits, palettes débloquées
+        **(await _economy_export(db, user)),
         "game_history": [{
             "game_id": h.game_id, "mode": "multiplayer" if h.ai_difficulty == "multiplayer" else "solo",
             "opponent": h.ai_name, "difficulty": None if h.ai_difficulty == "multiplayer" else h.ai_difficulty,

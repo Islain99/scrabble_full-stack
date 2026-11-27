@@ -118,6 +118,10 @@ class UserOut(BaseModel):
     mp_win_rate: float = 0.0
     # Confidentialité (lot 8) : mes réglages « qui voit quoi »
     privacy: dict = {}
+    # Lot A3 : niveau d'abonnement en vigueur (None = niveau par défaut) et crédits
+    tier_id: int | None = None
+    tier_expires_at: datetime | None = None
+    credits: int = 0
     created_at: datetime
     last_login_at: datetime
 
@@ -157,6 +161,9 @@ class UserOut(BaseModel):
             mp_best_score=user.mp_best_score or 0,
             mp_win_rate=user.mp_win_rate,
             privacy=_privacy_of(user),
+            tier_id=user.effective_tier_id(),
+            tier_expires_at=user.tier_expires_at if user.effective_tier_id() else None,
+            credits=user.credits or 0,
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )
@@ -181,6 +188,21 @@ async def _apply_privacy_defaults(db: AsyncSession, user: User) -> None:
     from app.appconfig.service import get_policy
     for column, value in privacy_defaults(await get_policy(db)).items():
         setattr(user, column, value)
+
+
+async def _credits_on_login(db: AsyncSession, user: User, *, new: bool) -> None:
+    """
+    Lot A3 : bonus d'inscription (nouveau compte) et de connexion quotidienne.
+    Jamais bloquant : un souci de crédits ne doit pas empêcher de se connecter.
+    """
+    from app.economy import service as economy
+    try:
+        async with db.begin_nested():
+            if new:
+                await economy.earn_signup(db, user)
+            await economy.earn_daily(db, user)
+    except Exception as exc:
+        logger.warning("Crédits de connexion non versés (user %s) : %s", user.id, exc)
 
 
 class LoginResponse(BaseModel):
@@ -213,6 +235,7 @@ async def register(
     if existing:
         existing.last_login_at = datetime.now(timezone.utc)
         _promote_if_listed(existing)
+        await _credits_on_login(db, existing, new=False)
         return LoginResponse(user=UserOut.from_user(existing), is_new_user=False)
 
     result = await db.execute(select(User).where(User.email == email))
@@ -233,6 +256,7 @@ async def register(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    await _credits_on_login(db, user, new=True)
     logger.info("Nouvel utilisateur : uid=%s provider=%s", firebase_uid, provider)
     return LoginResponse(user=UserOut.from_user(user), is_new_user=True)
 
@@ -260,6 +284,7 @@ async def login(
     if user:
         user.last_login_at = datetime.now(timezone.utc)
         _promote_if_listed(user)
+        await _credits_on_login(db, user, new=False)
         return LoginResponse(user=UserOut.from_user(user), is_new_user=False)
 
     result = await db.execute(select(User).where(User.email == email))
@@ -284,6 +309,7 @@ async def login(
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    await _credits_on_login(db, user, new=True)
     logger.info("Connexion auto-création : uid=%s provider=%s", firebase_uid, provider)
     return LoginResponse(user=UserOut.from_user(user), is_new_user=True)
 

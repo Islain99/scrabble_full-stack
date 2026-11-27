@@ -9,6 +9,8 @@ import { getUser, muteUser, updateUser } from '../../api/adminService';
 import { RetroButton, Spinner } from '../ui';
 import UserBadges from './UserBadges';
 import ActionLine from './ActionLine';
+import UserEconomyPanels from './UserEconomyPanels';
+import TierBadge from '../TierBadge';
 import { errorOf, formatDate, formatNumber, goAdmin, isMuted } from './adminUtils';
 
 const MUTES = [
@@ -106,6 +108,7 @@ export default function AdminUserDetail({ userId }) {
           <h2 className="adm-h2">{user.display_name}</h2>
           <div className="adm-badges">
             <UserBadges user={user} t={t} />
+            <TierBadge tierId={user.tier_id} withName />
             {isSelf && <span className="adm-muted">{t('adm_its_you')}</span>}
           </div>
         </div>
@@ -166,6 +169,9 @@ export default function AdminUserDetail({ userId }) {
             <span className="adm-kpi-hint">{t('adm_stat_reports', { count: n(user.reports_against), pending: n(user.reports_pending) })}</span></div>
         </div>
       </section>
+
+      {/* Lot A3 : abonnement et crédits */}
+      <UserEconomyPanels user={user} t={t} language={language} onUpdated={setUser} />
 
       <section className="adm-panel">
         <h3 className="adm-h3">{t('adm_section_actions')}</h3>

@@ -265,6 +265,40 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
 .adm-check input { accent-color: var(--brick); }
 .adm-pp-preview { margin: 0; max-width: none; padding: 20px 24px; background: var(--bg-card); border: 2px solid var(--border-primary); border-radius: 2px; }
 
+
+/* ── Lot A3 : abonnements ──────────────────────────────────────── */
+.adm-tiers { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+.adm-tier { display: flex; flex-direction: column; gap: 12px; border-top: 6px solid var(--tier-color); }
+.adm-tier-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.adm-tier-swatch { width: 14px; height: 14px; border-radius: 50%; background: var(--tier-color); border: 1.5px solid var(--border-primary); }
+.adm-tier-title { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.adm-tier-name { font-size: 1.25rem; }
+.adm-tier-default {
+  padding: 2px 6px; border-radius: 2px; background: var(--bg-invert); color: var(--text-invert);
+  font-family: 'DM Mono', monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.adm-tier-desc { margin: 0; }
+.adm-tier-form { display: flex; flex-direction: column; gap: 12px; }
+.adm-tier-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.adm-tier-grid .adm-input:not(.adm-input--sm) { width: 100%; box-sizing: border-box; }
+.adm-tier-wide { grid-column: 1 / -1; }
+.adm-color { display: inline-flex; align-items: center; gap: 6px; }
+.adm-color input[type="color"] { width: 36px; height: 32px; padding: 0; border: 2px solid var(--border-primary); border-radius: 2px; background: none; cursor: pointer; }
+
+/* ── Lot A3 : crédits ──────────────────────────────────────────── */
+.adm-fieldset { margin: 0; padding: 12px 14px; border: 1.5px solid var(--border-muted); border-radius: 2px; display: flex; flex-direction: column; gap: 10px; }
+.adm-fieldset legend { padding: 0 6px; }
+.adm-nums { display: flex; flex-wrap: wrap; gap: 12px 16px; }
+.adm-num .adm-input { width: 110px; }
+.adm-premium { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 16px; }
+.adm-premium-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0; }
+.adm-premium-row .adm-check { min-width: 110px; }
+.adm-premium-row .adm-input { width: 90px; }
+.adm-premium-row[data-on] .adm-check { font-weight: 500; }
+.adm-table td[data-sign="+"], .adm-amount[data-sign="+"] { color: var(--olive); }
+.adm-table td[data-sign="-"], .adm-amount[data-sign="-"] { color: var(--brick); }
+.adm-amount { font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+
 /* ── Écrans étroits : la navigation passe au-dessus, en bandeau ─── */
 @media (max-width: 900px) {
   .adm-page { padding: 1.25rem 1rem 3rem; }
@@ -279,6 +313,8 @@ button.adm-kpi:focus-visible { outline: 2px solid var(--gold); outline-offset: 2
   .adm-chart-body { grid-template-rows: 150px auto; }
   .adm-chart-x span[data-alt] { visibility: hidden; }        /* une date sur deux */
   .adm-pp-row, .adm-pp-row--even { grid-template-columns: minmax(0, 1fr); }
+  .adm-tier-grid { grid-template-columns: minmax(0, 1fr); }
+  .adm-tiers { grid-template-columns: minmax(0, 1fr); }
   .adm-savebar-text { width: 100%; }
 }
 

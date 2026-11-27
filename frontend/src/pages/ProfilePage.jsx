@@ -1,5 +1,6 @@
 // src/pages/ProfilePage.jsx
 import React, { useState, useEffect, useRef } from 'react';
+import TierBadge from '../components/TierBadge';
 import { useAuth }    from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { getHistory } from '../api/authService';
@@ -325,6 +326,8 @@ export default function ProfilePage() {
                 {user.email}
               </MonoLabel>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {/* Lot A3 : niveau d'abonnement (si son badge existe) */}
+                <TierBadge tierId={user.tier_id} withName />
                 {user.country && (
                   <Badge variant="default">{user.country}</Badge>
                 )}

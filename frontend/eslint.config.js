@@ -38,7 +38,7 @@ export default defineConfig([
         allowExportNames: [
           'useAuth', 'useLanguage', 'useSettings', 'useTheme',
           'useTutorialContext', 'useTutorialRef', 'useNotifications',
-          'useAppConfig', 'useAppConfigOptional',
+          'useAppConfig', 'useAppConfigOptional', 'useEconomy', 'useEconomyOptional',
         ],
       }],
     },

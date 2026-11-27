@@ -242,3 +242,13 @@
   border-radius:    2px;
   width:            180px;
 }
+/* ── Lot A3 : badge d'abonnement à côté d'un pseudo ────────────── */
+.tier-badge {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  padding: 1px 6px; border-radius: 999px; line-height: 1.5;
+  border: 1.5px solid var(--tier-color);
+  background: color-mix(in srgb, var(--tier-color) 16%, transparent);
+  color: var(--text-primary);
+  font-family: 'DM Mono', monospace; font-size: 0.62rem; font-weight: 500; letter-spacing: 0.04em;
+}
+.tier-badge-name { text-transform: uppercase; }

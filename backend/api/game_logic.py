@@ -1274,6 +1274,34 @@ class GameEngine:
         self.last_ai_move[game_id] = {"kind": "pass"}
         return self.pass_turn(game_id, ai_player_id)
 
+    def suggest_move(self, game_id: str, player_id: int) -> Optional[Dict]:
+        """
+        Indice (lot A3) : meilleur coup possible pour ce joueur, calculé comme
+        l'IA « Expert » (aucune erreur, meilleur score), SANS le jouer.
+        Retourne {"placements": [[r, c, lettre], …], "word": str, "score": int}
+        ou None si aucun mot n'est possible avec ce chevalet.
+        Lettres en minuscules dans placements = jokers (notation du jeu).
+        """
+        current_game = self.get_game(game_id)
+        if not current_game:
+            return None
+        player = next((p for p in current_game.players if p.id == player_id), None)
+        if player is None:
+            return None
+        best = self._find_best_move(current_game, player, AIDifficulty.HARD)
+        if not best:
+            return None
+        placements, score = best
+        # Mot principal lu sur une copie du plateau où le coup est posé
+        board = deepcopy(current_game.board)
+        for r, c, letter in placements:
+            board.grid[r][c] = Tile(letter=letter.upper(), score=0, is_joker=self._is_joker_letter(letter))
+        return {
+            "placements": [[r, c, letter] for r, c, letter in placements],
+            "word": self._main_word_on_board(board, placements),
+            "score": score,
+        }
+
     def _main_word_on_board(self, board: Board, placements: List[Tuple[int, int, str]]) -> str:
         """
         Mot principal formé par un coup, lu sur le plateau (lettres déjà posées

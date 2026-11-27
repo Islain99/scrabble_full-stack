@@ -12,6 +12,7 @@ import { ThemeProvider }    from './context/ThemeContext';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import { AppConfigProvider } from './context/AppConfigContext';
+import { EconomyProvider } from './context/EconomyContext';
 
 import Navbar         from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -33,6 +34,7 @@ const MessagesPage    = lazy(() => import('./pages/MessagesPage'));
 const PrivacyPage     = lazy(() => import('./pages/PrivacyPage'));
 // Dashboard administrateur : jamais téléchargé par les joueurs ordinaires
 const AdminPage       = lazy(() => import('./pages/AdminPage'));
+const CreditsPage     = lazy(() => import('./pages/CreditsPage'));
 
 import './index.css';
 import './styles/mobile.css';
@@ -111,6 +113,11 @@ function Router() {
         <FriendsPage />
       </ProtectedRoute>
     );
+    if (route === '#/credits') return (
+      <ProtectedRoute>
+        <CreditsPage />
+      </ProtectedRoute>
+    );
     if (route === '#/admin' || route.startsWith('#/admin/')) return (
       <ProtectedRoute>
         <AdminPage />
@@ -159,16 +166,19 @@ export default function App() {
     <AppConfigProvider>
       <LanguageProvider>
         <AuthProvider>
-          <SettingsProvider>
-            {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
-            <ThemeProvider>
-              <AppWithTutorial>
-                <NotificationsProvider>
-                  <Router />
-                </NotificationsProvider>
-              </AppWithTutorial>
-            </ThemeProvider>
-          </SettingsProvider>
+          {/* Lot A3 : crédits et abonnements (palettes premium lues par le thème) */}
+          <EconomyProvider>
+            <SettingsProvider>
+              {/* Sous SettingsProvider : le thème est synchronisé avec les préférences du compte */}
+              <ThemeProvider>
+                <AppWithTutorial>
+                  <NotificationsProvider>
+                    <Router />
+                  </NotificationsProvider>
+                </AppWithTutorial>
+              </ThemeProvider>
+            </SettingsProvider>
+          </EconomyProvider>
         </AuthProvider>
       </LanguageProvider>
     </AppConfigProvider>

@@ -6,6 +6,7 @@ import { useTheme }    from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { stopPresence } from '../utils/presence';
 import { NotificationBell } from './Notifications';
+import { useEconomy } from '../context/EconomyContext';
 import { useNotifications } from '../context/NotificationsContext';
 import PalettePicker from './settings/PalettePicker';
 
@@ -18,6 +19,7 @@ export default function Navbar() {
   const { t, language, setLanguage, availableLanguages } = useLanguage();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const { unreadMessages } = useNotifications();   // lot 6 : non-lus de la messagerie
+  const { credits } = useEconomy();                 // lot A3 : solde de crédits
   const isMobile = useIsMobile();
   const rawHash = (window.location.hash || '#/').split('?')[0];
   // Toutes les pages du dashboard (#/admin/…) allument le lien « Admin »
@@ -62,7 +64,10 @@ export default function Navbar() {
   if (isMobile) {
     return (
       <MobileNavbar
-        links={NAV_LINKS.filter(l => !l.authOnly || isAuthenticated)}
+        links={[
+          ...NAV_LINKS.filter(l => !l.authOnly || isAuthenticated),
+          ...(isAuthenticated ? [{ label: `${t('nav_credits')} · 🪙 ${credits ?? '…'}`, hash: '#/credits' }] : []),
+        ]}
         currentHash={currentHash}
         languages={canPickLanguage ? LANGUAGES : []}
         language={language}
@@ -136,6 +141,14 @@ export default function Navbar() {
       {/* ── Right zone ─────────────────────────────────────── */}
       <div className="app-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
         {isAuthenticated && <NotificationBell />}
+
+        {/* ── Crédits (lot A3) ───────────────────────────── */}
+        {isAuthenticated && credits !== null && (
+          <a href="#/credits" className="nav-credits" aria-current={currentHash === '#/credits' ? 'page' : undefined}
+             title={t('nav_credits')} aria-label={t('nav_credits_aria', { count: credits })}>
+            <span aria-hidden="true">🪙</span> {credits}
+          </a>
+        )}
 
         {/* ── Sélecteur de langue ────────────────────────── */}
         {canPickLanguage && <div className="app-nav-lang" style={{ display: 'flex', gap: '4px' }}>

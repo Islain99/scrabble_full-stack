@@ -422,6 +422,20 @@ async def _record_stats(db: AsyncSession, room: MultiplayerGame) -> None:
             rating_delta=change if user.id in ratings else None,
         ))
         user.update_mp_stats_after_game(score=int(me.get("score", 0)), result=result, rating_delta=change)
+        await _credit_mp_result(db, user, history_id, result)
+
+
+async def _credit_mp_result(db: AsyncSession, user: User, history_id: str, result: float) -> None:
+    """Lot A3 : crédits de fin de partie (victoire, égalité ou participation)."""
+    from app.economy import service as economy
+    try:
+        async with db.begin_nested():
+            rules = await economy.get_rules(db)
+            kind, amount = (("mp_win", rules.mp_win) if result == 1 else
+                            ("mp_draw", rules.mp_draw) if result == 0.5 else ("mp_loss", rules.mp_loss))
+            await economy.earn_for_game(db, user, kind, history_id, amount, rules)
+    except Exception as exc:
+        logger.warning("Crédits multijoueur non versés (user %d, %s) : %s", user.id, history_id, exc)
 
 
 def _result_for(room: MultiplayerGame, user_id: int) -> float:

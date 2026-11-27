@@ -10,14 +10,20 @@
 #      en utilisant les vraies signatures de GameEngine.
 #
 import asyncio
+from collections import OrderedDict
 from typing import List, Tuple
 
-from fastapi import HTTPException, Query
+from fastapi import Depends, HTTPException, Query
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.main import app  # ← instance unique, lifespan et middlewares inclus
 from app.solo.store import solo_store
 from api.models import GameState, GAME_LANGUAGES, DEFAULT_GAME_LANGUAGE
 from api.game_logic import AIDifficulty, AI_CONFIG
+from app.auth.dependencies import get_current_user
+from app.db.database import get_db
+from app.db.models import User
 
 
 # ── Accès au GameEngine ───────────────────────────────────────────
@@ -204,6 +210,76 @@ async def ai_play_turn(game_id: str):
         "move": engine.last_ai_move.pop(game_id, None),
         "game_state": await _save_game(engine, game),
     }
+
+
+# ── /game/hint/{game_id} (lot A3) ─────────────────────────────────
+# Indice payant en crédits : meilleur coup possible pour le chevalet du joueur.
+# Redemander l'indice sans avoir joué (même chevalet, même plateau) ne recoûte rien.
+
+_HINTS: "OrderedDict[str, tuple]" = OrderedDict()      # game_id → (signature, indice)
+_HINTS_MAX = 500
+HINT_TIMEOUT_S = 8.0
+
+
+def _hint_signature(game: GameState, player) -> tuple:
+    return (len(game.moves), tuple(sorted(t.letter for t in player.rack)))
+
+
+@app.post("/game/hint/{game_id}", tags=["Jeu"])
+async def get_hint(game_id: str, player_id: int, user: User = Depends(get_current_user),
+                   db: AsyncSession = Depends(get_db)):
+    from app.economy import service as economy
+    from app.economy.models import CreditTransaction
+
+    engine = _engine()
+    game = await _load_game(engine, game_id)
+    if getattr(game.status, "value", game.status) == "FINISHED":
+        raise HTTPException(status_code=400, detail="La partie est terminée.")
+    _check_turn(game, player_id)
+    player = game.players[game.current_player_index]
+    if player.is_ai:
+        raise HTTPException(status_code=400, detail="Ce n'est pas le tour du joueur.")
+
+    rules = await economy.get_rules(db)
+    if not rules.enabled:
+        raise HTTPException(status_code=403, detail="Les indices sont désactivés pour le moment.")
+
+    used = int((await db.execute(select(func.count(CreditTransaction.id)).where(
+        CreditTransaction.user_id == user.id, CreditTransaction.kind == "hint",
+        CreditTransaction.ref.like(f"{game_id}#%"),
+    ))).scalar_one() or 0)
+    left = lambda n: None if not rules.hints_per_game else max(rules.hints_per_game - n, 0)   # noqa: E731
+
+    signature = _hint_signature(game, player)
+    cached = _HINTS.get(game_id)
+    if cached and cached[0] == signature:
+        return {"hint": cached[1], "charged": 0, "repeat": True, "credits": user.credits or 0,
+                "hints_used": used, "hints_left": left(used)}
+
+    if rules.hints_per_game and used >= rules.hints_per_game:
+        raise HTTPException(status_code=429, detail="Plus d'indice disponible pour cette partie.")
+    if (user.credits or 0) < rules.hint_price:
+        raise HTTPException(status_code=402, detail=f"Solde insuffisant : {user.credits or 0} crédits, "
+                                                    f"{rules.hint_price} nécessaires.")
+    try:
+        hint = await asyncio.wait_for(asyncio.to_thread(engine.suggest_move, game_id, player_id), HINT_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="L'indice prend trop de temps. Réessayez.")
+    if hint is None:
+        # Aucun mot possible : rien à payer
+        return {"hint": None, "charged": 0, "repeat": False, "credits": user.credits or 0,
+                "hints_used": used, "hints_left": left(used)}
+    try:
+        await economy.apply(db, user, -rules.hint_price, "hint", ref=f"{game_id}#{used + 1}",
+                            note=f"{hint['word']} ({hint['score']} pts)", record_zero=True)
+    except economy.InsufficientCredits as exc:
+        raise HTTPException(status_code=402, detail=str(exc))
+    _HINTS[game_id] = (signature, hint)
+    _HINTS.move_to_end(game_id)
+    while len(_HINTS) > _HINTS_MAX:
+        _HINTS.popitem(last=False)
+    return {"hint": hint, "charged": rules.hint_price, "repeat": False, "credits": user.credits or 0,
+            "hints_used": used + 1, "hints_left": left(used + 1)}
 
 
 # ── /game/validate ────────────────────────────────────────────────

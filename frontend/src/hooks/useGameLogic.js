@@ -306,6 +306,32 @@ export function useGameLogic({
     setPlacements(prev => prev.filter(pl => !(pl.r === r && pl.c === c)));
   }, []);
 
+  /**
+   * Indice (lot A3) : pose sur le plateau le coup suggéré, comme si le joueur
+   * l'avait fait (il peut encore le modifier ou le reprendre avant de valider).
+   * hintPlacements : [[r, c, lettre], …] — lettre minuscule = joker.
+   * Retourne false si le chevalet ne permet pas de le reproduire (rack changé).
+   */
+  const applySuggestion = useCallback((hintPlacements) => {
+    const used = new Set();
+    const next = [];
+    for (const [r, c, letter] of hintPlacements) {
+      const isJoker = letter === letter.toLowerCase();
+      const rackIndex = rackTilesForDisplay.findIndex((tile, i) =>
+        !used.has(i) && (isJoker ? tile.letter === '*' : tile.letter === letter));
+      if (rackIndex === -1) return false;
+      used.add(rackIndex);
+      const tile = rackTilesForDisplay[rackIndex];
+      next.push(isJoker
+        ? { letter: letter.toLowerCase(), r, c, originalTile: tile }
+        : { letter, r, c, originalTile: tile, rackIndex });
+    }
+    setSelectedTilesToSwap([]);
+    setPendingJoker(null);
+    setPlacements(next);
+    return true;
+  }, [rackTilesForDisplay]);
+
   /** Reprendre toutes les tuiles posées ce tour-ci. */
   const handleClearPlacements = useCallback(() => setPlacements([]), []);
 
@@ -497,6 +523,7 @@ export function useGameLogic({
     handleMoveTile,
     handleReturnTile,
     handleClearPlacements,
+    applySuggestion,
     handleValidateWord,
     handlePassTurn,
     handleShuffleRack,
