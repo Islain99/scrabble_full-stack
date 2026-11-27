@@ -26,6 +26,7 @@ DEFAULT_PREFERENCES: dict = {
     "pushInvites":        True,
     "pushFriends":        True,
     "pushMessages":       True,
+    "pushNews":           True,      # lot A4 : annonces de l'administrateur
     "pushTurn":           True,
     # Apparence : None = jamais choisi (le client garde son choix local et l'envoie)
     "themeMode":          None,   # light | dark | system

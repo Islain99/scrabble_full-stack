@@ -20,6 +20,7 @@ const SETTING_LABELS = {
   pushFriends:        'push_cat_friends',
   pushMessages:       'push_cat_messages',
   pushTurn:           'push_cat_turn',
+  pushNews:           'push_cat_news',
 };
 
 const TURN_LABELS = { 0: 'turn_unlimited', 60: 'turn_1min', 120: 'turn_2min', 180: 'turn_3min', 300: 'turn_5min' };

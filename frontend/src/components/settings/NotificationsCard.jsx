@@ -19,6 +19,7 @@ const CATEGORIES = [
   { key: 'pushFriends',  label: 'push_cat_friends',  desc: 'push_cat_friends_desc'  },
   { key: 'pushMessages', label: 'push_cat_messages', desc: 'push_cat_messages_desc' },
   { key: 'pushTurn',     label: 'push_cat_turn',     desc: 'push_cat_turn_desc'     },
+  { key: 'pushNews',     label: 'push_cat_news',     desc: 'push_cat_news_desc'     },   // lot A4
 ];
 
 export default function NotificationsCard({ settings, update }) {

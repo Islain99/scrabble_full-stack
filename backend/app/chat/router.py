@@ -39,7 +39,9 @@ from app.admin.deps import log_action
 from app.auth.dependencies import get_current_user
 from app.chat import realtime
 from app.chat.models import Conversation, ConversationKind, ConversationMember, Message, MessageReport
-from app.chat.moderation import clean_body, contains_link, mask_profanity
+from app.chat.moderation import banned_set, clean_body, contains_banned, contains_link, mask_profanity
+from app.chat.settings import CHAT_KEY, ChatRules, get_chat_rules
+from app.appconfig import service as config_service
 from app.db.database import get_db
 from app.db.models import User
 from app.friends.models import UserBlock
@@ -107,6 +109,7 @@ class MessageOut(BaseModel):
     body:            str
     deleted:         bool = False
     created_at:      int                  # ms depuis l'époque (comme le temps réel)
+    author_tier_id:  Optional[int] = None  # lot A4 : badge d'abonnement de l'auteur (None = défaut)
 
 
 class MessagesPage(BaseModel):
@@ -265,13 +268,33 @@ async def _sync_members(db: AsyncSession, conv: Conversation) -> None:
     await asyncio.to_thread(realtime.set_members, realtime.rtdb_key(conv), uids)
 
 
-def _message_out(msg: Message, author_name: str) -> MessageOut:
+def _message_out(msg: Message, author_name: str, author_tier_id: Optional[int] = None) -> MessageOut:
     deleted = msg.deleted_at is not None
     return MessageOut(
         id=msg.id, conversation_id=msg.conversation_id, author_id=msg.author_id,
         author_name=author_name, body="" if deleted else msg.body, deleted=deleted,
-        created_at=_ms(msg.created_at) or 0,
+        created_at=_ms(msg.created_at) or 0, author_tier_id=author_tier_id,
     )
+
+
+async def _chat_rules(db: AsyncSession) -> ChatRules:
+    """
+    Règles de la messagerie (lot A4). Sans réglage de l'admin : les constantes de
+    ce module (comportement du lot 6).
+    """
+    if await config_service.get_row(db, CHAT_KEY) is None:
+        return ChatRules(max_length=MAX_BODY, min_interval_s=int(MIN_INTERVAL.total_seconds()),
+                         max_per_minute=MAX_PER_MINUTE,
+                         link_min_age_hours=max(1, int(LINK_MIN_AGE.total_seconds() // 3600)))
+    return await get_chat_rules(db)
+
+
+def _tier(tier_id: Optional[int], expires: Optional[datetime]) -> Optional[int]:
+    """Niveau d'abonnement en vigueur (lot A3) à partir des colonnes brutes."""
+    if tier_id is None:
+        return None
+    expires = _as_utc(expires)
+    return tier_id if expires is None or expires > _utcnow() else None
 
 
 async def _last_message(db: AsyncSession, conv_id: int) -> Optional[tuple[Message, str]]:
@@ -434,6 +457,21 @@ async def _blocked_by_me(db: AsyncSession, me: int) -> set[int]:
 
 
 # ── Conversations ─────────────────────────────────────────────────
+
+class ChatSettingsOut(BaseModel):
+    global_enabled: bool
+    rules_fr: str
+    rules_en: str
+    max_length: int
+    links: str
+
+
+@router.get("/settings", response_model=ChatSettingsOut, summary="Règles de la messagerie (lot A4)")
+async def chat_settings(_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    r = await _chat_rules(db)
+    return ChatSettingsOut(global_enabled=r.global_enabled, rules_fr=r.rules_fr, rules_en=r.rules_en,
+                           max_length=r.max_length, links=r.links)
+
 
 @router.get("/conversations", response_model=list[ConversationOut], summary="Mes conversations")
 async def list_conversations(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -599,7 +637,8 @@ async def list_messages(
     conv = await _conversation(db, conversation_id)
     await _readable(db, conv, current_user)
     hidden = await _blocked_by_me(db, current_user.id)
-    query = (select(Message, User.display_name).outerjoin(User, User.id == Message.author_id)
+    query = (select(Message, User.display_name, User.tier_id, User.tier_expires_at)
+             .outerjoin(User, User.id == Message.author_id)
              .where(Message.conversation_id == conv.id))
     if before is not None:
         query = query.where(Message.id < before)
@@ -609,13 +648,18 @@ async def list_messages(
     has_more = len(rows) > limit
     rows = rows[:limit]
     return MessagesPage(
-        messages=[_message_out(m, name or "?") for m, name in reversed(rows)],
+        messages=[_message_out(m, name or "?", _tier(tier, exp)) for m, name, tier, exp in reversed(rows)],
         has_more=has_more,
     )
 
 
-async def _check_can_send(db: AsyncSession, conv: Conversation, user: User, body: str) -> None:
+async def _check_can_send(db: AsyncSession, conv: Conversation, user: User, body: str, rules=None) -> None:
     now = _utcnow()
+    rules = rules or await _chat_rules(db)
+    is_admin = bool(getattr(user, "is_admin", False))
+    # Lot A4 : salon universel en lecture seule (les administrateurs écrivent encore)
+    if conv.kind == ConversationKind.GLOBAL and not rules.global_enabled and not is_admin:
+        raise HTTPException(status_code=403, detail="Le salon universel est en lecture seule pour le moment.")
     # Relu en base : la sourdine a pu être posée depuis le chargement du joueur
     muted_until = _as_utc((await db.execute(select(User.chat_muted_until).where(User.id == user.id))).scalar_one_or_none())
     if muted_until and muted_until > now:
@@ -631,14 +675,14 @@ async def _check_can_send(db: AsyncSession, conv: Conversation, user: User, body
     elif member is None and conv.kind != ConversationKind.GLOBAL:
         raise HTTPException(status_code=404, detail="Conversation introuvable.")
 
-    # Cadence : 2 s entre deux messages, 20 par minute, mode lent du salon universel
+    # Cadence (réglable, lot A4) : délai entre deux messages, nombre par minute, mode lent du salon universel
     last_at = (await db.execute(select(func.max(Message.created_at)).where(Message.author_id == user.id))).scalar_one()
     last_at = _as_utc(last_at)
-    if last_at and now - last_at < MIN_INTERVAL:
-        raise HTTPException(status_code=429, detail="Doucement : un message toutes les 2 secondes.")
+    if rules.min_interval_s and last_at and now - last_at < timedelta(seconds=rules.min_interval_s):
+        raise HTTPException(status_code=429, detail=f"Doucement : un message toutes les {rules.min_interval_s} secondes.")
     per_minute = (await db.execute(select(func.count()).select_from(Message).where(
         Message.author_id == user.id, Message.created_at >= now - timedelta(minutes=1)))).scalar_one()
-    if per_minute >= MAX_PER_MINUTE:
+    if per_minute >= rules.max_per_minute:
         raise HTTPException(status_code=429, detail="Trop de messages en une minute. Patientez un peu.")
     if conv.kind == ConversationKind.GLOBAL and conv.slow_mode_s:
         last_here = _as_utc((await db.execute(select(func.max(Message.created_at)).where(
@@ -647,23 +691,33 @@ async def _check_can_send(db: AsyncSession, conv: Conversation, user: User, body
             wait = int(conv.slow_mode_s - (now - last_here).total_seconds()) + 1
             raise HTTPException(status_code=429, detail=f"Mode lent : encore {wait} s avant votre prochain message.")
 
-    created = _as_utc(getattr(user, "created_at", None))
-    if contains_link(body) and created and now - created < LINK_MIN_AGE:
-        raise HTTPException(status_code=422, detail="Les liens sont réservés aux comptes de plus de 24 h.")
+    # Liens (lot A4) : tous permis, refusés aux comptes récents, ou refusés (sauf admins)
+    if contains_link(body) and not is_admin and rules.links != "all":
+        if rules.links == "none":
+            raise HTTPException(status_code=422, detail="Les liens ne sont pas permis dans la messagerie.")
+        created = _as_utc(getattr(user, "created_at", None))
+        if created and now - created < timedelta(hours=rules.link_min_age_hours):
+            raise HTTPException(status_code=422,
+                                detail=f"Les liens sont réservés aux comptes de plus de {rules.link_min_age_hours} h.")
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageOut,
              status_code=status.HTTP_201_CREATED, summary="Envoyer un message")
 async def send_message(conversation_id: int, payload: BodyIn, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     conv = await _conversation(db, conversation_id)
+    rules = await _chat_rules(db)
     body = clean_body(payload.body)
     if not body:
         raise HTTPException(status_code=422, detail="Message vide.")
-    if len(body) > MAX_BODY:
-        raise HTTPException(status_code=422, detail=f"{MAX_BODY} caractères au plus.")
-    await _check_can_send(db, conv, current_user, body)
+    if len(body) > rules.max_length:
+        raise HTTPException(status_code=422, detail=f"{rules.max_length} caractères au plus.")
+    await _check_can_send(db, conv, current_user, body, rules)
 
-    msg = Message(conversation_id=conv.id, author_id=current_user.id, body=mask_profanity(body), created_at=_utcnow())
+    # Filtre de mots (lot A4) : liste d'origine et ajouts de l'admin, masqués ou refusés
+    words = banned_set(rules.builtin_words, rules.extra_words)
+    if rules.filter_mode == "block" and contains_banned(body, words):
+        raise HTTPException(status_code=422, detail="Votre message contient un mot interdit dans la messagerie.")
+    msg = Message(conversation_id=conv.id, author_id=current_user.id, body=mask_profanity(body, words), created_at=_utcnow())
     db.add(msg)
     conv.last_message_at = msg.created_at
     await db.flush()
@@ -673,7 +727,7 @@ async def send_message(conversation_id: int, payload: BodyIn, current_user: User
         member.last_read_id = msg.id
         await db.flush()
 
-    out = _message_out(msg, current_user.display_name)
+    out = _message_out(msg, current_user.display_name, current_user.effective_tier_id())
     drop_id = (await db.execute(
         select(Message.id).where(Message.conversation_id == conv.id)
         .order_by(Message.id.desc()).offset(realtime.LIVE_MESSAGES).limit(1)

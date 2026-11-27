@@ -13,6 +13,8 @@ function detailText(action, t) {
   if (typeof d.amount === 'number') parts.push(`${d.amount > 0 ? '+' : ''}${d.amount} → ${d.balance_after}`);
   if (action.action === 'user.tier') parts.push(d.tier ? (d.expires_at ? `${d.tier} → ${d.expires_at.slice(0, 10)}` : d.tier) : t('adm_detail_default_tier'));
   if (action.action.startsWith('tier.') && d.slug) parts.push(d.slug);
+  if (action.action.startsWith('announcement.') && d.title) parts.push(`« ${d.title} »`);
+  if (d.notified) parts.push(t('adm_ann_notified', { count: d.notified }));
   if (d.kept_unlocks) parts.push(t('adm_cr_kept', { count: d.kept_unlocks }));
   if (d.seconds != null && action.action === 'chat.slow_mode') parts.push(t('adm_detail_seconds', { count: d.seconds }));
   if (d.reason) parts.push(`« ${d.reason} »`);

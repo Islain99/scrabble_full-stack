@@ -42,6 +42,7 @@ const DEFAULTS = {
   pushFriends:        true,
   pushMessages:       true,
   pushTurn:           true,
+  pushNews:           true,     // lot A4 : annonces de l'administrateur
 };
 
 const TURN_OPTIONS = [

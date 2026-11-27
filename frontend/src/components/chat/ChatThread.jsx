@@ -2,7 +2,8 @@
 //
 // Fil d'une conversation (lot 6) : page Messages et tiroir de chat en partie.
 //   - historique par pages (REST), puis messages en direct (/chat/{clé}/messages) ;
-//   - envoi (500 caractères, Entrée pour envoyer, Maj+Entrée pour aller à la ligne) ;
+//   - envoi (500 caractères ou la limite de l'admin, Entrée pour envoyer, Maj+Entrée à la ligne) ;
+//   - lot A4 : règles du salon universel, lecture seule, badge d'abonnement des auteurs ;
 //   - signaler, supprimer (auteur ou administrateur), rendre muet (administrateur) ;
 //   - messages des joueurs bloqués masqués.
 // Le parent le monte avec key={conversation.id} : chaque conversation repart d'un état neuf.
@@ -14,8 +15,9 @@ import { getRtdb } from '../../firebase';
 import * as chat from '../../api/chatService';
 import { getMyBlocks } from '../../api/friendsService';
 import { RetroButton, Spinner } from '../ui';
+import TierBadge from '../TierBadge';
 
-const MAX_BODY = 500;
+const MAX_BODY = 500;            // plafond technique ; l'admin peut le baisser (lot A4)
 const errorOf = (err, t) => err?.response?.data?.detail || t('fr_error');
 
 function MessageMenu({ msg, mine, isAdmin, onClose, onDone }) {
@@ -83,6 +85,17 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
   const nearBottom = useRef(true);
   const isGlobal = conversation.kind === 'global';
   const isAdmin = !!user?.is_admin;
+
+  // Lot A4 : règles de la messagerie fixées par l'administrateur
+  const [chatSettings, setChatSettings] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    chat.getChatSettings().then(s => { if (!cancelled) setChatSettings(s); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const maxBody = Math.min(MAX_BODY, chatSettings?.max_length ?? MAX_BODY);
+  const roomRules = isGlobal ? (language === 'en' ? chatSettings?.rules_en : chatSettings?.rules_fr) : '';
+  const readOnly = isGlobal && chatSettings?.global_enabled === false && !isAdmin;
 
   const merge = useCallback((list) => setById(prev => {
     const next = { ...prev };
@@ -205,6 +218,13 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
         </div>
       )}
 
+      {roomRules && (
+        <details className="ch-rules">
+          <summary>{t('msg_room_rules')}</summary>
+          <p>{roomRules}</p>
+        </details>
+      )}
+
       <div className="ch-list" ref={listRef} onScroll={onScroll} onClick={() => setMenuFor(null)} data-testid="chat-list">
         {loading ? <div className="ch-center"><Spinner size="sm" /></div> : (
           <>
@@ -223,7 +243,9 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
                 <React.Fragment key={m.id}>
                   {newDay && <div className="ch-day">{day(m.created_at)}</div>}
                   <div className={`ch-msg${mine ? ' ch-msg--mine' : ''}${grouped ? ' ch-msg--grouped' : ''}`} data-testid="chat-msg">
-                    {!grouped && !mine && <span className="ch-author">{m.author_name}</span>}
+                    {!grouped && !mine && (
+                      <span className="ch-author">{m.author_name} <TierBadge tierId={m.author_tier_id ?? null} /></span>
+                    )}
                     <div className="ch-bubble-row">
                       <div className={`ch-bubble${m.deleted ? ' ch-bubble--deleted' : ''}`}>
                         {m.deleted ? t('msg_deleted') : m.body}
@@ -245,6 +267,9 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
         )}
       </div>
 
+      {readOnly ? (
+        <div className="ch-compose ch-readonly" role="status">{t('msg_read_only')}</div>
+      ) : (
       <div className="ch-compose">
         {error && <p className="rr-blocked" role="alert">{error}</p>}
         <div className="ch-compose-row">
@@ -252,7 +277,7 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
             className="rr-input ch-input"
             rows={compact ? 1 : 2}
             value={draft}
-            maxLength={MAX_BODY}
+            maxLength={maxBody}
             placeholder={t('msg_placeholder')}
             aria-label={t('msg_placeholder')}
             onChange={e => setDraft(e.target.value)}
@@ -264,9 +289,10 @@ export default function ChatThread({ conversation, compact = false, headerExtra 
         </div>
         <div className="ch-compose-meta">
           <span>{isGlobal ? t('msg_global_rules') : t('msg_privacy')}</span>
-          <span className={draft.length > MAX_BODY - 50 ? 'ch-count ch-count--warn' : 'ch-count'}>{draft.length}/{MAX_BODY}</span>
+          <span className={draft.length > maxBody - 50 ? 'ch-count ch-count--warn' : 'ch-count'}>{draft.length}/{maxBody}</span>
         </div>
       </div>
+      )}
     </div>
   );
 }

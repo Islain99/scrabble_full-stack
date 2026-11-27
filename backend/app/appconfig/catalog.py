@@ -50,6 +50,7 @@ CATALOG: dict[str, tuple[str, str, Optional[list], Any, bool]] = {
     "pushFriends":        ("notifications", "bool", None, True, True),
     "pushMessages":       ("notifications", "bool", None, True, True),
     "pushTurn":           ("notifications", "bool", None, True, True),
+    "pushNews":           ("notifications", "bool", None, True, True),   # lot A4 : annonces
     # Confidentialité (colonnes users.privacy_*)
     "privacy.profile":     ("privacy", "choice", ["everyone", "friends", "nobody"], "everyone", True),
     "privacy.stats":       ("privacy", "choice", ["everyone", "friends", "nobody"], "everyone", True),

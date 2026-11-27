@@ -55,3 +55,15 @@ async def public_privacy_policy(response: Response):
         return PublicPrivacyPolicy(custom=False)
     doc = {k: v for k, v in row.value.items() if k != "note"}
     return PublicPrivacyPolicy(custom=True, document=doc, updated_at=row.updated_at)
+
+
+# ── Lot A4 : champs du profil (formulaire « Mon profil ») ──────────
+
+@router.get("/profile", summary="Champs du profil exigés, facultatifs ou non demandés")
+async def public_profile_rules(response: Response):
+    from app.appconfig.profile import builtin_profile_rules, get_profile_rules
+    response.headers["Cache-Control"] = CACHE_HEADER
+    if database.AsyncSessionLocal is None:
+        return builtin_profile_rules().model_dump()
+    async with database.AsyncSessionLocal() as session:
+        return (await get_profile_rules(session)).model_dump()

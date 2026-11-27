@@ -35,6 +35,7 @@ from app.users.privacy import router as privacy_router
 from app.admin.router import router as admin_router
 from app.appconfig.router import router as config_router
 from app.economy.router import router as economy_router
+from app.announcements.router import router as announcements_router
 
 # NB : les migrations Alembic sont lancées par la commande de démarrage
 # (railway.json : `alembic upgrade head && uvicorn ...`), jamais à l'import.
@@ -96,6 +97,7 @@ async def lifespan(application: FastAPI):
                     from app.admin import models as _admin_models  # noqa — journal des administrateurs
                     from app.appconfig import models as _config_models  # noqa — configuration globale (lot A2)
                     from app.economy import models as _economy_models  # noqa — abonnements et crédits (lot A3)
+                    from app.announcements import models as _ann_models  # noqa — publications (lot A4)
                     await conn.run_sync(Base.metadata.create_all)
                 logger.info("Tables DB créées / vérifiées (mode dev).")
             else:
@@ -194,6 +196,7 @@ app.include_router(privacy_router,       prefix="/api/v2")
 app.include_router(admin_router,         prefix="/api/v2")
 app.include_router(config_router,        prefix="/api/v2")
 app.include_router(economy_router,       prefix="/api/v2")
+app.include_router(announcements_router, prefix="/api/v2")
 # ── Routes système ────────────────────────────────────────────────
 
 @app.get("/health", tags=["Système"])
